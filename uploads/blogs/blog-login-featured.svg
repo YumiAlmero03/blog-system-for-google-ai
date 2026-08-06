@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg-grad-login" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e050b"/>
+      <stop offset="50%" stop-color="#3b0814"/>
+      <stop offset="100%" stop-color="#120206"/>
+    </linearGradient>
+    <linearGradient id="gold-accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFE082"/>
+      <stop offset="50%" stop-color="#FFC107"/>
+      <stop offset="100%" stop-color="#FF8F00"/>
+    </linearGradient>
+    <linearGradient id="shield-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#e52d27"/>
+      <stop offset="100%" stop-color="#870007"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="10" stdDeviation="15" flood-color="#000" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+
+  <!-- Background Canvas -->
+  <rect width="800" height="450" fill="url(#bg-grad-login)"/>
+  
+  <!-- Decorative Grid & Tech Circles -->
+  <circle cx="650" cy="225" r="180" fill="none" stroke="#ffc107" stroke-opacity="0.08" stroke-width="2"/>
+  <circle cx="650" cy="225" r="120" fill="none" stroke="#ffc107" stroke-opacity="0.12" stroke-width="1.5" stroke-dasharray="8 6"/>
+  <circle cx="150" cy="100" r="220" fill="none" stroke="#e52d27" stroke-opacity="0.08" stroke-width="2"/>
+
+  <!-- Left Side Text & Badges -->
+  <g transform="translate(60, 130)">
+    <!-- Category Tag -->
+    <rect x="0" y="0" width="180" height="34" rx="17" fill="#e52d27"/>
+    <text x="90" y="22" fill="#FFFFFF" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="800" font-size="13" text-anchor="middle" letter-spacing="1">TROUBLESHOOTING</text>
+    
+    <!-- Title Lines -->
+    <text x="0" y="80" fill="#FFFFFF" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="34">Gperya Login &amp; OTP</text>
+    <text x="0" y="122" fill="url(#gold-accent)" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="34">Account Access Guide</text>
+    
+    <!-- Subtitle -->
+    <text x="0" y="165" fill="#CBD5E1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="16">Fix password errors, SMS delays &amp; domain security checks</text>
+  </g>
+
+  <!-- Right Side Visual Illustration: Phone + Lock Shield -->
+  <g transform="translate(520, 90)" filter="url(#shadow)">
+    <!-- Smartphone Frame -->
+    <rect x="0" y="0" width="200" height="280" rx="28" fill="#18181b" stroke="url(#gold-accent)" stroke-width="4"/>
+    <rect x="10" y="15" width="180" height="250" rx="18" fill="#09090b"/>
+    
+    <!-- Screen Header -->
+    <rect x="60" y="25" width="80" height="6" rx="3" fill="#27272a"/>
+    <circle cx="100" cy="50" r="18" fill="url(#gold-accent)" opacity="0.2"/>
+    <circle cx="100" cy="50" r="10" fill="url(#gold-accent)"/>
+    
+    <!-- OTP Input Boxes -->
+    <g transform="translate(25, 95)">
+      <rect x="0" y="0" width="30" height="36" rx="6" fill="#27272a" stroke="#ffc107" stroke-width="1.5"/>
+      <rect x="36" y="0" width="30" height="36" rx="6" fill="#27272a" stroke="#ffc107" stroke-width="1.5"/>
+      <rect x="72" y="0" width="30" height="36" rx="6" fill="#27272a" stroke="#ffc107" stroke-width="1.5"/>
+      <rect x="108" y="0" width="30" height="36" rx="6" fill="#27272a" stroke="#4b5563" stroke-width="1"/>
+      <text x="15" y="24" fill="#FFC107" font-family="monospace" font-weight="bold" font-size="18" text-anchor="middle">8</text>
+      <text x="51" y="24" fill="#FFC107" font-family="monospace" font-weight="bold" font-size="18" text-anchor="middle">5</text>
+      <text x="87" y="24" fill="#FFC107" font-family="monospace" font-weight="bold" font-size="18" text-anchor="middle">2</text>
+    </g>
+
+    <!-- Login Button -->
+    <rect x="25" y="150" width="150" height="34" rx="8" fill="url(#shield-grad)"/>
+    <text x="100" y="172" fill="#FFFFFF" font-family="sans-serif" font-weight="bold" font-size="12" text-anchor="middle">VERIFY &amp; LOGIN</text>
+
+    <!-- Glowing Padlock Shield Floating Badge -->
+    <g transform="translate(-30, 160)">
+      <circle cx="35" cy="35" r="35" fill="url(#gold-accent)" opacity="0.2"/>
+      <circle cx="35" cy="35" r="28" fill="url(#shield-grad)" stroke="url(#gold-accent)" stroke-width="2"/>
+      <!-- Keyhole Icon -->
+      <path d="M35,20 C29.5,20 25,24.5 25,30 L25,36 L21,36 C19.9,36 19,36.9 19,38 L19,48 C19,49.1 19.9,50 21,50 L49,50 C50.1,50 51,49.1 51,48 L51,38 C51,36.9 50.1,36 49,36 L45,36 L45,30 C45,24.5 40.5,20 35,20 Z M35,24 C38.3,24 41,26.7 41,30 L41,36 L29,36 L29,30 C29,26.7 31.7,24 35,24 Z" fill="#FFFFFF"/>
+    </g>
+  </g>
+
+  <!-- Bottom Brand Ribbon -->
+  <rect x="0" y="410" width="800" height="40" fill="#0d0104"/>
+  <text x="60" y="435" fill="#94A3B8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600">GperyaPH Official Technical Article • 2026 Guide</text>
+</svg>
