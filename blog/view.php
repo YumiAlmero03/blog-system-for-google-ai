@@ -19,9 +19,15 @@ function blog_h(mixed $value): string
 
 function blog_render_inline_markdown(string $text): string
 {
-    $text = preg_replace('/\[!\[([^\]]*)\]\((\/uploads\/blogs\/[A-Za-z0-9._\/-]+)\)\]\((https?:\/\/[^)\s]+|\/[^)\s]*)\)/', '<a href="$3" target="_blank" rel="noopener noreferrer"><img src="$2" alt="$1" width="1200" height="675" loading="lazy" decoding="async"></a>', $text) ?? $text;
+    $text = preg_replace_callback('/\[!\[([^\]]*)\]\((\/uploads\/blogs\/[A-Za-z0-9._\/-]+)\)\]\((https?:\/\/[^)\s]+|\/[^)\s]*)\)(\{nofollow\})?/', static function (array $matches): string {
+        $rel = 'noopener noreferrer' . (!empty($matches[4]) ? ' nofollow' : '');
+        return '<a href="' . $matches[3] . '" target="_blank" rel="' . $rel . '"><img src="' . $matches[2] . '" alt="' . $matches[1] . '" width="1200" height="675" loading="lazy" decoding="async"></a>';
+    }, $text) ?? $text;
     $text = preg_replace('/!\[([^\]]*)\]\((\/uploads\/blogs\/[A-Za-z0-9._\/-]+)\)/', '<img src="$2" alt="$1" width="1200" height="675" loading="lazy" decoding="async">', $text) ?? $text;
-    $text = preg_replace('/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/', '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>', $text) ?? $text;
+    $text = preg_replace_callback('/\[([^\]]+)\]\((https?:\/\/[^)\s]+|\/[^)\s]*)\)(\{nofollow\})?/', static function (array $matches): string {
+        $rel = 'noopener noreferrer' . (!empty($matches[3]) ? ' nofollow' : '');
+        return '<a href="' . $matches[2] . '" target="_blank" rel="' . $rel . '">' . $matches[1] . '</a>';
+    }, $text) ?? $text;
     $text = preg_replace('/\*\*([^*]+)\*\*/', '<strong>$1</strong>', $text) ?? $text;
     $text = preg_replace('/\*([^*]+)\*/', '<em>$1</em>', $text) ?? $text;
     $text = preg_replace('/`([^`]+)`/', '<code>$1</code>', $text) ?? $text;
@@ -114,7 +120,7 @@ function blog_render_markdown(string $markdown): string
             foreach ($faqItems as $item) {
                 $faqHtml[] = '<article class="blog-faq-item"><h3>' . blog_render_inline_markdown(blog_h($item['question'])) . '</h3><p>' . blog_render_inline_markdown(blog_h($item['answer'])) . '</p></article>';
             }
-            $html[] = '<section class="blog-faq-block"><span class="blog-faq-label">FAQ</span>' . implode('', $faqHtml) . '</section>';
+            $html[] = '<section class="blog-faq-block">' . implode('', $faqHtml) . '</section>';
             continue;
         }
 
@@ -504,7 +510,7 @@ if ($faqEntities !== []) {
       <article class="section-padding">
         <div style="max-width: 860px; margin: 0 auto;">
           <div style="border-radius: var(--radius-md); overflow: hidden; margin-bottom: 20px; border: 1px solid var(--border); background: var(--surface-soft);">
-            <img src="<?= blog_h($image) ?>" alt="<?= blog_h($displayTitle) ?>" width="1200" height="675" fetchpriority="high" decoding="async" style="width: 100%; height: auto; max-height: 420px; object-fit: cover; display: block;">
+            <img src="<?= blog_h($image) ?>" alt="<?= blog_h($displayTitle) ?>" width="800" height="500" fetchpriority="high" decoding="async" style="width: 100%; height: auto; object-fit: cover; display: block;">
           </div>
 
           <div class="card" style="margin-bottom: 20px;">

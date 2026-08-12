@@ -19,6 +19,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+function getPlaynowRel() {
+  return window.location.pathname.replace(/\/+$/, '').startsWith('/blog')
+    ? 'noopener'
+    : 'sponsored nofollow noopener';
+}
+
 function runWhenIdle(callback) {
   if ('requestIdleCallback' in window) {
     window.requestIdleCallback(callback, { timeout: 2500 });
@@ -260,7 +266,7 @@ function initJoinNowPopupModal() {
       <div class="modal-content-card">
         <button class="modal-close-x" id="modal-close-trigger" aria-label="Close Popup">&times;</button>
         <div class="slot-popup-banner">
-          <a href="https://gperya-apk.com/playnow" rel="sponsored nofollow noopener">
+          <a href="https://gperya-apk.com/playnow" rel="${getPlaynowRel()}">
           <img src="/assets/images/promos/gperya join now.webp" alt="gperya join now" width="800" height="360" loading="eager">
           </a>
         </div>
@@ -270,7 +276,7 @@ function initJoinNowPopupModal() {
             Play legendary slots including Starlight Princess, Fa Chai Fortune, and Gates of Olympus with 100% Welcome Bonus!
           </p>
           <div style="display: flex; justify-content: center; gap: 12px; margin-top: 12px; flex-wrap: wrap;">
-            <a href="https://gperya-apk.com/playnow" class="btn btn-gold btn-lg" style="font-size: 1.15rem; padding: 14px 32px;" rel="sponsored nofollow noopener">
+            <a href="https://gperya-apk.com/playnow" class="btn btn-gold btn-lg" style="font-size: 1.15rem; padding: 14px 32px;" rel="${getPlaynowRel()}">
               🔥 JOIN NOW & PLAY
             </a>
           </div>
@@ -344,7 +350,7 @@ function initBottomLeftFloatingCTA() {
     floatWidget.id = 'floating-cta-widget';
     floatWidget.className = 'floating-bottom-left-cta';
     floatWidget.innerHTML = `
-      <a href="https://gperya-apk.com/playnow" style="display:flex; align-items:center; gap:10px; text-decoration:none;" rel="sponsored nofollow noopener" target="_blank">
+      <a href="https://gperya-apk.com/playnow" style="display:flex; align-items:center; gap:10px; text-decoration:none;" rel="${getPlaynowRel()}" target="_blank">
         <div class="roulette-spin-container">
           <img src="/assets/images/roulette-wheel.svg" alt="Moving Casino Roulette Wheel" class="roulette-spin-img" width="54" height="54">
         </div>
@@ -421,7 +427,7 @@ function initSpinWheelWidget() {
             <h3 style="font-size:1.4rem; font-weight:900; color:#f3c64c; margin-bottom:6px;">CONGRATULATIONS!</h3>
             <p style="font-size:1.1rem; font-weight:700; color:#ffffff; margin-bottom:14px;">You Won: <span id="win-prize-name" style="color:#f3c64c;"></span></p>
             <p style="font-size:0.85rem; color:#8cb89f; margin-bottom:20px;">Claim your reward instantly on official Gperya portal!</p>
-            <a href="https://gperya-apk.com/playnow" class="jackpot-btn-play" style="width:100%;" rel="sponsored nofollow noopener" target="_blank">🔥 CLAIM PRIZE NOW</a>
+            <a href="https://gperya-apk.com/playnow" class="jackpot-btn-play" style="width:100%;" rel="${getPlaynowRel()}" target="_blank">🔥 CLAIM PRIZE NOW</a>
           </div>
         `;
         document.body.appendChild(winModal);
@@ -534,7 +540,7 @@ function enhanceAffiliateLinks() {
 
   const links = document.querySelectorAll('a[href*="gperya-apk.com"], a[href*="playnow"]');
   links.forEach(link => {
-    link.setAttribute('rel', 'sponsored nofollow noopener');
+    link.setAttribute('rel', getPlaynowRel());
     link.setAttribute('target', '_blank');
   });
 }

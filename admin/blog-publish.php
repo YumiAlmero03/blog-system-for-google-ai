@@ -143,6 +143,126 @@ $websiteTitle = blog_website_title();
       border: 1px solid var(--border);
       border-radius: var(--radius-sm);
     }
+    .editor-tabs-bar {
+      position: relative;
+      z-index: 18;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
+      margin: 34px -12px 0;
+      padding: 10px 12px;
+      background: rgba(118, 0, 0, 0.96);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+      box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
+      backdrop-filter: blur(10px);
+    }
+    .editor-tabs-bar.is-floating {
+      position: fixed;
+      top: 58px;
+      left: var(--editor-tabs-left, 20px);
+      width: var(--editor-tabs-width, calc(100vw - 40px));
+      margin: 0;
+      z-index: 45;
+    }
+    .editor-tabs-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .editor-floating-tools {
+      display: flex;
+      align-items: stretch;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .editor-floating-tools .wysiwyg-toolbar {
+      flex: 1 1 420px;
+      margin: 0;
+    }
+    .editor-floating-tools .editor-block-inserter {
+      flex: 0 1 360px;
+      margin: 0;
+      min-height: 52px;
+    }
+    .editor-tabs-bar .editor-upload-status {
+      min-height: 0;
+      color: rgba(255,255,255,0.78);
+      font-size: 0.8rem;
+    }
+    .editor-tabs-placeholder {
+      display: block;
+      height: 0;
+    }
+    .editor-tabs-placeholder.is-active {
+      height: var(--editor-tabs-height, 56px);
+    }
+    .editor-tabs-actions {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .shortcut-helper-toggle {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: rgba(255,255,255,0.96);
+      color: var(--brand-dark);
+      cursor: pointer;
+      padding: 8px 10px;
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 800;
+    }
+    .shortcut-helper-toggle:hover,
+    .shortcut-helper-toggle[aria-expanded="true"] {
+      background: var(--surface-soft);
+      border-color: var(--brand);
+    }
+    .shortcut-helper {
+      display: none;
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      width: min(320px, calc(100vw - 32px));
+      padding: 12px;
+      background: #fff;
+      border: 1px solid #dcdcde;
+      border-radius: 8px;
+      box-shadow: 0 16px 34px rgba(0,0,0,0.18);
+      color: #1e1e1e;
+      font-size: 0.82rem;
+      line-height: 1.45;
+      z-index: 60;
+    }
+    .shortcut-helper.is-open {
+      display: grid;
+      gap: 8px;
+    }
+    .shortcut-helper-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .shortcut-helper kbd {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      padding: 2px 6px;
+      border: 1px solid #c3c4c7;
+      border-bottom-width: 2px;
+      border-radius: 4px;
+      background: #f6f7f7;
+      color: #1e1e1e;
+      font-family: inherit;
+      font-size: 0.74rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
     .editor-tab {
       border: 0;
       background: transparent;
@@ -222,7 +342,8 @@ $websiteTitle = blog_website_title();
     .link-toolbox .btn-secondary {
       display: none;
     }
-    .link-toolbox input {
+    .link-toolbox input[type="text"],
+    .link-toolbox input[type="url"] {
       min-width: 0;
       height: 82px;
       padding: 0 24px;
@@ -232,10 +353,31 @@ $websiteTitle = blog_website_title();
       font-size: 1.75rem;
       color: #3c434a;
     }
-    .link-toolbox input:focus {
+    .link-toolbox input[type="text"]:focus,
+    .link-toolbox input[type="url"]:focus {
       border-color: #3858e9;
       outline: none;
       box-shadow: none;
+    }
+    .link-follow-option {
+      grid-column: 1 / -1;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #3c434a;
+      font-size: 0.86rem;
+      font-weight: 800;
+      user-select: none;
+    }
+    .link-follow-option input {
+      width: 16px;
+      height: 16px;
+      accent-color: #3858e9;
+    }
+    .link-follow-option small {
+      color: #757575;
+      font-size: 0.78rem;
+      font-weight: 700;
     }
     .link-toolbox .btn-primary {
       width: 44px;
@@ -290,6 +432,27 @@ $websiteTitle = blog_website_title();
       border-radius: 4px;
       font: inherit;
       font-size: 0.9rem;
+    }
+    .image-follow-option {
+      grid-column: 1 / -1;
+      display: inline-flex !important;
+      grid-template-columns: none !important;
+      align-items: center;
+      gap: 8px;
+      width: fit-content;
+      user-select: none;
+    }
+    .image-follow-option input {
+      width: 16px;
+      height: 16px;
+      min-width: 16px;
+      padding: 0;
+      accent-color: #3858e9;
+    }
+    .image-follow-option small {
+      color: #757575;
+      font-size: 0.76rem;
+      font-weight: 700;
     }
     .editor-drop-marker {
       height: 0;
@@ -470,8 +633,28 @@ $websiteTitle = blog_website_title();
       justify-content: flex-end;
       margin-bottom: 8px;
     }
+    .editor-faq-field {
+      display: grid;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .editor-faq-field:first-of-type {
+      margin-top: 0;
+    }
+    .editor-faq-field-label {
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
     .editor-faq-question {
       margin: 0 0 8px;
+      min-height: 28px;
+      padding: 8px 10px;
+      border: 1px solid rgba(166, 47, 61, 0.16);
+      border-radius: 6px;
+      background: #fff;
       color: var(--brand-dark);
       font-size: 1.05rem;
       font-weight: 900;
@@ -479,6 +662,11 @@ $websiteTitle = blog_website_title();
     }
     .editor-faq-answer {
       margin: 0;
+      min-height: 54px;
+      padding: 8px 10px;
+      border: 1px solid rgba(166, 47, 61, 0.16);
+      border-radius: 6px;
+      background: #fff;
       color: var(--text);
       line-height: 1.65;
     }
@@ -790,6 +978,15 @@ $websiteTitle = blog_website_title();
       margin-top: 24px;
       background: rgba(255,255,255,0.96);
     }
+    .wp-canvas .editor-tabs-bar .wysiwyg-toolbar,
+    .wp-canvas .editor-tabs-bar .editor-block-inserter {
+      margin-top: 0;
+      margin-bottom: 0;
+      background: rgba(255,255,255,0.96);
+    }
+    .wp-canvas .editor-tabs-bar .editor-block-inserter {
+      border-style: solid;
+    }
     .wp-canvas .editor-shell {
       margin-top: 10px;
     }
@@ -1058,6 +1255,12 @@ $websiteTitle = blog_website_title();
         justify-content: flex-start;
         flex-wrap: wrap;
       }
+      .editor-tabs-bar {
+        top: 0;
+      }
+      .editor-tabs-bar.is-floating {
+        top: 0;
+      }
     }
     @media (max-width: 760px) {
       .wp-canvas {
@@ -1073,7 +1276,8 @@ $websiteTitle = blog_website_title();
         grid-template-columns: minmax(0, 1fr) 40px;
         padding: 18px;
       }
-      .link-toolbox input {
+      .link-toolbox input[type="text"],
+      .link-toolbox input[type="url"] {
         height: 58px;
         padding: 0 14px;
         font-size: 1rem;
@@ -1087,7 +1291,6 @@ $websiteTitle = blog_website_title();
 </head>
 <body class="wp-admin-clone">
   <div class="page-shell">
-    <?php require __DIR__ . '/partials/admin-header.php'; ?>
 
     <form id="create-blog-form" method="post">
       <input type="hidden" name="csrf_token" id="csrf-token" value="<?= h(csrf_token()) ?>">
@@ -1098,13 +1301,12 @@ $websiteTitle = blog_website_title();
           <a href="/admin/blogs.php" class="wp-icon-button" aria-label="Back to blogs">&#8592;</a>
           <button type="button" class="wp-icon-button" id="editor-undo-btn" aria-label="Undo" title="Undo" disabled>&#8592;</button>
           <button type="button" class="wp-icon-button" id="editor-redo-btn" aria-label="Redo" title="Redo" disabled>&#8594;</button>
-          <a href="/admin/blogs.php" class="wp-design-button">Design Library</a>
         </div>
         <div class="wp-document-title"><span id="form-title-text">No title · Post</span></div>
         <div class="wp-toolbar-right">
           <button type="submit" id="save-draft-btn" class="btn btn-secondary btn-sm" data-save-status="draft">Save as Draft</button>
           <button type="submit" id="publish-blog-btn" class="btn btn-primary" data-save-status="published">Publish</button>
-          <button type="button" id="cancel-edit-btn" class="btn btn-secondary btn-sm" style="display:none;">Cancel</button>
+          <button type="button" id="view-blog-page-btn" class="btn btn-secondary btn-sm" style="display:none;">View Page</button>
         </div>
       </header>
 
@@ -1116,32 +1318,64 @@ $websiteTitle = blog_website_title();
             <div class="wp-canvas-inner">
               <div id="blog-title-preview" class="wp-title-preview is-empty">Add title</div>
 
-              <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-top:34px;">
-                <span id="content-word-counter" class="content-word-counter" aria-live="polite" style="color:rgba(255,255,255,0.78);">0 words</span>
-                <div class="editor-tabs" aria-label="Markdown editor view">
-                  <button type="button" class="editor-tab active" id="tab-write">WYSIWYG</button>
-                  <button type="button" class="editor-tab" id="tab-markdown">Markdown</button>
-                  <button type="button" class="editor-tab" id="tab-preview">Preview</button>
-                  <button type="button" class="editor-tab" id="tab-split">Split View</button>
+              <div class="editor-tabs-placeholder" id="editor-tabs-placeholder" aria-hidden="true"></div>
+              <div class="editor-tabs-bar">
+                <div class="editor-tabs-header">
+                  <span id="content-word-counter" class="content-word-counter" aria-live="polite" style="color:rgba(255,255,255,0.78);">0 words</span>
+                  <div class="editor-tabs-actions">
+                    <div class="editor-tabs" aria-label="Markdown editor view">
+                      <button type="button" class="editor-tab active" id="tab-write">WYSIWYG</button>
+                      <button type="button" class="editor-tab" id="tab-markdown">Markdown</button>
+                      <button type="button" class="editor-tab" id="tab-preview">Preview</button>
+                      <button type="button" class="editor-tab" id="tab-split">Split View</button>
+                    </div>
+                    <button type="button" class="shortcut-helper-toggle" id="shortcut-helper-toggle" aria-expanded="false" aria-controls="shortcut-helper">Shortcuts</button>
+                    <div class="shortcut-helper" id="shortcut-helper" role="dialog" aria-label="Editor shortcuts">
+                      <div class="shortcut-helper-row"><span>Insert/edit link</span><kbd>Ctrl/⌘ K</kbd></div>
+                      <div class="shortcut-helper-row"><span>Copy selected block</span><kbd>Ctrl/⌘ C</kbd></div>
+                      <div class="shortcut-helper-row"><span>Cut selected block</span><kbd>Ctrl/⌘ X</kbd></div>
+                      <div class="shortcut-helper-row"><span>Paste copied block</span><kbd>Ctrl/⌘ V</kbd></div>
+                      <div class="shortcut-helper-row"><span>Delete selected block</span><kbd>Delete</kbd></div>
+                      <div class="shortcut-helper-row"><span>Undo</span><kbd>Ctrl/⌘ Z</kbd></div>
+                      <div class="shortcut-helper-row"><span>Redo</span><kbd>Ctrl/⌘ Shift Z</kbd></div>
+                      <div class="shortcut-helper-row"><span>Move block up</span><kbd>Alt ↑</kbd></div>
+                      <div class="shortcut-helper-row"><span>Move block down</span><kbd>Alt ↓</kbd></div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div class="wysiwyg-toolbar" id="editor-toolbar" aria-label="Article formatting toolbar">
-                <button type="button" class="wysiwyg-btn" data-command="h2" title="Heading">H2</button>
-                <button type="button" class="wysiwyg-btn" data-command="h3" title="Subheading">H3</button>
-                <button type="button" class="wysiwyg-btn" data-command="bold" title="Bold">B</button>
-                <button type="button" class="wysiwyg-btn" data-command="italic" title="Italic"><em>I</em></button>
-                <button type="button" class="wysiwyg-btn" data-command="ul" title="Bullet list">List</button>
-                <button type="button" class="wysiwyg-btn" data-command="ol" title="Numbered list">1.</button>
-                <button type="button" class="wysiwyg-btn" data-command="quote" title="Quote">Quote</button>
-                <button type="button" class="wysiwyg-btn" data-command="faq" title="FAQ block">FAQ</button>
-                <button type="button" class="wysiwyg-btn" data-command="link" title="Insert link">Link</button>
-                <button type="button" class="wysiwyg-btn" data-command="clear" title="Clear formatting">Clear</button>
+                <div class="editor-floating-tools">
+                  <div class="wysiwyg-toolbar" id="editor-toolbar" aria-label="Article formatting toolbar">
+                    <button type="button" class="wysiwyg-btn" data-command="h2" title="Heading">H2</button>
+                    <button type="button" class="wysiwyg-btn" data-command="h3" title="Subheading">H3</button>
+                    <button type="button" class="wysiwyg-btn" data-command="bold" title="Bold">B</button>
+                    <button type="button" class="wysiwyg-btn" data-command="italic" title="Italic"><em>I</em></button>
+                    <button type="button" class="wysiwyg-btn" data-command="ul" title="Bullet list">List</button>
+                    <button type="button" class="wysiwyg-btn" data-command="ol" title="Numbered list">1.</button>
+                    <button type="button" class="wysiwyg-btn" data-command="quote" title="Quote">Quote</button>
+                    <button type="button" class="wysiwyg-btn" data-command="faq" title="FAQ block">FAQ</button>
+                    <button type="button" class="wysiwyg-btn" data-command="link" title="Insert link">Link</button>
+                    <button type="button" class="wysiwyg-btn" data-command="clear" title="Clear formatting">Clear</button>
+                  </div>
+                  <div class="editor-block-inserter" id="article-image-dropzone" role="button" tabindex="0" aria-controls="article-image-upload">
+                    <div>
+                      <strong>Add image block</strong>
+                      <span>Drop an image here, paste into the editor, or click Add Image.</span>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" id="article-image-button">Add Image</button>
+                  </div>
+                </div>
+                <div id="article-image-status" class="editor-upload-status"></div>
               </div>
               <div id="link-toolbox" class="link-toolbox" aria-hidden="true">
                 <input type="text" id="link-text-input" class="link-text-field" placeholder="Link text" aria-label="Link text" tabindex="-1">
                 <input type="url" id="link-url-input" placeholder="Search or type URL" aria-label="Link URL">
                 <button type="button" id="apply-link-btn" class="btn btn-primary btn-sm" aria-label="Apply link" title="Apply link">&#8592;</button>
                 <button type="button" id="cancel-link-btn" class="btn btn-secondary btn-sm">Cancel</button>
+                <label class="link-follow-option" for="link-nofollow-input">
+                  <input type="checkbox" id="link-nofollow-input">
+                  <span>Nofollow link</span>
+                  <small>Unchecked is dofollow</small>
+                </label>
                 <div id="link-toolbox-status" class="link-toolbox-status" role="status"></div>
               </div>
               <div id="image-settings-panel" class="image-settings-panel" aria-hidden="true">
@@ -1151,18 +1385,15 @@ $websiteTitle = blog_website_title();
                 <label for="image-link-input">Image Link
                   <input type="url" id="image-link-input" placeholder="https:// or /page/">
                 </label>
+                <label class="image-follow-option" for="image-link-nofollow-input">
+                  <input type="checkbox" id="image-link-nofollow-input">
+                  <span>Nofollow link</span>
+                  <small>Unchecked is dofollow</small>
+                </label>
                 <button type="button" id="apply-image-settings-btn" class="btn btn-primary btn-sm">Apply</button>
                 <button type="button" id="remove-image-link-btn" class="btn btn-secondary btn-sm">Remove Link</button>
               </div>
-              <div class="editor-block-inserter" id="article-image-dropzone" role="button" tabindex="0" aria-controls="article-image-upload">
-                <div>
-                  <strong>Add image block</strong>
-                  <span>Drop an image here, paste into the editor, or click Add Image.</span>
-                </div>
-                <button type="button" class="btn btn-secondary btn-sm" id="article-image-button">Add Image</button>
-              </div>
               <input type="file" id="article-image-upload" accept="image/jpeg,image/png,image/webp" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;" tabindex="-1">
-              <div id="article-image-status" class="editor-upload-status" style="color:rgba(255,255,255,0.78);"></div>
               <div id="editor-shell" class="editor-shell editor-mode-write">
                 <textarea id="blog-content" name="content" maxlength="60000" aria-label="Markdown article content"></textarea>
                 <div id="wysiwyg-editor" class="wysiwyg-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Write your article here. Use the toolbar for headings, links, lists, quotes, and images."></div>
@@ -1247,6 +1478,7 @@ $websiteTitle = blog_website_title();
                   <img id="featured-image-preview" src="<?= h(BLOG_DEFAULT_IMAGE) ?>" alt="Featured image preview" style="width:100%; height:100%; object-fit:cover;">
                 </div>
                 <span id="image-path-badge" class="badge badge-yellow" style="font-size:0.72rem; margin-top:6px; display:inline-block; max-width:100%; overflow-wrap:anywhere;"><?= h(BLOG_DEFAULT_IMAGE) ?></span>
+                <button type="submit" id="save-current-post-btn" class="btn btn-primary" style="width:100%; margin-top:14px;" data-save-current="true">Save Post</button>
               </div>
             </div>
           </section>
@@ -1317,6 +1549,8 @@ $websiteTitle = blog_website_title();
       const editingId = document.getElementById('editing-blog-id');
       const saveDraftBtn = document.getElementById('save-draft-btn');
       const publishBtn = document.getElementById('publish-blog-btn');
+      const saveCurrentPostBtn = document.getElementById('save-current-post-btn');
+      const viewBlogPageBtn = document.getElementById('view-blog-page-btn');
       const cancelBtn = document.getElementById('cancel-edit-btn');
       const formTitle = document.getElementById('form-title-text');
       const imageUpload = document.getElementById('blog-image-upload');
@@ -1342,15 +1576,21 @@ $websiteTitle = blog_website_title();
       const linkToolbox = document.getElementById('link-toolbox');
       const linkTextInput = document.getElementById('link-text-input');
       const linkUrlInput = document.getElementById('link-url-input');
+      const linkNofollowInput = document.getElementById('link-nofollow-input');
       const linkToolboxStatus = document.getElementById('link-toolbox-status');
       const applyLinkBtn = document.getElementById('apply-link-btn');
       const cancelLinkBtn = document.getElementById('cancel-link-btn');
       const imageSettingsPanel = document.getElementById('image-settings-panel');
       const imageAltInput = document.getElementById('image-alt-input');
       const imageLinkInput = document.getElementById('image-link-input');
+      const imageLinkNofollowInput = document.getElementById('image-link-nofollow-input');
       const applyImageSettingsBtn = document.getElementById('apply-image-settings-btn');
       const removeImageLinkBtn = document.getElementById('remove-image-link-btn');
       const contentWordCounter = document.getElementById('content-word-counter');
+      const editorTabsBar = document.querySelector('.editor-tabs-bar');
+      const editorTabsPlaceholder = document.getElementById('editor-tabs-placeholder');
+      const shortcutHelperToggle = document.getElementById('shortcut-helper-toggle');
+      const shortcutHelper = document.getElementById('shortcut-helper');
       const tabWrite = document.getElementById('tab-write');
       const tabMarkdown = document.getElementById('tab-markdown');
       const tabPreview = document.getElementById('tab-preview');
@@ -1370,7 +1610,7 @@ $websiteTitle = blog_website_title();
       const readabilityCheckList = document.getElementById('readability-check-list');
       const yoastBottomScore = document.getElementById('yoast-bottom-score');
       const saveState = document.querySelector('.wp-save-state');
-      const hasLinkToolbox = linkToolbox && linkTextInput && linkUrlInput && linkToolboxStatus && applyLinkBtn && cancelLinkBtn;
+      const hasLinkToolbox = linkToolbox && linkTextInput && linkUrlInput && linkNofollowInput && linkToolboxStatus && applyLinkBtn && cancelLinkBtn;
       let manualSlug = false;
       let manualSeoTitle = false;
       let savedEditorRange = null;
@@ -1386,6 +1626,10 @@ $websiteTitle = blog_website_title();
       let editorHistoryIndex = -1;
       let editorHistoryTimer = 0;
       let isRestoringHistory = false;
+      let editorBlockClipboardHtml = '';
+      let editorTabsFloating = false;
+      let editorTabsFrame = 0;
+      const editorBlockClipboardPrefix = 'GPERYA_EDITOR_BLOCK::';
       const yoastModuleUrl = '/assets/vendor/yoastseo/yoastseo.bundle.js?v=3.6.0';
       const yoastResearcherUrl = '/assets/vendor/yoastseo/researcher.bundle.js?v=3.6.0';
 
@@ -1416,6 +1660,40 @@ $websiteTitle = blog_website_title();
         target.addEventListener(type, handler);
       }
 
+      function closeShortcutHelper() {
+        if (!shortcutHelper || !shortcutHelperToggle) return;
+        shortcutHelper.classList.remove('is-open');
+        shortcutHelperToggle.setAttribute('aria-expanded', 'false');
+      }
+
+      function updateFloatingEditorTabs() {
+        if (!editorTabsBar || !editorTabsPlaceholder) return;
+        const topOffset = window.matchMedia('(max-width: 1100px)').matches ? 0 : 58;
+        const canvasInner = editorTabsBar.parentElement;
+        const canvasRect = canvasInner ? canvasInner.getBoundingClientRect() : editorTabsBar.getBoundingClientRect();
+        const placeholderRect = editorTabsPlaceholder.getBoundingClientRect();
+        const barHeight = editorTabsBar.offsetHeight || 56;
+        const shouldFloat = placeholderRect.top <= topOffset && canvasRect.bottom > topOffset + barHeight + 12;
+
+        editorTabsBar.style.setProperty('--editor-tabs-left', Math.max(0, canvasRect.left - 12) + 'px');
+        editorTabsBar.style.setProperty('--editor-tabs-width', Math.max(280, canvasRect.width + 24) + 'px');
+        editorTabsBar.style.setProperty('--editor-tabs-height', barHeight + 'px');
+        editorTabsPlaceholder.style.setProperty('--editor-tabs-height', barHeight + 'px');
+        if (shouldFloat !== editorTabsFloating) {
+          editorTabsFloating = shouldFloat;
+          editorTabsBar.classList.toggle('is-floating', shouldFloat);
+          editorTabsPlaceholder.classList.toggle('is-active', shouldFloat);
+        }
+      }
+
+      function scheduleFloatingEditorTabs() {
+        if (editorTabsFrame) return;
+        editorTabsFrame = window.requestAnimationFrame(() => {
+          editorTabsFrame = 0;
+          updateFloatingEditorTabs();
+        });
+      }
+
       function setText(target, value) {
         if (target) target.textContent = value;
       }
@@ -1443,8 +1721,28 @@ $websiteTitle = blog_website_title();
         document.getElementById('csrf-token').value = value;
       }
 
+      function currentBlogPublicUrl() {
+        const currentSlug = slug ? slugify(slug.value || '') : '';
+        return currentSlug ? `/blog/${encodeURIComponent(currentSlug)}/` : '';
+      }
+
+      function updateViewPageButton() {
+        if (!viewBlogPageBtn) return;
+        const status = blogStatus ? blogStatus.value : 'published';
+        const publicUrl = currentBlogPublicUrl();
+        const canView = status === 'published' && Boolean(publicUrl);
+        viewBlogPageBtn.style.display = canView ? 'inline-flex' : 'none';
+        viewBlogPageBtn.disabled = !canView;
+        if (canView) {
+          viewBlogPageBtn.dataset.href = publicUrl;
+        } else {
+          delete viewBlogPageBtn.dataset.href;
+        }
+      }
+
       function updateSaveState(status) {
         setText(saveState, status === 'draft' ? 'Draft' : 'Publish ready');
+        updateViewPageButton();
       }
 
       function escapeHtml(value) {
@@ -1775,7 +2073,7 @@ $websiteTitle = blog_website_title();
       }
 
       function renderFaqItem(question, answer) {
-        return `<div class="editor-faq-item"><div class="editor-faq-item-actions" contenteditable="false"><button type="button" class="editor-faq-remove" data-faq-remove>Remove</button></div><h3 class="editor-faq-question">${escapeHtml(question)}</h3><p class="editor-faq-answer">${escapeHtml(answer)}</p></div>`;
+        return `<div class="editor-faq-item"><div class="editor-faq-item-actions" contenteditable="false"><button type="button" class="editor-faq-remove" data-faq-remove>Remove</button></div><div class="editor-faq-field"><span class="editor-faq-field-label" contenteditable="false">Question</span><div class="editor-faq-question" contenteditable="true" role="textbox" aria-label="FAQ question">${escapeHtml(question)}</div></div><div class="editor-faq-field"><span class="editor-faq-field-label" contenteditable="false">Answer</span><div class="editor-faq-answer" contenteditable="true" role="textbox" aria-label="FAQ answer">${escapeHtml(answer)}</div></div></div>`;
       }
 
       function renderFaqBlock(items) {
@@ -1800,9 +2098,9 @@ $websiteTitle = blog_website_title();
         html = html.replace(/^## (.*)$/gim, '<h2>$1</h2>');
         html = html.replace(/^# (.*)$/gim, '<h1>$1</h1>');
         html = html.replace(/^&gt; (.*)$/gim, '<blockquote>$1</blockquote>');
-        html = html.replace(/\[!\[([^\]]*)\]\((\/uploads\/blogs\/[a-zA-Z0-9._/-]+)\)\]\((https?:\/\/[^)\s]+|\/[^)\s]*)\)/g, '<a href="$3" target="_blank" rel="noopener noreferrer"><img src="$2" alt="$1" draggable="true"></a>');
+        html = html.replace(/\[!\[([^\]]*)\]\((\/uploads\/blogs\/[a-zA-Z0-9._/-]+)\)\]\((https?:\/\/[^)\s]+|\/[^)\s]*)\)(\{nofollow\})?/g, (match, alt, src, href, nofollow) => `<a href="${href}" target="_blank" rel="noopener noreferrer${nofollow ? ' nofollow' : ''}"><img src="${src}" alt="${alt}" draggable="true"></a>`);
         html = html.replace(/!\[([^\]]*)\]\((\/uploads\/blogs\/[a-zA-Z0-9._/-]+)\)/g, '<img src="$2" alt="$1" draggable="true">');
-        html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+|\/[^)\s]*)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+        html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+|\/[^)\s]*)\)(\{nofollow\})?/g, (match, text, href, nofollow) => `<a href="${href}" target="_blank" rel="noopener noreferrer${nofollow ? ' nofollow' : ''}">${text}</a>`);
         html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
         html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
         html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
@@ -1814,20 +2112,18 @@ $websiteTitle = blog_website_title();
             if (!trimmed) return '';
             const faqMatch = trimmed.match(/^@@FAQ_BLOCK_(\d+)@@$/);
             if (faqMatch) return faqBlocks[Number(faqMatch[1])] || '';
-            if (/^<h1/.test(trimmed)) return trimmed.replace(/^<h1/, '<h1 class="editor-block editor-heading-block"');
-            if (/^<h2/.test(trimmed)) return trimmed.replace(/^<h2/, '<h2 class="editor-block editor-heading-block"');
-            if (/^<h3/.test(trimmed)) return trimmed.replace(/^<h3/, '<h3 class="editor-block editor-heading-block"');
+            if (/^<h1/.test(trimmed) || /^<h2/.test(trimmed) || /^<h3/.test(trimmed)) return trimmed;
             if (/^<blockquote/.test(trimmed)) return trimmed.replace(/^<blockquote/, '<blockquote class="editor-block editor-quote-block"');
-            if (/^<pre/.test(trimmed)) return trimmed.replace(/^<pre/, '<pre class="editor-block editor-code-block"');
+            if (/^<pre/.test(trimmed)) return trimmed;
             if (/^<a[^>]*><img/.test(trimmed)) return '<p class="editor-block editor-image-block">' + trimmed + '</p>';
             if (/^<img/.test(trimmed)) return '<p class="editor-block editor-image-block">' + trimmed + '</p>';
             if (/^[-*] /.test(trimmed)) {
-              return '<ul class="editor-block editor-list-block">' + trimmed.replace(/^[-*] (.*)$/gim, '<li>$1</li>') + '</ul>';
+              return '<ul>' + trimmed.replace(/^[-*] (.*)$/gim, '<li>$1</li>') + '</ul>';
             }
             if (/^\d+\. /.test(trimmed)) {
-              return '<ol class="editor-block editor-list-block">' + trimmed.replace(/^\d+\. (.*)$/gim, '<li>$1</li>') + '</ol>';
+              return '<ol>' + trimmed.replace(/^\d+\. (.*)$/gim, '<li>$1</li>') + '</ol>';
             }
-            return '<p class="editor-block editor-paragraph-block">' + trimmed.replace(/\n/g, '<br>') + '</p>';
+            return '<p>' + trimmed.replace(/\n/g, '<br>') + '</p>';
           })
           .join('');
       }
@@ -1859,7 +2155,7 @@ $websiteTitle = blog_website_title();
         if (tag === 'code') return `\`${children}\``;
         if (tag === 'a') {
           const href = node.getAttribute('href') || '';
-          return href ? `[${children}](${href})` : children;
+          return href ? `[${children}](${href})${linkMarkdownSuffix(linkHasNofollow(node))}` : children;
         }
         if (tag === 'img') {
           let src = node.getAttribute('src') || '';
@@ -1902,15 +2198,17 @@ $websiteTitle = blog_website_title();
 
       function prepareEditorBlocks() {
         if (!wysiwygEditor) return;
-        wysiwygEditor.querySelectorAll('p,h1,h2,h3,blockquote,pre,ul,ol,section.editor-faq-block').forEach((block) => {
+        wysiwygEditor.querySelectorAll('.editor-heading-block,.editor-paragraph-block,.editor-list-block,.editor-code-block').forEach((block) => {
+          if (block.classList.contains('editor-image-block') || block.classList.contains('editor-quote-block') || block.classList.contains('editor-faq-block')) return;
+          block.classList.remove('editor-block', 'editor-heading-block', 'editor-paragraph-block', 'editor-list-block', 'editor-code-block', 'is-dragging');
+          block.removeAttribute('draggable');
+          delete block.dataset.blockType;
+        });
+        wysiwygEditor.querySelectorAll('blockquote,section.editor-faq-block').forEach((block) => {
           if (block.closest('.editor-faq-block') && !block.classList.contains('editor-faq-block')) return;
           block.classList.add('editor-block');
           block.setAttribute('draggable', 'true');
-          if (block.matches('h1,h2,h3')) block.classList.add('editor-heading-block');
-          if (block.matches('p') && !block.querySelector('img')) block.classList.add('editor-paragraph-block');
           if (block.matches('blockquote')) block.classList.add('editor-quote-block');
-          if (block.matches('pre')) block.classList.add('editor-code-block');
-          if (block.matches('ul,ol')) block.classList.add('editor-list-block');
           if (block.matches('section.editor-faq-block')) block.dataset.blockType = 'faq';
         });
         wysiwygEditor.querySelectorAll('img').forEach((image) => {
@@ -2023,6 +2321,7 @@ $websiteTitle = blog_website_title();
           blogContent.focus();
         }
         closeLinkToolbox();
+        scheduleFloatingEditorTabs();
       }
 
       function focusEditor() {
@@ -2075,6 +2374,14 @@ $websiteTitle = blog_website_title();
         return '';
       }
 
+      function linkHasNofollow(anchor) {
+        return (anchor?.getAttribute('rel') || '').split(/\s+/).includes('nofollow');
+      }
+
+      function linkMarkdownSuffix(isNofollow) {
+        return isNofollow ? '{nofollow}' : '';
+      }
+
       function selectedEditorText() {
         const selection = window.getSelection();
         if (!selection || selection.rangeCount === 0) return '';
@@ -2114,13 +2421,19 @@ $websiteTitle = blog_website_title();
         closeImageSettingsPanel();
       }
 
-      function applyAnchorAttributes(anchor, url) {
+      function applyAnchorAttributes(anchor, url, isNofollow = false) {
         anchor.href = url;
+        const relParts = [];
         if (/^https?:\/\//i.test(url)) {
           anchor.target = '_blank';
-          anchor.rel = 'noopener noreferrer';
+          relParts.push('noopener', 'noreferrer');
         } else {
           anchor.removeAttribute('target');
+        }
+        if (isNofollow) relParts.push('nofollow');
+        if (relParts.length) {
+          anchor.rel = Array.from(new Set(relParts)).join(' ');
+        } else {
           anchor.removeAttribute('rel');
         }
       }
@@ -2163,6 +2476,7 @@ $websiteTitle = blog_website_title();
         if (imageAltInput) imageAltInput.value = activeImageElement.getAttribute('alt') || '';
         const link = activeImageLink();
         if (imageLinkInput) imageLinkInput.value = link ? (link.getAttribute('href') || '') : '';
+        if (imageLinkNofollowInput) imageLinkNofollowInput.checked = link ? linkHasNofollow(link) : false;
         imageSettingsPanel.classList.add('is-open');
         imageSettingsPanel.setAttribute('aria-hidden', 'false');
         positionImageSettingsPanel();
@@ -2197,7 +2511,7 @@ $websiteTitle = blog_website_title();
           return;
         }
         if (url) {
-          linkSelectedEditorImage(url, activeImageElement.alt);
+          linkSelectedEditorImage(url, activeImageElement.alt, imageLinkNofollowInput ? imageLinkNofollowInput.checked : false);
         }
         syncMarkdownFromEditor();
         scheduleEditorHistory(true);
@@ -2219,20 +2533,20 @@ $websiteTitle = blog_website_title();
         analyzeSeo();
       }
 
-      function linkSelectedEditorImage(url, text) {
+      function linkSelectedEditorImage(url, text, isNofollow = false) {
         if (!activeImageElement || !wysiwygEditor.contains(activeImageElement)) return false;
         const image = activeImageElement;
         if (text) image.alt = text;
         const currentLink = image.closest('a');
         if (currentLink && wysiwygEditor.contains(currentLink)) {
-          applyAnchorAttributes(currentLink, url);
+          applyAnchorAttributes(currentLink, url, isNofollow);
           activeLinkElement = currentLink;
           syncMarkdownFromEditor();
           return true;
         }
 
         const anchor = document.createElement('a');
-        applyAnchorAttributes(anchor, url);
+        applyAnchorAttributes(anchor, url, isNofollow);
         image.parentNode.insertBefore(anchor, image);
         anchor.appendChild(image);
         activeLinkElement = anchor;
@@ -2249,6 +2563,7 @@ $websiteTitle = blog_website_title();
         if (!activeImageElement || !wysiwygEditor.contains(activeImageElement)) {
           activeLinkElement = null;
         }
+        linkNofollowInput.checked = false;
         if (editorShell.classList.contains('editor-mode-markdown') || editorShell.classList.contains('editor-mode-split')) {
           saveMarkdownSelection();
           linkTextInput.value = (savedMarkdownSelection && savedMarkdownSelection.text.trim()) || '';
@@ -2263,10 +2578,12 @@ $websiteTitle = blog_website_title();
             }
             linkTextInput.value = activeImageElement.getAttribute('alt') || '';
             linkUrlInput.value = activeLinkElement ? (activeLinkElement.getAttribute('href') || 'https://') : 'https://';
+            linkNofollowInput.checked = activeLinkElement ? linkHasNofollow(activeLinkElement) : false;
           } else if (activeLinkElement) {
             const linkedImage = activeLinkElement.querySelector('img');
             linkTextInput.value = linkedImage ? (linkedImage.getAttribute('alt') || '') : activeLinkElement.textContent.trim();
             linkUrlInput.value = activeLinkElement.getAttribute('href') || 'https://';
+            linkNofollowInput.checked = linkHasNofollow(activeLinkElement);
           } else {
             linkTextInput.value = selectedEditorText();
             linkUrlInput.value = 'https://';
@@ -2381,7 +2698,358 @@ $websiteTitle = blog_website_title();
         return true;
       }
 
+      function deleteCurrentEditorBlock() {
+        const block = currentEditorBlockFromSelection();
+        if (!block) return false;
+        const nextFocus = block.nextElementSibling || block.previousElementSibling;
+        block.remove();
+        clearSelectedEditorImage();
+        if (nextFocus && wysiwygEditor.contains(nextFocus)) {
+          if (nextFocus.classList.contains('editor-block')) {
+            focusEditorBlock(nextFocus);
+          } else {
+            const range = document.createRange();
+            range.selectNodeContents(nextFocus);
+            range.collapse(false);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            savedEditorRange = range.cloneRange();
+          }
+        } else {
+          focusEditor();
+          savedEditorRange = fallbackEditorRange();
+        }
+        syncMarkdownFromEditor();
+        scheduleEditorHistory(true);
+        analyzeSeo();
+        showNotice('Block deleted.', 'ok');
+        return true;
+      }
+
+      function cleanPastedEditorBlock(block) {
+        block.classList.remove('is-dragging');
+        block.querySelectorAll('.is-dragging').forEach((item) => item.classList.remove('is-dragging'));
+        block.removeAttribute('id');
+        return block;
+      }
+
+      function editorBlockFromHtml(html) {
+        const template = document.createElement('template');
+        template.innerHTML = String(html || '').trim();
+        const markedBlock = template.content.querySelector('[data-gperya-editor-block="true"] > .editor-block');
+        const block = markedBlock || template.content.querySelector('.editor-block');
+        return block ? cleanPastedEditorBlock(block.cloneNode(true)) : null;
+      }
+
+      function topLevelEditorNodeFromRange(range) {
+        if (!range || !wysiwygEditor) return null;
+        if (range.startContainer === wysiwygEditor) {
+          return wysiwygEditor.childNodes[range.startOffset] || wysiwygEditor.lastChild;
+        }
+        let element = closestElement(range.startContainer);
+        while (element && element.parentNode !== wysiwygEditor) {
+          element = element.parentElement;
+        }
+        return element && wysiwygEditor.contains(element) ? element : null;
+      }
+
+      function currentTopLevelEditorNode() {
+        const selectionRange = currentEditorSelectionRange();
+        if (selectionRange) {
+          const topNode = topLevelEditorNodeFromRange(selectionRange);
+          if (topNode) return topNode;
+        }
+        if (savedEditorRange && wysiwygEditor.contains(savedEditorRange.commonAncestorContainer)) {
+          return topLevelEditorNodeFromRange(savedEditorRange);
+        }
+        return null;
+      }
+
+      function insertEditorBlock(block) {
+        if (!block || !wysiwygEditor) return false;
+        const currentBlock = currentEditorBlockFromSelection();
+        if (currentBlock && wysiwygEditor.contains(currentBlock)) {
+          currentBlock.parentNode.insertBefore(block, currentBlock.nextSibling);
+        } else {
+          const topLevelNode = currentTopLevelEditorNode();
+          wysiwygEditor.insertBefore(block, topLevelNode ? topLevelNode.nextSibling : null);
+        }
+        prepareEditorBlocks();
+        focusEditorBlock(block);
+        syncMarkdownFromEditor();
+        scheduleEditorHistory(true);
+        analyzeSeo();
+        return true;
+      }
+
+      function copyCurrentEditorBlock(event, shouldCut = false) {
+        const block = currentEditorBlockFromSelection();
+        if (!block) return false;
+        editorBlockClipboardHtml = block.outerHTML;
+        const markdown = nodeToMarkdown(block).trim();
+        if (event.clipboardData) {
+          event.clipboardData.setData('text/html', `<div data-gperya-editor-block="true">${editorBlockClipboardHtml}</div>`);
+          event.clipboardData.setData('text/plain', editorBlockClipboardPrefix + markdown);
+        }
+        event.preventDefault();
+        if (shouldCut) {
+          const nextFocus = block.nextElementSibling || block.previousElementSibling;
+          block.remove();
+          if (nextFocus && nextFocus.classList.contains('editor-block')) {
+            focusEditorBlock(nextFocus);
+          } else {
+            focusEditor();
+          }
+          syncMarkdownFromEditor();
+          scheduleEditorHistory(true);
+          analyzeSeo();
+          showNotice('Block cut.', 'ok');
+        } else {
+          showNotice('Block copied.', 'ok');
+        }
+        return true;
+      }
+
+      function pasteCopiedEditorBlock(event) {
+        const html = event.clipboardData ? event.clipboardData.getData('text/html') : '';
+        const text = event.clipboardData ? event.clipboardData.getData('text/plain') : '';
+        const hasBlockMarker = html.includes('data-gperya-editor-block="true"') || text.startsWith(editorBlockClipboardPrefix);
+        if (!hasBlockMarker) return false;
+        const block = editorBlockFromHtml(html || editorBlockClipboardHtml);
+        if (!block) return false;
+        event.preventDefault();
+        return insertEditorBlock(block);
+      }
+
+      function convertedChildrenFromPaste(node) {
+        const fragment = document.createDocumentFragment();
+        Array.from(node.childNodes).forEach((child) => {
+          const converted = convertPastedNode(child);
+          if (converted) fragment.appendChild(converted);
+        });
+        return fragment;
+      }
+
+      function hasPastedBlockChildren(node) {
+        return Array.from(node.children || []).some((child) => /^(address|article|aside|blockquote|div|h[1-6]|hr|ol|p|pre|section|table|ul)$/i.test(child.tagName));
+      }
+
+      function wrapPastedInlineFormatting(node, fragment) {
+        const style = node.getAttribute('style') || '';
+        const tag = node.tagName.toLowerCase();
+        const isBold = tag === 'b' || tag === 'strong' || /font-weight\s*:\s*(bold|[6-9]00)/i.test(style);
+        const isItalic = tag === 'i' || tag === 'em' || /font-style\s*:\s*italic/i.test(style);
+        let wrapped = fragment;
+        if (isItalic) {
+          const em = document.createElement('em');
+          em.appendChild(wrapped);
+          wrapped = em;
+        }
+        if (isBold) {
+          const strong = document.createElement('strong');
+          strong.appendChild(wrapped);
+          wrapped = strong;
+        }
+        return wrapped;
+      }
+
+      function convertPastedNode(node) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          return document.createTextNode(node.textContent || '');
+        }
+        if (node.nodeType !== Node.ELEMENT_NODE) {
+          return null;
+        }
+
+        const tag = node.tagName.toLowerCase();
+        if (['script', 'style', 'meta', 'link', 'title', 'svg', 'canvas', 'iframe', 'object', 'embed'].includes(tag)) {
+          return null;
+        }
+
+        if (tag === 'br') return document.createElement('br');
+        if (/^h[1-6]$/.test(tag)) {
+          const heading = document.createElement(['h1', 'h2', 'h3'].includes(tag) ? tag : 'h3');
+          heading.appendChild(convertedChildrenFromPaste(node));
+          return heading.textContent.trim() ? heading : null;
+        }
+        if (tag === 'blockquote') {
+          const quote = document.createElement('blockquote');
+          quote.className = 'editor-block editor-quote-block';
+          quote.setAttribute('draggable', 'true');
+          quote.appendChild(convertedChildrenFromPaste(node));
+          return quote.textContent.trim() ? quote : null;
+        }
+        if (tag === 'ul' || tag === 'ol') {
+          const list = document.createElement(tag);
+          Array.from(node.children).forEach((child) => {
+            if (child.tagName && child.tagName.toLowerCase() === 'li') {
+              const item = convertPastedNode(child);
+              if (item) list.appendChild(item);
+            }
+          });
+          return list.children.length ? list : null;
+        }
+        if (tag === 'li') {
+          const item = document.createElement('li');
+          item.appendChild(convertedChildrenFromPaste(node));
+          return item.textContent.trim() ? item : null;
+        }
+        if (tag === 'a') {
+          const href = normalizeLinkUrl(node.getAttribute('href') || '');
+          if (!href) return convertedChildrenFromPaste(node);
+          const anchor = document.createElement('a');
+          applyAnchorAttributes(anchor, href);
+          anchor.appendChild(convertedChildrenFromPaste(node));
+          return anchor.textContent.trim() || anchor.querySelector('img') ? anchor : null;
+        }
+        if (tag === 'img') {
+          const src = node.getAttribute('src') || '';
+          if (!src || /^data:/i.test(src)) return null;
+          const image = document.createElement('img');
+          image.src = src;
+          image.alt = node.getAttribute('alt') || 'Article Image';
+          image.draggable = true;
+          return image;
+        }
+        if (tag === 'pre') {
+          const pre = document.createElement('pre');
+          const code = document.createElement('code');
+          code.textContent = node.textContent || '';
+          pre.appendChild(code);
+          return pre.textContent.trim() ? pre : null;
+        }
+        if (tag === 'code') {
+          const code = document.createElement('code');
+          code.textContent = node.textContent || '';
+          return code;
+        }
+        if (tag === 'p' || (tag === 'div' && !hasPastedBlockChildren(node))) {
+          const paragraph = document.createElement('p');
+          paragraph.appendChild(convertedChildrenFromPaste(node));
+          return paragraph.textContent.trim() || paragraph.querySelector('img') ? paragraph : null;
+        }
+        if (tag === 'span' || tag === 'b' || tag === 'strong' || tag === 'i' || tag === 'em' || tag === 'u' || tag === 'font') {
+          return wrapPastedInlineFormatting(node, convertedChildrenFromPaste(node));
+        }
+        if (tag === 'body' || tag === 'html' || tag === 'div' || tag === 'section' || tag === 'article') {
+          return convertedChildrenFromPaste(node);
+        }
+        return convertedChildrenFromPaste(node);
+      }
+
+      function sanitizePastedDocumentHtml(html) {
+        const template = document.createElement('template');
+        template.innerHTML = String(html || '');
+        const fragment = convertedChildrenFromPaste(template.content);
+        const container = document.createElement('div');
+        container.appendChild(fragment);
+        return container.innerHTML.trim();
+      }
+
+      function pasteFormattedDocumentHtml(event) {
+        const html = event.clipboardData ? event.clipboardData.getData('text/html') : '';
+        if (!html || html.includes('data-gperya-editor-block="true"')) return false;
+        const sanitized = sanitizePastedDocumentHtml(html);
+        if (!sanitized) return false;
+        event.preventDefault();
+        const range = currentEditorSelectionRange() || (savedEditorRange ? savedEditorRange.cloneRange() : fallbackEditorRange());
+        range.deleteContents();
+        const template = document.createElement('template');
+        template.innerHTML = sanitized;
+        const insertedNodes = Array.from(template.content.childNodes);
+        const containsBlockNodes = insertedNodes.some((node) => node.nodeType === Node.ELEMENT_NODE && /^(blockquote|h[1-6]|ol|p|pre|ul)$/i.test(node.tagName));
+        if (containsBlockNodes) {
+          const topLevelNode = topLevelEditorNodeFromRange(range);
+          wysiwygEditor.insertBefore(template.content, topLevelNode ? topLevelNode.nextSibling : null);
+        } else {
+          range.insertNode(template.content);
+        }
+        const lastNode = insertedNodes[insertedNodes.length - 1];
+        if (lastNode) {
+          range.setStartAfter(lastNode);
+          range.collapse(true);
+          const selection = window.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          savedEditorRange = range.cloneRange();
+        }
+        prepareEditorBlocks();
+        syncMarkdownFromEditor();
+        scheduleEditorHistory(true);
+        analyzeSeo();
+        return true;
+      }
+
+      function clipboardReadableText(event) {
+        const text = event.clipboardData ? event.clipboardData.getData('text/plain') : '';
+        if (text) return text;
+        const html = event.clipboardData ? event.clipboardData.getData('text/html') : '';
+        if (!html) return '';
+        const template = document.createElement('template');
+        template.innerHTML = html;
+        return (template.content.textContent || '').replace(/\s+\n/g, '\n').replace(/\n\s+/g, '\n').trim();
+      }
+
+      function pasteIntoFaqField(event) {
+        const field = event.target && event.target.closest ? event.target.closest('.editor-faq-question,.editor-faq-answer') : null;
+        if (!field || !wysiwygEditor.contains(field)) return false;
+        const text = clipboardReadableText(event);
+        if (!text) return false;
+        event.preventDefault();
+        const range = currentEditorSelectionRange() || document.createRange();
+        if (!field.contains(range.commonAncestorContainer)) {
+          range.selectNodeContents(field);
+          range.collapse(false);
+        }
+        range.deleteContents();
+        range.insertNode(document.createTextNode(text));
+        range.collapse(false);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        savedEditorRange = range.cloneRange();
+        syncMarkdownFromEditor();
+        scheduleEditorHistory(true);
+        analyzeSeo();
+        return true;
+      }
+
+      function selectFaqFieldText(event) {
+        let field = event.target && event.target.closest ? event.target.closest('.editor-faq-question,.editor-faq-answer') : null;
+        if (!field) {
+          const selection = window.getSelection();
+          if (selection && selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            const element = closestElement(range.startContainer);
+            field = element ? element.closest('.editor-faq-question,.editor-faq-answer') : null;
+          }
+        }
+        if (!field || !wysiwygEditor.contains(field)) return false;
+        event.preventDefault();
+        event.stopPropagation();
+        const range = document.createRange();
+        range.selectNodeContents(field);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        savedEditorRange = range.cloneRange();
+        return true;
+      }
+
       function handleEditorShortcut(event) {
+        if (editorShell.classList.contains('editor-mode-write') && (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && (event.key || '').toLowerCase() === 'a') {
+          if (selectFaqFieldText(event)) return;
+        }
+
+        if (editorShell.classList.contains('editor-mode-write') && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && (event.key === 'Delete' || event.key === 'Backspace')) {
+          const faqField = event.target && event.target.closest ? event.target.closest('.editor-faq-question,.editor-faq-answer') : null;
+          if (!faqField && deleteCurrentEditorBlock()) {
+            event.preventDefault();
+          }
+          return;
+        }
+
         if (editorShell.classList.contains('editor-mode-write') && event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
           if (moveCurrentEditorBlock(event.key === 'ArrowUp' ? -1 : 1)) {
             event.preventDefault();
@@ -2404,14 +3072,14 @@ $websiteTitle = blog_website_title();
         openLinkToolbox();
       }
 
-      function insertMarkdownLink(text, url) {
+      function insertMarkdownLink(text, url, isNofollow = false) {
         const selection = savedMarkdownSelection || {
           start: blogContent.selectionStart || 0,
           end: blogContent.selectionEnd || blogContent.selectionStart || 0,
           text: ''
         };
         const linkText = text || selection.text || url;
-        const markdown = `[${linkText.replace(/[\[\]]/g, '')}](${url})`;
+        const markdown = `[${linkText.replace(/[\[\]]/g, '')}](${url})${linkMarkdownSuffix(isNofollow)}`;
         const before = blogContent.value.slice(0, selection.start);
         const after = blogContent.value.slice(selection.end);
         blogContent.value = before + markdown + after;
@@ -2424,14 +3092,14 @@ $websiteTitle = blog_website_title();
         }
       }
 
-      function insertWysiwygLink(text, url) {
-        if (linkSelectedEditorImage(url, text)) {
+      function insertWysiwygLink(text, url, isNofollow = false) {
+        if (linkSelectedEditorImage(url, text, isNofollow)) {
           clearSelectedEditorImage();
           return;
         }
 
         if (activeLinkElement && wysiwygEditor.contains(activeLinkElement)) {
-          applyAnchorAttributes(activeLinkElement, url);
+          applyAnchorAttributes(activeLinkElement, url, isNofollow);
           const linkedImage = activeLinkElement.querySelector('img');
           if (linkedImage) {
             if (text) linkedImage.alt = text;
@@ -2449,7 +3117,7 @@ $websiteTitle = blog_website_title();
         if (hasSelection) {
           const range = editorRange;
           const anchor = document.createElement('a');
-          applyAnchorAttributes(anchor, url);
+          applyAnchorAttributes(anchor, url, isNofollow);
           if (selectionContainsImage(range)) {
             const fragment = range.extractContents();
             const selectedImage = fragment.querySelector('img');
@@ -2466,7 +3134,7 @@ $websiteTitle = blog_website_title();
           selection.addRange(range);
         } else {
           const anchor = document.createElement('a');
-          applyAnchorAttributes(anchor, url);
+          applyAnchorAttributes(anchor, url, isNofollow);
           anchor.textContent = text || url;
           const range = editorRange || fallbackEditorRange();
           range.deleteContents();
@@ -2491,10 +3159,11 @@ $websiteTitle = blog_website_title();
           return;
         }
         const text = linkTextInput.value.trim();
+        const isNofollow = linkNofollowInput.checked;
         if (editorShell.classList.contains('editor-mode-markdown') || editorShell.classList.contains('editor-mode-split')) {
-          insertMarkdownLink(text, url);
+          insertMarkdownLink(text, url, isNofollow);
         } else {
-          insertWysiwygLink(text, url);
+          insertWysiwygLink(text, url, isNofollow);
         }
         closeLinkToolbox();
         scheduleEditorHistory(true);
@@ -2504,8 +3173,9 @@ $websiteTitle = blog_website_title();
       function setArticleImageStatus(message, type) {
         setText(articleImageStatus, message || '');
         if (articleImageStatus) {
-          articleImageStatus.style.color = type === 'error' ? 'var(--danger)' : 'var(--text-muted)';
+          articleImageStatus.style.color = type === 'error' ? '#ffd7dc' : 'rgba(255,255,255,0.78)';
         }
+        scheduleFloatingEditorTabs();
       }
 
       function getEditorBlockFromEvent(event) {
@@ -2546,6 +3216,17 @@ $websiteTitle = blog_website_title();
         const block = element && wysiwygEditor.contains(element) ? element.closest('.editor-block') : null;
         if (block && block !== draggedEditorBlock && wysiwygEditor.contains(block)) {
           return { parent: block.parentNode, before: block.nextSibling };
+        }
+        let topLevelNode = element;
+        while (topLevelNode && topLevelNode.parentNode !== wysiwygEditor) {
+          topLevelNode = topLevelNode.parentElement;
+        }
+        if (topLevelNode && topLevelNode !== draggedEditorBlock && wysiwygEditor.contains(topLevelNode)) {
+          const rect = topLevelNode.getBoundingClientRect();
+          return {
+            parent: wysiwygEditor,
+            before: event.clientY > rect.top + rect.height / 2 ? topLevelNode.nextSibling : topLevelNode,
+          };
         }
 
         return { parent: wysiwygEditor, before: null };
@@ -2608,25 +3289,11 @@ $websiteTitle = blog_website_title();
         paragraph.className = 'editor-image-block';
         paragraph.draggable = true;
         paragraph.appendChild(img);
-        const range = window.getSelection().rangeCount ? window.getSelection().getRangeAt(0) : null;
-        if (range) {
-          range.deleteContents();
-          range.insertNode(paragraph);
-          range.setStartAfter(paragraph);
-          range.collapse(true);
-          const selection = window.getSelection();
-          selection.removeAllRanges();
-          selection.addRange(range);
-        } else {
-          wysiwygEditor.appendChild(paragraph);
-        }
+        insertEditorBlock(paragraph);
         savedEditorRange = null;
-        prepareEditorBlocks();
-        syncMarkdownFromEditor();
         if (!editorShell.classList.contains('editor-mode-write')) {
           renderMarkdownPreview();
         }
-        scheduleEditorHistory(true);
       }
 
       async function uploadArticleImage(file) {
@@ -2700,17 +3367,7 @@ $websiteTitle = blog_website_title();
             { question: 'Another FAQ question', answer: 'Another FAQ answer' },
           ]);
           const faqBlock = wrapper.firstElementChild;
-          const range = currentEditorSelectionRange() || fallbackEditorRange();
-          range.deleteContents();
-          range.insertNode(faqBlock);
-          range.setStartAfter(faqBlock);
-          range.collapse(true);
-          const selection = window.getSelection();
-          selection.removeAllRanges();
-          selection.addRange(range);
-          prepareEditorBlocks();
-          syncMarkdownFromEditor();
-          scheduleEditorHistory(true);
+          insertEditorBlock(faqBlock);
           return;
         }
 
@@ -2808,6 +3465,7 @@ $websiteTitle = blog_website_title();
           const generated = slugify(title.value);
           if (slug) slug.value = generated;
           setText(slugPreview, generated || 'gperya-article');
+          updateViewPageButton();
         }
         updateTitleDisplay();
         analyzeSeo();
@@ -2818,6 +3476,7 @@ $websiteTitle = blog_website_title();
         const clean = slugify(slug.value);
         slug.value = clean;
         setText(slugPreview, clean || 'gperya-article');
+        updateViewPageButton();
         analyzeSeo();
       });
 
@@ -2843,6 +3502,10 @@ $websiteTitle = blog_website_title();
       on(blogStatus, 'change', () => {
         updateSaveState(blogStatus.value);
       });
+      on(viewBlogPageBtn, 'click', () => {
+        const href = viewBlogPageBtn.dataset.href || currentBlogPublicUrl();
+        if (href) window.open(href, '_blank', 'noopener');
+      });
       [saveDraftBtn, publishBtn].filter(Boolean).forEach((button) => {
         on(button, 'click', () => {
           pendingSaveStatus = button.dataset.saveStatus || '';
@@ -2859,6 +3522,23 @@ $websiteTitle = blog_website_title();
       on(tabMarkdown, 'click', () => setEditorMode('markdown'));
       on(tabPreview, 'click', () => setEditorMode('preview'));
       on(tabSplit, 'click', () => setEditorMode('split'));
+      on(shortcutHelperToggle, 'click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const isOpen = shortcutHelper && shortcutHelper.classList.toggle('is-open');
+        shortcutHelperToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      });
+      on(document, 'click', (event) => {
+        if (!shortcutHelper || !shortcutHelperToggle) return;
+        if (shortcutHelper.contains(event.target) || shortcutHelperToggle.contains(event.target)) return;
+        closeShortcutHelper();
+      });
+      on(document, 'keydown', (event) => {
+        if (event.key === 'Escape') closeShortcutHelper();
+      });
+      on(window, 'scroll', scheduleFloatingEditorTabs);
+      on(window, 'resize', scheduleFloatingEditorTabs);
+      on(document.querySelector('.wp-editor-main'), 'scroll', scheduleFloatingEditorTabs);
       on(undoBtn, 'click', () => restoreEditorHistory(-1));
       on(redoBtn, 'click', () => restoreEditorHistory(1));
       on(blogContent, 'input', () => {
@@ -2880,6 +3560,13 @@ $websiteTitle = blog_website_title();
       on(wysiwygEditor, 'keyup', saveEditorSelection);
       on(wysiwygEditor, 'mouseup', saveEditorSelection);
       on(wysiwygEditor, 'focus', saveEditorSelection);
+      if (wysiwygEditor) {
+        wysiwygEditor.addEventListener('keydown', (event) => {
+          if (editorShell.classList.contains('editor-mode-write') && (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && (event.key || '').toLowerCase() === 'a') {
+            selectFaqFieldText(event);
+          }
+        }, true);
+      }
       on(wysiwygEditor, 'keydown', handleEditorShortcut);
       on(blogContent, 'keydown', handleEditorShortcut);
       on(wysiwygEditor, 'click', (event) => {
@@ -2977,13 +3664,24 @@ $websiteTitle = blog_website_title();
         saveEditorSelection();
         uploadArticleImage(event.dataTransfer.files[0]);
       });
+      on(wysiwygEditor, 'copy', (event) => {
+        copyCurrentEditorBlock(event, false);
+      });
+      on(wysiwygEditor, 'cut', (event) => {
+        copyCurrentEditorBlock(event, true);
+      });
       on(wysiwygEditor, 'paste', (event) => {
         const items = event.clipboardData ? Array.from(event.clipboardData.items) : [];
         const imageItem = items.find((item) => item.kind === 'file' && item.type.startsWith('image/'));
-        if (!imageItem) return;
-        event.preventDefault();
-        saveEditorSelection();
-        uploadArticleImage(imageItem.getAsFile());
+        if (imageItem) {
+          event.preventDefault();
+          saveEditorSelection();
+          uploadArticleImage(imageItem.getAsFile());
+          return;
+        }
+        if (pasteIntoFaqField(event)) return;
+        if (pasteCopiedEditorBlock(event)) return;
+        pasteFormattedDocumentHtml(event);
       });
       on(editorToolbar, 'click', (event) => {
         const button = event.target.closest('[data-command]');
@@ -3026,6 +3724,12 @@ $websiteTitle = blog_website_title();
         }
       });
       on(imageLinkInput, 'keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          applyImageSettings();
+        }
+      });
+      on(imageLinkNofollowInput, 'keydown', (event) => {
         if (event.key === 'Enter') {
           event.preventDefault();
           applyImageSettings();
@@ -3153,7 +3857,7 @@ $websiteTitle = blog_website_title();
         }
         updateWordCounter();
         const saveButton = event.submitter && event.submitter.dataset ? event.submitter : null;
-        const requestedStatus = saveButton && saveButton.dataset.saveStatus ? saveButton.dataset.saveStatus : (pendingSaveStatus || (blogStatus ? blogStatus.value : '') || 'published');
+        const requestedStatus = saveButton && saveButton.dataset.saveStatus ? saveButton.dataset.saveStatus : ((blogStatus ? blogStatus.value : '') || 'published');
         if (blogStatus) blogStatus.value = requestedStatus === 'draft' ? 'draft' : 'published';
         const currentStatus = blogStatus ? blogStatus.value : (requestedStatus === 'draft' ? 'draft' : 'published');
         updateSaveState(currentStatus);
@@ -3163,6 +3867,10 @@ $websiteTitle = blog_website_title();
         data.set('status', currentStatus);
         data.set('focus_keyphrase', focusKeyphrase ? focusKeyphrase.value.trim() : '');
         data.set('csrf_token', csrfToken);
+        const savedSlug = String(data.get('slug') || '').trim();
+        const shouldOpenPublicPage = saveButton && saveButton.id === 'publish-blog-btn' && currentStatus === 'published' && savedSlug;
+        const publicUrl = savedSlug ? '/blog/' + encodeURIComponent(savedSlug) + '/' : '';
+        const publicWindow = shouldOpenPublicPage ? window.open('', '_blank', 'noopener') : null;
 
         try {
           const response = await fetch('/admin/blog-save.php', {
@@ -3173,8 +3881,21 @@ $websiteTitle = blog_website_title();
           const result = await parseJsonResponse(response);
           updateCsrf(result.csrfToken);
           if (!response.ok || !result.ok) throw new Error((result.errors || [result.error || 'Blog post could not be saved.']).join(' '));
-          window.location.href = '/admin/blogs.php?saved=1&status=' + encodeURIComponent(currentStatus);
+          if (result.blog) {
+            if (editingId) editingId.value = result.blog.id || result.blog.slug || savedSlug;
+            if (slug && result.blog.slug) slug.value = result.blog.slug;
+            if (blogStatus) blogStatus.value = result.blog.status || currentStatus;
+          }
+          pendingSaveStatus = '';
+          updateViewPageButton();
+          showNotice(currentStatus === 'draft' ? 'Draft saved.' : 'Post published.', 'ok');
+          if (publicWindow && publicUrl) {
+            publicWindow.location.href = publicUrl;
+          } else if (shouldOpenPublicPage && publicUrl) {
+            window.open(publicUrl, '_blank', 'noopener');
+          }
         } catch (error) {
+          if (publicWindow) publicWindow.close();
           showNotice(error.message || 'Blog post could not be saved.', 'error');
         }
       });
@@ -3227,7 +3948,9 @@ $websiteTitle = blog_website_title();
       }
       updateTitleDisplay();
       updateExcerptCounter();
+      updateViewPageButton();
       resetEditorHistory(blogContent ? blogContent.value : '');
+      scheduleFloatingEditorTabs();
       analyzeSeo();
     });
   </script>
