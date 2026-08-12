@@ -255,6 +255,50 @@ $websiteTitle = blog_website_title();
       font-size: 0.78rem;
       font-weight: 700;
     }
+    .image-settings-panel {
+      display: none;
+      grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto auto;
+      gap: 8px;
+      align-items: end;
+      width: min(820px, calc(100vw - 48px));
+      padding: 12px;
+      background: #fff;
+      border: 1px solid #dcdcde;
+      border-radius: 6px;
+      box-shadow: 0 12px 26px rgba(0,0,0,0.16);
+      position: fixed;
+      left: 50%;
+      top: 220px;
+      transform: translateX(-50%);
+      z-index: 82;
+    }
+    .image-settings-panel.is-open {
+      display: grid;
+    }
+    .image-settings-panel label {
+      display: grid;
+      gap: 4px;
+      color: #3c434a;
+      font-size: 0.76rem;
+      font-weight: 800;
+    }
+    .image-settings-panel input {
+      min-width: 0;
+      height: 38px;
+      padding: 0 10px;
+      border: 1px solid #8c8f94;
+      border-radius: 4px;
+      font: inherit;
+      font-size: 0.9rem;
+    }
+    .editor-drop-marker {
+      height: 0;
+      margin: 0;
+      border-top: 4px solid #3858e9;
+      border-radius: 999px;
+      box-shadow: 0 0 0 2px rgba(56, 88, 233, 0.16);
+      pointer-events: none;
+    }
     .wysiwyg-editor {
       min-height: 300px;
       padding: 14px;
@@ -270,11 +314,19 @@ $websiteTitle = blog_website_title();
       margin: 8px 0;
       border: 1px solid transparent;
       border-radius: 4px;
+      cursor: grab;
+    }
+    .wysiwyg-editor blockquote.editor-block{
+      padding: 30px 12px 10px 52px;
     }
     .wysiwyg-editor .editor-block:hover,
     .wysiwyg-editor .editor-block:focus-within {
       border-color: #dcdcde;
       background: #fbfbfb;
+    }
+    .wysiwyg-editor .editor-block.is-dragging {
+      cursor: grabbing;
+      opacity: 0.55;
     }
     .wysiwyg-editor h1.editor-block,
     .wysiwyg-editor h2.editor-block,
@@ -350,6 +402,85 @@ $websiteTitle = blog_website_title();
     }
     .wysiwyg-editor .editor-image-block.is-dragging {
       opacity: 0.55;
+    }
+    .wysiwyg-editor .editor-faq-block,
+    .markdown-preview .editor-faq-block {
+      margin: 18px 0;
+      padding: 16px;
+      border: 1px solid rgba(166, 47, 61, 0.22);
+      border-radius: var(--radius-sm);
+      background: linear-gradient(135deg, #fff8f0 0%, #fff3f4 100%);
+      box-shadow: 0 8px 22px rgba(91, 24, 36, 0.08);
+    }
+    .editor-faq-label {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: var(--brand);
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+    .editor-faq-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .editor-faq-actions,
+    .editor-faq-item-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .editor-faq-add,
+    .editor-faq-remove {
+      border: 1px solid rgba(166, 47, 61, 0.24);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--brand-dark);
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 800;
+      line-height: 1;
+      padding: 7px 10px;
+      cursor: pointer;
+    }
+    .editor-faq-add:hover,
+    .editor-faq-remove:hover {
+      border-color: var(--brand);
+      background: var(--surface-soft);
+    }
+    .editor-faq-items {
+      display: grid;
+      gap: 12px;
+    }
+    .editor-faq-item {
+      position: relative;
+      padding: 14px;
+      border: 1px solid rgba(166, 47, 61, 0.16);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.7);
+    }
+    .editor-faq-item-actions {
+      justify-content: flex-end;
+      margin-bottom: 8px;
+    }
+    .editor-faq-question {
+      margin: 0 0 8px;
+      color: var(--brand-dark);
+      font-size: 1.05rem;
+      font-weight: 900;
+      line-height: 1.35;
+    }
+    .editor-faq-answer {
+      margin: 0;
+      color: var(--text);
+      line-height: 1.65;
     }
     .wysiwyg-editor blockquote,
     .markdown-preview blockquote {
@@ -947,6 +1078,10 @@ $websiteTitle = blog_website_title();
         padding: 0 14px;
         font-size: 1rem;
       }
+      .image-settings-panel {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+      }
     }
   </style>
 </head>
@@ -998,6 +1133,7 @@ $websiteTitle = blog_website_title();
                 <button type="button" class="wysiwyg-btn" data-command="ul" title="Bullet list">List</button>
                 <button type="button" class="wysiwyg-btn" data-command="ol" title="Numbered list">1.</button>
                 <button type="button" class="wysiwyg-btn" data-command="quote" title="Quote">Quote</button>
+                <button type="button" class="wysiwyg-btn" data-command="faq" title="FAQ block">FAQ</button>
                 <button type="button" class="wysiwyg-btn" data-command="link" title="Insert link">Link</button>
                 <button type="button" class="wysiwyg-btn" data-command="clear" title="Clear formatting">Clear</button>
               </div>
@@ -1007,6 +1143,16 @@ $websiteTitle = blog_website_title();
                 <button type="button" id="apply-link-btn" class="btn btn-primary btn-sm" aria-label="Apply link" title="Apply link">&#8592;</button>
                 <button type="button" id="cancel-link-btn" class="btn btn-secondary btn-sm">Cancel</button>
                 <div id="link-toolbox-status" class="link-toolbox-status" role="status"></div>
+              </div>
+              <div id="image-settings-panel" class="image-settings-panel" aria-hidden="true">
+                <label for="image-alt-input">Alt Text
+                  <input type="text" id="image-alt-input" maxlength="160" placeholder="Describe this image">
+                </label>
+                <label for="image-link-input">Image Link
+                  <input type="url" id="image-link-input" placeholder="https:// or /page/">
+                </label>
+                <button type="button" id="apply-image-settings-btn" class="btn btn-primary btn-sm">Apply</button>
+                <button type="button" id="remove-image-link-btn" class="btn btn-secondary btn-sm">Remove Link</button>
               </div>
               <div class="editor-block-inserter" id="article-image-dropzone" role="button" tabindex="0" aria-controls="article-image-upload">
                 <div>
@@ -1199,6 +1345,11 @@ $websiteTitle = blog_website_title();
       const linkToolboxStatus = document.getElementById('link-toolbox-status');
       const applyLinkBtn = document.getElementById('apply-link-btn');
       const cancelLinkBtn = document.getElementById('cancel-link-btn');
+      const imageSettingsPanel = document.getElementById('image-settings-panel');
+      const imageAltInput = document.getElementById('image-alt-input');
+      const imageLinkInput = document.getElementById('image-link-input');
+      const applyImageSettingsBtn = document.getElementById('apply-image-settings-btn');
+      const removeImageLinkBtn = document.getElementById('remove-image-link-btn');
       const contentWordCounter = document.getElementById('content-word-counter');
       const tabWrite = document.getElementById('tab-write');
       const tabMarkdown = document.getElementById('tab-markdown');
@@ -1226,7 +1377,8 @@ $websiteTitle = blog_website_title();
       let savedMarkdownSelection = null;
       let activeLinkElement = null;
       let activeImageElement = null;
-      let draggedImageBlock = null;
+      let draggedEditorBlock = null;
+      let editorDropMarker = null;
       let pendingSaveStatus = '';
       let yoastLoaderPromise = null;
       let yoastAnalysisRequest = 0;
@@ -1595,8 +1747,54 @@ $websiteTitle = blog_website_title();
         }
       }
 
+      function normalizeFaqItems(value) {
+        const lines = String(value || '').split(/\n/);
+        const items = [];
+        let current = null;
+        lines.forEach((line) => {
+          if (/^Q:\s*/i.test(line)) {
+            if (current) items.push(current);
+            current = {
+              question: line.replace(/^Q:\s*/i, '').trim(),
+              answer: '',
+            };
+          } else if (/^A:\s*/i.test(line)) {
+            if (!current) {
+              current = { question: 'FAQ question', answer: '' };
+            }
+            current.answer = line.replace(/^A:\s*/i, '').trim();
+          } else if (current && current.answer && line.trim()) {
+            current.answer += ' ' + line.trim();
+          }
+        });
+        if (current) items.push(current);
+        return (items.length ? items : [{ question: 'FAQ question', answer: 'FAQ answer' }]).map((item) => ({
+          question: item.question || 'FAQ question',
+          answer: item.answer || 'FAQ answer',
+        }));
+      }
+
+      function renderFaqItem(question, answer) {
+        return `<div class="editor-faq-item"><div class="editor-faq-item-actions" contenteditable="false"><button type="button" class="editor-faq-remove" data-faq-remove>Remove</button></div><h3 class="editor-faq-question">${escapeHtml(question)}</h3><p class="editor-faq-answer">${escapeHtml(answer)}</p></div>`;
+      }
+
+      function renderFaqBlock(items) {
+        const normalizedItems = (Array.isArray(items) && items.length ? items : [{ question: 'FAQ question', answer: 'FAQ answer' }])
+          .map((item) => ({
+            question: item.question || 'FAQ question',
+            answer: item.answer || 'FAQ answer',
+          }));
+        return `<section class="editor-block editor-faq-block" data-block-type="faq" draggable="true"><div class="editor-faq-header" contenteditable="false"><span class="editor-faq-label">FAQ Group</span><div class="editor-faq-actions"><button type="button" class="editor-faq-add" data-faq-add>Add FAQ</button></div></div><div class="editor-faq-items">${normalizedItems.map((item) => renderFaqItem(item.question, item.answer)).join('')}</div></section>`;
+      }
+
       function parseMarkdown(markdown) {
         let html = escapeHtml(markdown || '');
+        const faqBlocks = [];
+        html = html.replace(/:::faq\n([\s\S]*?)\n:::/g, (match, content) => {
+          const token = `@@FAQ_BLOCK_${faqBlocks.length}@@`;
+          faqBlocks.push(renderFaqBlock(normalizeFaqItems(content)));
+          return token;
+        });
         html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
         html = html.replace(/^### (.*)$/gim, '<h3>$1</h3>');
         html = html.replace(/^## (.*)$/gim, '<h2>$1</h2>');
@@ -1614,6 +1812,8 @@ $websiteTitle = blog_website_title();
           .map((block) => {
             const trimmed = block.trim();
             if (!trimmed) return '';
+            const faqMatch = trimmed.match(/^@@FAQ_BLOCK_(\d+)@@$/);
+            if (faqMatch) return faqBlocks[Number(faqMatch[1])] || '';
             if (/^<h1/.test(trimmed)) return trimmed.replace(/^<h1/, '<h1 class="editor-block editor-heading-block"');
             if (/^<h2/.test(trimmed)) return trimmed.replace(/^<h2/, '<h2 class="editor-block editor-heading-block"');
             if (/^<h3/.test(trimmed)) return trimmed.replace(/^<h3/, '<h3 class="editor-block editor-heading-block"');
@@ -1643,6 +1843,16 @@ $websiteTitle = blog_website_title();
 
         const tag = node.tagName.toLowerCase();
         const children = Array.from(node.childNodes).map(nodeToMarkdown).join('');
+
+        if (node.classList && node.classList.contains('editor-faq-block')) {
+          const items = Array.from(node.querySelectorAll('.editor-faq-item'));
+          const faqMarkdown = items.map((item) => {
+            const question = (item.querySelector('.editor-faq-question')?.textContent || 'FAQ question').trim();
+            const answer = (item.querySelector('.editor-faq-answer')?.textContent || 'FAQ answer').trim();
+            return `Q: ${question}\nA: ${answer}`;
+          }).join('\n\n') || 'Q: FAQ question\nA: FAQ answer';
+          return `:::faq\n${faqMarkdown}\n:::\n\n`;
+        }
 
         if (tag === 'strong' || tag === 'b') return `**${children}**`;
         if (tag === 'em' || tag === 'i') return `*${children}*`;
@@ -1690,15 +1900,18 @@ $websiteTitle = blog_website_title();
         updateWordCounter();
       }
 
-      function prepareEditorImages() {
+      function prepareEditorBlocks() {
         if (!wysiwygEditor) return;
-        wysiwygEditor.querySelectorAll('p,h1,h2,h3,blockquote,pre,ul,ol').forEach((block) => {
+        wysiwygEditor.querySelectorAll('p,h1,h2,h3,blockquote,pre,ul,ol,section.editor-faq-block').forEach((block) => {
+          if (block.closest('.editor-faq-block') && !block.classList.contains('editor-faq-block')) return;
           block.classList.add('editor-block');
+          block.setAttribute('draggable', 'true');
           if (block.matches('h1,h2,h3')) block.classList.add('editor-heading-block');
           if (block.matches('p') && !block.querySelector('img')) block.classList.add('editor-paragraph-block');
           if (block.matches('blockquote')) block.classList.add('editor-quote-block');
           if (block.matches('pre')) block.classList.add('editor-code-block');
           if (block.matches('ul,ol')) block.classList.add('editor-list-block');
+          if (block.matches('section.editor-faq-block')) block.dataset.blockType = 'faq';
         });
         wysiwygEditor.querySelectorAll('img').forEach((image) => {
           image.draggable = true;
@@ -1712,13 +1925,13 @@ $websiteTitle = blog_website_title();
       function setEditorMarkdown(markdown) {
         blogContent.value = markdown || '';
         wysiwygEditor.innerHTML = parseMarkdown(blogContent.value);
-        prepareEditorImages();
+        prepareEditorBlocks();
         updateWordCounter();
       }
 
       function syncEditorFromMarkdown() {
         wysiwygEditor.innerHTML = parseMarkdown(blogContent.value);
-        prepareEditorImages();
+        prepareEditorBlocks();
         updateWordCounter();
       }
 
@@ -1898,6 +2111,7 @@ $websiteTitle = blog_website_title();
         if (!wysiwygEditor) return;
         wysiwygEditor.querySelectorAll('img.is-selected').forEach((image) => image.classList.remove('is-selected'));
         activeImageElement = null;
+        closeImageSettingsPanel();
       }
 
       function applyAnchorAttributes(anchor, url) {
@@ -1935,6 +2149,74 @@ $websiteTitle = blog_website_title();
         selection.removeAllRanges();
         selection.addRange(range);
         savedEditorRange = range.cloneRange();
+        openImageSettingsPanel();
+      }
+
+      function activeImageLink() {
+        if (!activeImageElement || !wysiwygEditor.contains(activeImageElement)) return null;
+        const link = activeImageElement.closest('a');
+        return link && wysiwygEditor.contains(link) ? link : null;
+      }
+
+      function openImageSettingsPanel() {
+        if (!imageSettingsPanel || !activeImageElement || !wysiwygEditor.contains(activeImageElement)) return;
+        if (imageAltInput) imageAltInput.value = activeImageElement.getAttribute('alt') || '';
+        const link = activeImageLink();
+        if (imageLinkInput) imageLinkInput.value = link ? (link.getAttribute('href') || '') : '';
+        imageSettingsPanel.classList.add('is-open');
+        imageSettingsPanel.setAttribute('aria-hidden', 'false');
+        positionImageSettingsPanel();
+      }
+
+      function closeImageSettingsPanel() {
+        if (!imageSettingsPanel) return;
+        imageSettingsPanel.classList.remove('is-open');
+        imageSettingsPanel.setAttribute('aria-hidden', 'true');
+      }
+
+      function positionImageSettingsPanel() {
+        if (!imageSettingsPanel || !imageSettingsPanel.classList.contains('is-open') || !activeImageElement || !wysiwygEditor.contains(activeImageElement)) return;
+        const rect = activeImageElement.getBoundingClientRect();
+        const panelRect = imageSettingsPanel.getBoundingClientRect();
+        const width = panelRect.width || Math.min(820, window.innerWidth - 48);
+        const left = Math.max(24, Math.min(window.innerWidth - width - 24, rect.left + (rect.width / 2) - (width / 2)));
+        const top = Math.max(84, Math.min(window.innerHeight - 110, rect.bottom + 12));
+        imageSettingsPanel.style.left = left + 'px';
+        imageSettingsPanel.style.top = top + 'px';
+        imageSettingsPanel.style.transform = 'none';
+      }
+
+      function applyImageSettings() {
+        if (!activeImageElement || !wysiwygEditor.contains(activeImageElement)) return;
+        const alt = imageAltInput ? imageAltInput.value.trim() : '';
+        activeImageElement.alt = alt || 'Article Image';
+        const url = imageLinkInput ? normalizeLinkUrl(imageLinkInput.value) : '';
+        if (imageLinkInput && imageLinkInput.value.trim() && !url) {
+          showNotice('Image link must be a full http(s) URL or a site path that starts with /.', 'error');
+          imageLinkInput.focus();
+          return;
+        }
+        if (url) {
+          linkSelectedEditorImage(url, activeImageElement.alt);
+        }
+        syncMarkdownFromEditor();
+        scheduleEditorHistory(true);
+        analyzeSeo();
+        showNotice('Image settings updated.', 'ok');
+        positionImageSettingsPanel();
+      }
+
+      function removeImageLink() {
+        const link = activeImageLink();
+        if (!link || !activeImageElement) return;
+        link.parentNode.insertBefore(activeImageElement, link);
+        if (!link.textContent.trim() && !link.querySelector('img')) {
+          link.remove();
+        }
+        selectEditorImage(activeImageElement);
+        syncMarkdownFromEditor();
+        scheduleEditorHistory(true);
+        analyzeSeo();
       }
 
       function linkSelectedEditorImage(url, text) {
@@ -2044,7 +2326,69 @@ $websiteTitle = blog_website_title();
         linkToolbox.style.setProperty('--link-arrow-left', arrowLeft + 'px');
       }
 
+      function currentEditorBlockFromSelection() {
+        if (!wysiwygEditor || !editorShell.classList.contains('editor-mode-write')) return null;
+        if (activeImageElement && wysiwygEditor.contains(activeImageElement)) {
+          const imageBlock = activeImageElement.closest('.editor-block');
+          if (imageBlock && wysiwygEditor.contains(imageBlock)) return imageBlock;
+        }
+
+        const selection = window.getSelection();
+        if (selection && selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0);
+          const element = closestElement(range.startContainer);
+          const block = element ? element.closest('.editor-block') : null;
+          if (block && wysiwygEditor.contains(block)) return block;
+        }
+
+        if (savedEditorRange) {
+          const savedElement = closestElement(savedEditorRange.startContainer);
+          const savedBlock = savedElement ? savedElement.closest('.editor-block') : null;
+          if (savedBlock && wysiwygEditor.contains(savedBlock)) return savedBlock;
+        }
+
+        return null;
+      }
+
+      function focusEditorBlock(block) {
+        if (!block || !wysiwygEditor.contains(block)) return;
+        const range = document.createRange();
+        range.selectNodeContents(block);
+        range.collapse(false);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        savedEditorRange = range.cloneRange();
+        block.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+
+      function moveCurrentEditorBlock(direction) {
+        const block = currentEditorBlockFromSelection();
+        if (!block) return false;
+        const sibling = direction < 0 ? block.previousElementSibling : block.nextElementSibling;
+        if (!sibling || sibling === editorDropMarker) return false;
+
+        if (direction < 0) {
+          block.parentNode.insertBefore(block, sibling);
+        } else {
+          block.parentNode.insertBefore(block, sibling.nextSibling);
+        }
+
+        focusEditorBlock(block);
+        syncMarkdownFromEditor();
+        scheduleEditorHistory(true);
+        analyzeSeo();
+        return true;
+      }
+
       function handleEditorShortcut(event) {
+        if (editorShell.classList.contains('editor-mode-write') && event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+          if (moveCurrentEditorBlock(event.key === 'ArrowUp' ? -1 : 1)) {
+            event.preventDefault();
+          }
+          return;
+        }
+
         if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey || event.key.toLowerCase() !== 'k') {
           return;
         }
@@ -2164,35 +2508,71 @@ $websiteTitle = blog_website_title();
         }
       }
 
-      function getImageBlockFromEvent(event) {
-        const image = event.target && event.target.closest ? event.target.closest('.editor-image-block, img') : null;
-        if (!image || !wysiwygEditor.contains(image)) return null;
-        return image.classList.contains('editor-image-block') ? image : (image.closest('.editor-image-block') || image);
+      function getEditorBlockFromEvent(event) {
+        const block = event.target && event.target.closest ? event.target.closest('.editor-block') : null;
+        return block && wysiwygEditor.contains(block) ? block : null;
       }
 
-      function moveDraggedImageBlock(event) {
-        if (!draggedImageBlock || !wysiwygEditor.contains(draggedImageBlock)) return false;
-        const targetBlock = getImageBlockFromEvent(event);
-        event.preventDefault();
-        if (targetBlock && targetBlock !== draggedImageBlock) {
-          const rect = targetBlock.getBoundingClientRect();
-          const insertAfter = event.clientY > rect.top + rect.height / 2;
-          targetBlock.parentNode.insertBefore(draggedImageBlock, insertAfter ? targetBlock.nextSibling : targetBlock);
-        } else {
-          const range = document.caretRangeFromPoint
-            ? document.caretRangeFromPoint(event.clientX, event.clientY)
-            : (document.caretPositionFromPoint ? document.caretPositionFromPoint(event.clientX, event.clientY) : null);
-          const node = range && (range.startContainer || range.offsetNode);
-          const element = closestElement(node);
-          const block = element && wysiwygEditor.contains(element) ? (element.closest('p,div,blockquote,ul,ol,h1,h2,h3') || element) : null;
-          if (block && block !== draggedImageBlock && wysiwygEditor.contains(block)) {
-            block.parentNode.insertBefore(draggedImageBlock, block.nextSibling);
-          } else {
-            wysiwygEditor.appendChild(draggedImageBlock);
-          }
+      function ensureEditorDropMarker() {
+        if (!editorDropMarker) {
+          editorDropMarker = document.createElement('div');
+          editorDropMarker.className = 'editor-drop-marker';
+          editorDropMarker.setAttribute('aria-hidden', 'true');
         }
-        draggedImageBlock.classList.remove('is-dragging');
-        draggedImageBlock = null;
+        return editorDropMarker;
+      }
+
+      function removeEditorDropMarker() {
+        if (editorDropMarker && editorDropMarker.parentNode) {
+          editorDropMarker.parentNode.removeChild(editorDropMarker);
+        }
+      }
+
+      function markerReferenceFromEvent(event) {
+        const targetBlock = getEditorBlockFromEvent(event);
+        if (targetBlock && targetBlock !== draggedEditorBlock) {
+          const rect = targetBlock.getBoundingClientRect();
+          return {
+            parent: targetBlock.parentNode,
+            before: event.clientY > rect.top + rect.height / 2 ? targetBlock.nextSibling : targetBlock,
+          };
+        }
+
+        const range = document.caretRangeFromPoint
+          ? document.caretRangeFromPoint(event.clientX, event.clientY)
+          : (document.caretPositionFromPoint ? document.caretPositionFromPoint(event.clientX, event.clientY) : null);
+        const node = range && (range.startContainer || range.offsetNode);
+        const element = closestElement(node);
+        const block = element && wysiwygEditor.contains(element) ? element.closest('.editor-block') : null;
+        if (block && block !== draggedEditorBlock && wysiwygEditor.contains(block)) {
+          return { parent: block.parentNode, before: block.nextSibling };
+        }
+
+        return { parent: wysiwygEditor, before: null };
+      }
+
+      function updateEditorDropMarker(event) {
+        if (!draggedEditorBlock || !wysiwygEditor.contains(draggedEditorBlock)) return;
+        const marker = ensureEditorDropMarker();
+        const reference = markerReferenceFromEvent(event);
+        if (!reference.parent) return;
+        if (reference.before === marker) return;
+        reference.parent.insertBefore(marker, reference.before);
+      }
+
+      function moveDraggedEditorBlock(event) {
+        if (!draggedEditorBlock || !wysiwygEditor.contains(draggedEditorBlock)) return false;
+        event.preventDefault();
+        const marker = editorDropMarker && editorDropMarker.parentNode ? editorDropMarker : null;
+        if (marker) {
+          marker.parentNode.insertBefore(draggedEditorBlock, marker);
+          removeEditorDropMarker();
+        } else {
+          const reference = markerReferenceFromEvent(event);
+          reference.parent.insertBefore(draggedEditorBlock, reference.before);
+        }
+        draggedEditorBlock.classList.remove('is-dragging');
+        draggedEditorBlock = null;
         syncMarkdownFromEditor();
         scheduleEditorHistory(true);
         return true;
@@ -2241,7 +2621,7 @@ $websiteTitle = blog_website_title();
           wysiwygEditor.appendChild(paragraph);
         }
         savedEditorRange = null;
-        prepareEditorImages();
+        prepareEditorBlocks();
         syncMarkdownFromEditor();
         if (!editorShell.classList.contains('editor-mode-write')) {
           renderMarkdownPreview();
@@ -2292,6 +2672,48 @@ $websiteTitle = blog_website_title();
           return;
         }
 
+        if (command === 'faq') {
+          if (editorShell.classList.contains('editor-mode-markdown') || editorShell.classList.contains('editor-mode-split')) {
+            const markdown = ':::faq\nQ: FAQ question\nA: FAQ answer\n\nQ: Another FAQ question\nA: Another FAQ answer\n:::';
+            const start = blogContent.selectionStart || 0;
+            const end = blogContent.selectionEnd || start;
+            const before = blogContent.value.slice(0, start);
+            const after = blogContent.value.slice(end);
+            const prefix = before && !before.endsWith('\n\n') ? '\n\n' : '';
+            const suffix = after && !after.startsWith('\n\n') ? '\n\n' : '';
+            blogContent.value = before + prefix + markdown + suffix + after;
+            const cursor = (before + prefix + markdown).length;
+            blogContent.focus();
+            blogContent.setSelectionRange(cursor, cursor);
+            syncEditorFromMarkdown();
+            if (editorShell.classList.contains('editor-mode-split')) {
+              renderMarkdownPreview();
+            }
+            scheduleEditorHistory(true);
+            return;
+          }
+
+          focusEditor();
+          const wrapper = document.createElement('div');
+          wrapper.innerHTML = renderFaqBlock([
+            { question: 'FAQ question', answer: 'FAQ answer' },
+            { question: 'Another FAQ question', answer: 'Another FAQ answer' },
+          ]);
+          const faqBlock = wrapper.firstElementChild;
+          const range = currentEditorSelectionRange() || fallbackEditorRange();
+          range.deleteContents();
+          range.insertNode(faqBlock);
+          range.setStartAfter(faqBlock);
+          range.collapse(true);
+          const selection = window.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          prepareEditorBlocks();
+          syncMarkdownFromEditor();
+          scheduleEditorHistory(true);
+          return;
+        }
+
         if (command === 'link') {
           openLinkToolbox();
           return;
@@ -2318,6 +2740,7 @@ $websiteTitle = blog_website_title();
           document.execCommand('formatBlock', false, 'p');
         }
 
+        prepareEditorBlocks();
         syncMarkdownFromEditor();
         if (!editorShell.classList.contains('editor-mode-write')) {
           renderMarkdownPreview();
@@ -2460,6 +2883,42 @@ $websiteTitle = blog_website_title();
       on(wysiwygEditor, 'keydown', handleEditorShortcut);
       on(blogContent, 'keydown', handleEditorShortcut);
       on(wysiwygEditor, 'click', (event) => {
+        const addFaqButton = event.target.closest ? event.target.closest('[data-faq-add]') : null;
+        if (addFaqButton && wysiwygEditor.contains(addFaqButton)) {
+          event.preventDefault();
+          const faqBlock = addFaqButton.closest('.editor-faq-block');
+          const faqItems = faqBlock?.querySelector('.editor-faq-items');
+          if (faqItems) {
+            faqItems.insertAdjacentHTML('beforeend', renderFaqItem('FAQ question', 'FAQ answer'));
+            prepareEditorBlocks();
+            syncMarkdownFromEditor();
+            scheduleEditorHistory(true);
+            analyzeSeo();
+          }
+          return;
+        }
+
+        const removeFaqButton = event.target.closest ? event.target.closest('[data-faq-remove]') : null;
+        if (removeFaqButton && wysiwygEditor.contains(removeFaqButton)) {
+          event.preventDefault();
+          const faqBlock = removeFaqButton.closest('.editor-faq-block');
+          const faqItem = removeFaqButton.closest('.editor-faq-item');
+          const faqItems = faqBlock ? Array.from(faqBlock.querySelectorAll('.editor-faq-item')) : [];
+          if (faqItem && faqItems.length > 1) {
+            faqItem.remove();
+          } else if (faqItem) {
+            const question = faqItem.querySelector('.editor-faq-question');
+            const answer = faqItem.querySelector('.editor-faq-answer');
+            if (question) question.textContent = 'FAQ question';
+            if (answer) answer.textContent = 'FAQ answer';
+          }
+          prepareEditorBlocks();
+          syncMarkdownFromEditor();
+          scheduleEditorHistory(true);
+          analyzeSeo();
+          return;
+        }
+
         const image = event.target.closest ? event.target.closest('img') : null;
         if (image && wysiwygEditor.contains(image)) {
           event.preventDefault();
@@ -2476,25 +2935,27 @@ $websiteTitle = blog_website_title();
         }
       });
       on(wysiwygEditor, 'dragstart', (event) => {
-        const block = getImageBlockFromEvent(event);
+        const block = getEditorBlockFromEvent(event);
         if (!block) return;
-        draggedImageBlock = block;
+        draggedEditorBlock = block;
         block.classList.add('is-dragging');
         if (event.dataTransfer) {
           event.dataTransfer.effectAllowed = 'move';
-          event.dataTransfer.setData('text/plain', 'gperya-editor-image');
+          event.dataTransfer.setData('text/plain', 'gperya-editor-block');
         }
       });
       on(wysiwygEditor, 'dragend', () => {
-        if (draggedImageBlock) {
-          draggedImageBlock.classList.remove('is-dragging');
+        if (draggedEditorBlock) {
+          draggedEditorBlock.classList.remove('is-dragging');
         }
-        draggedImageBlock = null;
+        draggedEditorBlock = null;
+        removeEditorDropMarker();
       });
       on(wysiwygEditor, 'dragover', (event) => {
-        if (draggedImageBlock) {
+        if (draggedEditorBlock) {
           event.preventDefault();
           if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+          updateEditorDropMarker(event);
           return;
         }
         if (!event.dataTransfer || !event.dataTransfer.files.length) return;
@@ -2503,13 +2964,13 @@ $websiteTitle = blog_website_title();
         wysiwygEditor.classList.add('is-dragover');
       });
       on(wysiwygEditor, 'dragleave', (event) => {
-        if (draggedImageBlock) return;
+        if (draggedEditorBlock) return;
         if (!wysiwygEditor.contains(event.relatedTarget)) {
           wysiwygEditor.classList.remove('is-dragover');
         }
       });
       on(wysiwygEditor, 'drop', (event) => {
-        if (moveDraggedImageBlock(event)) return;
+        if (moveDraggedEditorBlock(event)) return;
         if (!event.dataTransfer || !event.dataTransfer.files.length) return;
         event.preventDefault();
         wysiwygEditor.classList.remove('is-dragover');
@@ -2539,11 +3000,12 @@ $websiteTitle = blog_website_title();
         on(cancelLinkBtn, 'click', closeLinkToolbox);
         on(window, 'resize', positionLinkToolbox);
         on(window, 'scroll', positionLinkToolbox);
+        on(window, 'resize', positionImageSettingsPanel);
+        on(window, 'scroll', positionImageSettingsPanel);
         on(document, 'mousedown', (event) => {
           if (!linkToolbox.classList.contains('is-open')) return;
-          if (linkToolbox.contains(event.target) || wysiwygEditor.contains(event.target)) return;
+          if (linkToolbox.contains(event.target)) return;
           closeLinkToolbox();
-          clearSelectedEditorImage();
         });
         on(linkToolbox, 'keydown', (event) => {
           if (event.key === 'Enter') {
@@ -2555,6 +3017,25 @@ $websiteTitle = blog_website_title();
           }
         });
       }
+      on(applyImageSettingsBtn, 'click', applyImageSettings);
+      on(removeImageLinkBtn, 'click', removeImageLink);
+      on(imageAltInput, 'keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          applyImageSettings();
+        }
+      });
+      on(imageLinkInput, 'keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          applyImageSettings();
+        }
+      });
+      on(document, 'mousedown', (event) => {
+        if (!imageSettingsPanel || !imageSettingsPanel.classList.contains('is-open')) return;
+        if (imageSettingsPanel.contains(event.target) || wysiwygEditor.contains(event.target)) return;
+        clearSelectedEditorImage();
+      });
 
       on(articleImageButton, 'click', () => {
         saveEditorSelection();

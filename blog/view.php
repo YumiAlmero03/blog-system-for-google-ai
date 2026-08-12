@@ -29,9 +29,69 @@ function blog_render_inline_markdown(string $text): string
     return $text;
 }
 
+function blog_parse_faq_items(string $content): array
+{
+    $lines = preg_split('/\n/', str_replace(["\r\n", "\r"], "\n", trim($content))) ?: [];
+    $items = [];
+    $current = null;
+
+    foreach ($lines as $line) {
+        if (preg_match('/^Q:\s*(.*)$/i', $line, $matches) === 1) {
+            if (is_array($current)) {
+                $items[] = $current;
+            }
+            $current = [
+                'question' => trim($matches[1]),
+                'answer' => '',
+            ];
+            continue;
+        }
+
+        if (preg_match('/^A:\s*(.*)$/i', $line, $matches) === 1) {
+            if (!is_array($current)) {
+                $current = [
+                    'question' => 'FAQ question',
+                    'answer' => '',
+                ];
+            }
+            $current['answer'] = trim($matches[1]);
+            continue;
+        }
+
+        if (is_array($current) && $current['answer'] !== '' && trim($line) !== '') {
+            $current['answer'] .= ' ' . trim($line);
+        }
+    }
+
+    if (is_array($current)) {
+        $items[] = $current;
+    }
+
+    if ($items === []) {
+        $items[] = [
+            'question' => 'FAQ question',
+            'answer' => 'FAQ answer',
+        ];
+    }
+
+    return array_map(
+        static fn (array $item): array => [
+            'question' => trim((string) ($item['question'] ?? '')) ?: 'FAQ question',
+            'answer' => trim((string) ($item['answer'] ?? '')) ?: 'FAQ answer',
+        ],
+        $items
+    );
+}
+
 function blog_render_markdown(string $markdown): string
 {
     $markdown = str_replace(["\r\n", "\r"], "\n", $markdown);
+    $faqBlocks = [];
+    $markdown = preg_replace_callback('/:::faq\s*\n?([\s\S]*?)\n?:::/', static function (array $matches) use (&$faqBlocks): string {
+        $token = '@@FAQ_BLOCK_' . count($faqBlocks) . '@@';
+        $faqBlocks[] = $matches[1];
+        return "\n\n" . $token . "\n\n";
+    }, $markdown) ?? $markdown;
     $escaped = blog_h($markdown);
     $blocks = preg_split('/\n\s*\n/', $escaped) ?: [];
     $html = [];
@@ -45,6 +105,16 @@ function blog_render_markdown(string $markdown): string
         if (str_starts_with($block, '```')) {
             $code = trim($block, "`\n");
             $html[] = '<pre><code>' . $code . '</code></pre>';
+            continue;
+        }
+
+        if (preg_match('/^@@FAQ_BLOCK_(\d+)@@$/', $block, $matches) === 1) {
+            $faqItems = blog_parse_faq_items($faqBlocks[(int) $matches[1]] ?? '');
+            $faqHtml = [];
+            foreach ($faqItems as $item) {
+                $faqHtml[] = '<article class="blog-faq-item"><h3>' . blog_render_inline_markdown(blog_h($item['question'])) . '</h3><p>' . blog_render_inline_markdown(blog_h($item['answer'])) . '</p></article>';
+            }
+            $html[] = '<section class="blog-faq-block"><span class="blog-faq-label">FAQ</span>' . implode('', $faqHtml) . '</section>';
             continue;
         }
 
@@ -126,6 +196,35 @@ function blog_meta_text(string $text, int $maxLength): string
     return rtrim($trimmed, " \t\n\r\0\x0B.,;:-") . '...';
 }
 
+function blog_collect_faq_blocks(string $markdown): array
+{
+    $matchCount = preg_match_all('/:::faq\s*\n?([\s\S]*?)\n?:::/s', $markdown, $matches, PREG_SET_ORDER);
+    if ($matchCount === false || $matchCount < 1) {
+        return [];
+    }
+
+    $faqs = [];
+    foreach ($matches as $match) {
+        foreach (blog_parse_faq_items($match[1] ?? '') as $item) {
+            $question = blog_meta_text(strip_tags(blog_render_inline_markdown(blog_h($item['question']))), 180);
+            $answer = blog_meta_text(strip_tags(blog_render_inline_markdown(blog_h($item['answer']))), 600);
+            if ($question === '' || $answer === '') {
+                continue;
+            }
+            $faqs[] = [
+                '@type' => 'Question',
+                'name' => $question,
+                'acceptedAnswer' => [
+                    '@type' => 'Answer',
+                    'text' => $answer,
+                ],
+            ];
+        }
+    }
+
+    return $faqs;
+}
+
 function blog_iso_datetime(mixed $timestamp): string
 {
     $timestamp = is_int($timestamp) ? $timestamp : (is_numeric($timestamp) ? (int) $timestamp : time());
@@ -171,6 +270,7 @@ $authorName = blog_meta_text((string) ($post['author'] ?? BLOG_DEFAULT_AUTHOR), 
 $publishedIso = blog_iso_datetime($post['createdAt'] ?? null);
 $modifiedIso = blog_iso_datetime($post['updatedAt'] ?? ($post['createdAt'] ?? null));
 $focusKeyphrase = isset($post['focusKeyphrase']) && is_string($post['focusKeyphrase']) ? blog_meta_text($post['focusKeyphrase'], 120) : '';
+$faqEntities = blog_collect_faq_blocks((string) ($post['content'] ?? ''));
 $fbAppId = env_value('FACEBOOK_APP_ID');
 $jsonLd = [
     '@context' => 'https://schema.org',
@@ -247,6 +347,13 @@ $jsonLd = [
 ];
 if ($focusKeyphrase !== '') {
     $jsonLd['@graph'][3]['keywords'] = $focusKeyphrase;
+}
+if ($faqEntities !== []) {
+    $jsonLd['@graph'][] = [
+        '@type' => 'FAQPage',
+        '@id' => $canonical . '#faq',
+        'mainEntity' => $faqEntities,
+    ];
 }
 ?>
 <!DOCTYPE html>

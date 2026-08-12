@@ -2037,6 +2037,47 @@ body {
   color: var(--brand-dark);
 }
 
+.markdown-rendered-body .blog-faq-block {
+  margin: 1.5rem 0;
+  padding: 20px 22px;
+  border: 1px solid rgba(166, 47, 61, 0.22);
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, #fff8f0 0%, var(--surface-soft) 100%);
+  box-shadow: 0 10px 26px rgba(91, 24, 36, 0.09);
+}
+
+.markdown-rendered-body .blog-faq-label {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.markdown-rendered-body .blog-faq-item + .blog-faq-item {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(166, 47, 61, 0.18);
+}
+
+.markdown-rendered-body .blog-faq-block h3 {
+  margin: 0 0 8px;
+  color: var(--brand-dark);
+  font-size: 1.08rem;
+  line-height: 1.35;
+}
+
+.markdown-rendered-body .blog-faq-block p {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.7;
+}
+
 @media (max-width: 640px) {
   .markdown-rendered-body blockquote {
     padding: 18px 16px 18px 48px;
