@@ -155,7 +155,7 @@
             <div style="font-size: 2.2rem; margin-bottom: 4px;">💬</div>
             <h3 style="font-size: 1.1rem; color: var(--brand-dark); margin-bottom: 4px;">24/7 Live Chat Portal</h3>
             <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 12px;">Chat with a live customer care agent in real time. Available 24 hours a day, 7 days a week.</p>
-            <a href="https://gperya-apk.com/playnow" class="btn btn-gold" style="width: 100%; text-align: center; font-weight: 900;" rel="sponsored nofollow noopener" target="_blank">Launch Live Chat &rarr;</a>
+            <a href="https://t.me/+ON7sbKSUI2g0YmU1" class="btn btn-gold" style="width: 100%; text-align: center; font-weight: 900;" rel="sponsored nofollow noopener" target="_blank">Launch Live Chat &rarr;</a>
           </div>
 
           <!-- Channel 2: Official Telegram Support -->
@@ -163,7 +163,7 @@
             <div style="font-size: 2.2rem; margin-bottom: 4px;">✈️</div>
             <h3 style="font-size: 1.1rem; color: var(--brand-dark); margin-bottom: 4px;">Telegram VIP Channel</h3>
             <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 12px;">Get official announcements, promo codes, and fast Telegram support assistance.</p>
-            <a href="https://gperya-apk.com/playnow" class="btn btn-primary" style="width: 100%; text-align: center; background: #0088cc; border-color: #0088cc; color: #fff;" rel="sponsored nofollow noopener" target="_blank">Join Telegram Channel &rarr;</a>
+            <a href="https://t.me/+x_vroX_-B-Y5OWZl" class="btn btn-primary" style="width: 100%; text-align: center; background: #0088cc; border-color: #0088cc; color: #fff;" rel="sponsored nofollow noopener" target="_blank">Join Telegram Channel &rarr;</a>
           </div>
 
           <!-- Channel 3: Email Ticket Help -->
@@ -215,21 +215,21 @@
           Fill out the details below to receive direct response assistance from our support team within 15-30 minutes.
         </p>
 
-        <form id="customer-support-form" onsubmit="handleSupportSubmit(event)">
+        <form id="customer-support-form">
           <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:16px; margin-bottom:16px;">
             <div>
               <label for="supp-name" style="display:block; font-size:0.85rem; color:var(--text); margin-bottom:6px; font-weight:700;">Full Name / Username</label>
-              <input type="text" id="supp-name" required placeholder="e.g. Juan Dela Cruz" style="width:100%; padding:10px 14px; background:var(--surface-soft); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text); font-size:0.9rem;">
+              <input type="text" id="supp-name" name="full_name" required placeholder="e.g. Juan Dela Cruz" style="width:100%; padding:10px 14px; background:var(--surface-soft); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text); font-size:0.9rem;">
             </div>
             <div>
               <label for="supp-contact" style="display:block; font-size:0.85rem; color:var(--text); margin-bottom:6px; font-weight:700;">GCash / Mobile Number or Email</label>
-              <input type="text" id="supp-contact" required placeholder="e.g. 09171234567" style="width:100%; padding:10px 14px; background:var(--surface-soft); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text); font-size:0.9rem;">
+              <input type="text" id="supp-contact" name="contact" required placeholder="e.g. 09171234567" style="width:100%; padding:10px 14px; background:var(--surface-soft); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text); font-size:0.9rem;">
             </div>
           </div>
 
           <div style="margin-bottom:16px;">
             <label for="supp-category" style="display:block; font-size:0.85rem; color:var(--text); margin-bottom:6px; font-weight:700;">Inquiry Topic</label>
-            <select id="supp-category" required style="width:100%; padding:10px 14px; background:var(--surface-soft); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text); font-size:0.9rem;">
+            <select id="supp-category" name="topic" required style="width:100%; padding:10px 14px; background:var(--surface-soft); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text); font-size:0.9rem;">
               <option value="login">🔑 Login & Forgotten Password</option>
               <option value="deposit">💸 GCash / Maya Deposit Delay</option>
               <option value="withdrawal">💰 Cashout & Withdrawal Inquiry</option>
@@ -242,11 +242,13 @@
 
           <div style="margin-bottom:20px;">
             <label for="supp-message" style="display:block; font-size:0.85rem; color:var(--text); margin-bottom:6px; font-weight:700;">Describe Your Problem or Transaction Ref #</label>
-            <textarea id="supp-message" rows="4" required placeholder="Please provide details (e.g. GCash Ref No. 100234567, amount ₱500)..." style="width:100%; padding:10px 14px; background:var(--surface-soft); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text); font-size:0.9rem; font-family:inherit;"></textarea>
+            <textarea id="supp-message" name="problem" rows="4" required placeholder="Please provide details (e.g. GCash Ref No. 100234567, amount ₱500)..." style="width:100%; padding:10px 14px; background:var(--surface-soft); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text); font-size:0.9rem; font-family:inherit;"></textarea>
           </div>
 
-          <button type="submit" class="btn btn-gold" style="width:100%; font-weight:900; padding:12px;">Submit Ticket to Support Team &rarr;</button>
+          <button type="submit" id="support-submit-btn" class="btn btn-gold" style="width:100%; font-weight:900; padding:12px;">Submit Ticket to Support Team &rarr;</button>
         </form>
+
+        <div id="support-error-msg" style="display:none; background:#fff1f1; border:1px solid #e5aaaa; color:var(--danger); padding:12px; border-radius:var(--radius-sm); margin-top:16px; font-size:0.88rem;"></div>
 
         <div id="support-success-msg" style="display:none; background:var(--surface-soft); border:1px solid var(--border); color:var(--text); padding:16px; border-radius:var(--radius-sm); margin-top:16px; text-align:center;">
           <h3 style="font-size:1.1rem; color:var(--brand-dark); margin-bottom:4px;">✅ Ticket Submitted Successfully!</h3>
@@ -352,11 +354,52 @@
   <script src="/assets/js/config.min.js" defer></script>
   <script src="/assets/js/main.min.js" defer></script>
   <script>
-    function handleSupportSubmit(e) {
-      e.preventDefault();
-      document.getElementById('customer-support-form').style.display = 'none';
-      document.getElementById('support-success-msg').style.display = 'block';
-    }
+    (function() {
+      const form = document.getElementById('customer-support-form');
+      const submitBtn = document.getElementById('support-submit-btn');
+      const successMsg = document.getElementById('support-success-msg');
+      const errorMsg = document.getElementById('support-error-msg');
+      if (!form || !submitBtn || !successMsg || !errorMsg) return;
+
+      async function readJson(response) {
+        const text = await response.text();
+        try {
+          return JSON.parse(text);
+        } catch (error) {
+          return { ok: false, error: text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() || 'Ticket could not be submitted.' };
+        }
+      }
+
+      form.addEventListener('submit', async function(event) {
+        event.preventDefault();
+        errorMsg.style.display = 'none';
+        errorMsg.textContent = '';
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Sending ticket...';
+
+        const data = new FormData(form);
+        data.append('page_url', window.location.href);
+
+        try {
+          const response = await fetch('/api/customer-ticket.php', {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'fetch' },
+            body: data
+          });
+          const result = await readJson(response);
+          if (!response.ok || !result.ok) {
+            throw new Error(result.error || 'Ticket could not be submitted.');
+          }
+          form.style.display = 'none';
+          successMsg.style.display = 'block';
+        } catch (error) {
+          errorMsg.textContent = error.message || 'Ticket could not be submitted.';
+          errorMsg.style.display = 'block';
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Submit Ticket to Support Team →';
+        }
+      });
+    })();
   </script>
 </body>
 </html>

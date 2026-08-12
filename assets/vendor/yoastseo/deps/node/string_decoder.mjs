@@ -1,0 +1,1 @@
+function r(e){return class{__unenv__=!0;constructor(){throw new Error(`[unenv] ${e} is not implemented yet!`)}}}var t=globalThis.StringDecoder||r("string_decoder.StringDecoder"),a={StringDecoder:t};export{t as StringDecoder,a as default};

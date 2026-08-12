@@ -970,6 +970,14 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
                   </div>
                   <input type="text" id="blog-title" name="title" class="form-control" maxlength="160" required>
                 </div>
+                <div class="form-group">
+                  <div class="field-label-row">
+                    <label for="blog-seo-title">SEO Title</label>
+                    <span class="char-counter">Same as Article Title</span>
+                  </div>
+                  <input type="text" id="blog-seo-title" name="seo_title" class="form-control" maxlength="160" readonly aria-describedby="seo-title-sync-note">
+                  <span id="seo-title-sync-note" style="font-size:0.75rem; color:var(--text-muted); display:block; margin-top:4px;">This automatically uses the Article Title.</span>
+                </div>
                 <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px;">
                   <div class="form-group">
                     <label for="blog-slug">SEO Slug *</label>
@@ -1077,6 +1085,7 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
       const form = document.getElementById('create-blog-form');
       const notice = document.getElementById('notice');
       const title = document.getElementById('blog-title');
+      const seoTitle = document.getElementById('blog-seo-title');
       const titlePreview = document.getElementById('blog-title-preview');
       const titleCharCounter = document.getElementById('title-char-counter');
       const excerpt = document.getElementById('blog-excerpt');
@@ -1147,8 +1156,8 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
       let editorHistoryIndex = -1;
       let editorHistoryTimer = 0;
       let isRestoringHistory = false;
-      const yoastModuleUrl = 'https://esm.sh/yoastseo@3.6.0?bundle&target=es2020';
-      const yoastResearcherUrl = 'https://esm.sh/yoastseo@3.6.0/build/languageProcessing/languages/en/Researcher?bundle&target=es2020';
+      const yoastModuleUrl = '/assets/vendor/yoastseo/yoastseo.bundle.js?v=3.6.0';
+      const yoastResearcherUrl = '/assets/vendor/yoastseo/researcher.bundle.js?v=3.6.0';
 
       function on(target, type, handler) {
         if (!target) return;
@@ -1283,14 +1292,41 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
           .filter((check) => check.label);
       }
 
+      function getYoastAssessorResults(assessor) {
+        if (!assessor) return [];
+        if (Array.isArray(assessor.results)) return assessor.results;
+        if (typeof assessor.getValidResults === 'function') return assessor.getValidResults();
+        if (typeof assessor.getAllResults === 'function') return assessor.getAllResults();
+        if (typeof assessor.getResults === 'function') return assessor.getResults();
+        return [];
+      }
+
+      function getYoastOverallScore(assessor) {
+        if (!assessor) return 0;
+        if (typeof assessor.calculateOverallScore === 'function') return normalizeYoastScore(assessor.calculateOverallScore());
+        if (typeof assessor.getOverallScore === 'function') return normalizeYoastScore(assessor.getOverallScore());
+        return normalizeYoastScore(assessor.overallScore || assessor.score || 0);
+      }
+
+      function measureSeoTitleWidth(value) {
+        const text = String(value || '').trim();
+        if (!text) return 0;
+        const canvas = measureSeoTitleWidth.canvas || document.createElement('canvas');
+        measureSeoTitleWidth.canvas = canvas;
+        const context = canvas.getContext ? canvas.getContext('2d') : null;
+        if (!context) return text.length * 10;
+        context.font = '20px Arial, sans-serif';
+        return Math.round(context.measureText(text).width);
+      }
+
       function getYoastModules() {
         if (!yoastLoaderPromise) {
           yoastLoaderPromise = Promise.all([
             import(yoastModuleUrl),
             import(yoastResearcherUrl),
           ]).then(([yoastModule, researcherModule]) => ({
-            yoast: yoastModule.default || yoastModule,
-            EnglishResearcher: researcherModule.default || researcherModule,
+            yoast: Object.assign({}, yoastModule.default || {}, yoastModule),
+            EnglishResearcher: researcherModule.default || researcherModule.EnglishResearcher || researcherModule.Researcher || researcherModule,
           }));
         }
         return yoastLoaderPromise;
@@ -1310,7 +1346,10 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
           synonyms: fields.synonyms,
           description: fields.excerptText,
           slug: fields.slugText,
+          seoTitle: fields.titleText,
           title: fields.titleText,
+          textTitle: fields.titleText,
+          titleWidth: measureSeoTitleWidth(fields.titleText),
           locale: 'en_US',
           permalink: window.location.origin + '/blog/' + (fields.slugText || 'gperya-article') + '/',
         });
@@ -1321,10 +1360,10 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
         seoAssessor.assess(paper);
         contentAssessor.assess(paper);
 
-        const yoastSeoChecks = normalizeYoastChecks(seoAssessor.results);
-        const yoastReadabilityChecks = normalizeYoastChecks(contentAssessor.results);
-        const seoScore = normalizeYoastScore(seoAssessor.calculateOverallScore());
-        const readabilityScore = normalizeYoastScore(contentAssessor.calculateOverallScore());
+        const yoastSeoChecks = normalizeYoastChecks(getYoastAssessorResults(seoAssessor));
+        const yoastReadabilityChecks = normalizeYoastChecks(getYoastAssessorResults(contentAssessor));
+        const seoScore = getYoastOverallScore(seoAssessor);
+        const readabilityScore = getYoastOverallScore(contentAssessor);
 
         if (requestId !== yoastAnalysisRequest || (yoastSeoChecks.length === 0 && yoastReadabilityChecks.length === 0)) return;
         renderAnalysisResults({
@@ -1332,7 +1371,7 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
           readabilityScore,
           seoChecks: yoastSeoChecks,
           readabilityChecks: yoastReadabilityChecks,
-          help: `YoastSEO.js · ${fields.wordCount.toLocaleString()} words · ${fields.keyCount} keyphrase matches · ${fields.density.toFixed(1)}% density`,
+          help: `YoastSEO.js local · ${fields.wordCount.toLocaleString()} words · ${fields.keyCount} keyphrase matches · ${fields.density.toFixed(1)}% density`,
         });
       }
 
@@ -1421,6 +1460,7 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
 
       function updateTitleDisplay() {
         const value = title ? title.value.trim() : '';
+        if (seoTitle) seoTitle.value = value;
         setText(titlePreview, value || 'Add title');
         toggleClass(titlePreview, 'is-empty', !value);
         setText(formTitle, value ? value + ' · Post' : 'No title · Post');
@@ -2520,6 +2560,7 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
         updateSaveState(currentStatus);
         const data = new FormData(form);
         data.set('slug', slugify(data.get('slug') || data.get('title') || ''));
+        data.set('seo_title', data.get('title') || '');
         data.set('status', currentStatus);
         data.set('focus_keyphrase', focusKeyphrase ? focusKeyphrase.value.trim() : '');
         data.set('csrf_token', csrfToken);

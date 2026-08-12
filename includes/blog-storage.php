@@ -242,7 +242,16 @@ function request_blog_category_filter(): ?string
     return normalize_blog_category_filter((string) $_POST['category']);
 }
 
-function blogs_page(int $count, int $page, ?string $category = null, ?string $status = null): array
+function blog_like_term(string $value): string
+{
+    return '%' . strtr($value, [
+        '\\' => '\\\\',
+        '%' => '\\%',
+        '_' => '\\_',
+    ]) . '%';
+}
+
+function blogs_page(int $count, int $page, ?string $category = null, ?string $status = null, ?string $search = null): array
 {
     $count = max(1, min(100, $count));
     $page = max(1, $page);
@@ -250,6 +259,7 @@ function blogs_page(int $count, int $page, ?string $category = null, ?string $st
     $pdo = blogs_pdo();
     $category = normalize_blog_category_filter($category);
     $status = $status === null ? null : normalize_blog_status($status);
+    $search = is_string($search) ? trim($search) : '';
 
     $where = [];
     $params = [];
@@ -260,6 +270,10 @@ function blogs_page(int $count, int $page, ?string $category = null, ?string $st
     if ($status !== null) {
         $where[] = 'status = :status';
         $params[':status'] = $status;
+    }
+    if ($search !== '') {
+        $where[] = '(title LIKE :search ESCAPE \'\\\' OR slug LIKE :search ESCAPE \'\\\' OR category LIKE :search ESCAPE \'\\\' OR author LIKE :search ESCAPE \'\\\' OR excerpt LIKE :search ESCAPE \'\\\' OR content LIKE :search ESCAPE \'\\\' OR focus_keyphrase LIKE :search ESCAPE \'\\\' OR status LIKE :search ESCAPE \'\\\')';
+        $params[':search'] = blog_like_term($search);
     }
     $whereSql = $where !== [] ? ' WHERE ' . implode(' AND ', $where) : '';
 
@@ -281,6 +295,7 @@ function blogs_page(int $count, int $page, ?string $category = null, ?string $st
         'count' => $count,
         'page' => $page,
         'category' => $category,
+        'search' => $search,
         'totalPages' => max(1, (int) ceil($total / $count)),
     ];
 }

@@ -1,9 +1,0 @@
-User-agent: *
-Disallow: /admin/
-Disallow: /api/
-Disallow: /includes/
-Disallow: /scripts/
-Disallow: /storage/
-
-Sitemap: https://gperya-apk.com/sitemap.xml
-Sitemap: https://gperya-apk.com/sitemap-blog.php

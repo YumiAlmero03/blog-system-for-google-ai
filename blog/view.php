@@ -458,7 +458,7 @@ if ($focusKeyphrase !== '') {
 
           <div class="social-channels-grid">
             <!-- Telegram -->
-            <a href="https://gperya-apk.com/playnow" class="social-channel-box" target="_blank" rel="sponsored nofollow noopener">
+            <a href="https://t.me/+ON7sbKSUI2g0YmU1" class="social-channel-box" target="_blank" rel="sponsored nofollow noopener">
               <div class="social-channel-info">
                 <div class="social-icon-btn social-icon-telegram">✈</div>
                 <div class="social-channel-text">
@@ -470,7 +470,7 @@ if ($focusKeyphrase !== '') {
             </a>
 
             <!-- Facebook -->
-            <a href="https://gperya-apk.com/playnow" class="social-channel-box" target="_blank" rel="sponsored nofollow noopener">
+            <a href="https://www.facebook.com/gperyagames/" class="social-channel-box" target="_blank" rel="sponsored nofollow noopener">
               <div class="social-channel-info">
                 <div class="social-icon-btn social-icon-facebook">f</div>
                 <div class="social-channel-text">
