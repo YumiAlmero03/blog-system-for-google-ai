@@ -149,10 +149,16 @@ function blog_image_type(string $image): string
 }
 
 $siteBaseUrl = blog_base_url();
-$siteName = 'GperyaPH';
+$siteName = blog_website_title();
 $displayTitle = (string) $post['title'];
-$title = blog_meta_text($displayTitle, 90);
-$pageTitle = blog_meta_text($displayTitle . ' | ' . $siteName, 120);
+$seoTitleSource = normalize_seo_title($post['seoTitle'] ?? '');
+$seoTitleSource = $seoTitleSource !== '' ? $seoTitleSource : $displayTitle;
+if ($siteName !== '' && stripos($seoTitleSource, $siteName) === false) {
+    $seoTitleSource .= ' | ' . $siteName;
+}
+$articleTitle = blog_meta_text($displayTitle, 90);
+$seoTitle = blog_meta_text($seoTitleSource, 120);
+$pageTitle = $seoTitle;
 $excerpt = blog_meta_text($post['excerpt'], 160);
 $image = $post['featuredImage'] ?: BLOG_DEFAULT_IMAGE;
 $canonical = $siteBaseUrl . '/blog/' . rawurlencode($post['slug']) . '/';
@@ -207,7 +213,7 @@ $jsonLd = [
                 [
                     '@type' => 'ListItem',
                     'position' => 3,
-                    'name' => $title,
+                    'name' => $articleTitle,
                     'item' => $canonical,
                 ],
             ],
@@ -219,7 +225,8 @@ $jsonLd = [
                 '@type' => 'WebPage',
                 '@id' => $canonical,
             ],
-            'headline' => $title,
+            'headline' => $seoTitle,
+            'alternativeHeadline' => $articleTitle,
             'description' => $excerpt,
             'image' => [
                 $absoluteImage,
@@ -257,7 +264,7 @@ if ($focusKeyphrase !== '') {
   <meta property="og:type" content="article">
   <meta property="og:locale" content="en_PH">
   <meta property="og:site_name" content="<?= blog_h($siteName) ?>">
-  <meta property="og:title" content="<?= blog_h($title) ?>">
+  <meta property="og:title" content="<?= blog_h($pageTitle) ?>">
   <meta property="og:description" content="<?= blog_h($excerpt) ?>">
   <meta property="og:url" content="<?= blog_h($canonical) ?>">
   <meta property="og:image" content="<?= blog_h($absoluteImage) ?>">
@@ -265,7 +272,7 @@ if ($focusKeyphrase !== '') {
   <meta property="og:image:type" content="<?= blog_h($imageType) ?>">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="675">
-  <meta property="og:image:alt" content="<?= blog_h($title) ?>">
+  <meta property="og:image:alt" content="<?= blog_h($articleTitle) ?>">
   <meta property="article:published_time" content="<?= blog_h($publishedIso) ?>">
   <meta property="article:modified_time" content="<?= blog_h($modifiedIso) ?>">
   <meta property="og:updated_time" content="<?= blog_h($modifiedIso) ?>">
@@ -279,10 +286,10 @@ if ($focusKeyphrase !== '') {
   <?php endif; ?>
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:url" content="<?= blog_h($canonical) ?>">
-  <meta name="twitter:title" content="<?= blog_h($title) ?>">
+  <meta name="twitter:title" content="<?= blog_h($pageTitle) ?>">
   <meta name="twitter:description" content="<?= blog_h($excerpt) ?>">
   <meta name="twitter:image" content="<?= blog_h($absoluteImage) ?>">
-  <meta name="twitter:image:alt" content="<?= blog_h($title) ?>">
+  <meta name="twitter:image:alt" content="<?= blog_h($articleTitle) ?>">
   <meta name="theme-color" content="#632121">
   <script type="application/ld+json"><?= json_encode($jsonLd, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?></script>
   <link rel="preload" href="/assets/css/styles.min.css" as="style"><link rel="stylesheet" href="/assets/css/styles.min.css">

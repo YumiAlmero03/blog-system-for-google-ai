@@ -24,60 +24,63 @@
 
   <!-- Structured Data -->
   <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "WebSite",
-        "@id": "https://gperya-apk.com/#website",
-        "url": "https://gperya-apk.com/",
-        "name": "GperyaPH Guide",
-        "description": "Independent Gperya.com Philippines Guide",
-        "publisher": {
-          "@type": "Organization",
-          "name": "GperyaPH",
-          "url": "https://gperya-apk.com/"
-        }
-      },
-      {
-        "@type": "WebPage",
-        "@id": "https://gperya-apk.com/#webpage",
-        "url": "https://gperya-apk.com/",
-        "name": "Gperya.com Philippines Guide: Login, Casino & App | GperyaPH",
-        "description": "Explore Gperya.com with guides to login, registration, casino games, APK checks, KYC, withdrawals and account safety.",
-        "isPartOf": { "@id": "https://gperya-apk.com/#website" }
-      },
-      {
-        "@type": "FAQPage",
-        "mainEntity": [
-          {
-            "@type": "Question",
-            "name": "What is Gperya.com?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Gperya.com is an online entertainment platform popular among players in the Philippines. GperyaPH is an independent informational guide providing access, registration, APK, KYC, and withdrawal guidance."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Is this the official Gperya website?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "No. GperyaPH is an independent informational and casino-affiliate guide. It is not the official operator or platform of Gperya."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "What is the correct Gperya.com link?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Visitors should always check the exact URL domain and SSL security certificate before entering account credentials or making payments."
-            }
-          }
-        ]
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://gperya-apk.com/#website",
+      "url": "https://gperya-apk.com/",
+      "name": "GperyaPH Guide",
+      "description": "Independent Gperya.com Philippines Guide",
+      "publisher": {
+        "@type": "Organization",
+        "name": "GperyaPH",
+        "url": "https://gperya-apk.com/"
       }
-    ]
-  }
+    },
+    {
+      "@type": "WebPage",
+      "@id": "https://gperya-apk.com/#webpage",
+      "url": "https://gperya-apk.com/",
+      "name": "Gperya.com Philippines Guide: Login, Casino & App | GperyaPH",
+      "description": "Explore Gperya.com with guides to login, registration, casino games, APK checks, KYC, withdrawals and account safety.",
+      "isPartOf": {
+        "@id": "https://gperya-apk.com/#website"
+      }
+    },
+    {
+      "@type": "FAQPage",
+      "@id": "https://gperya-apk.com/#faq",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "1. How do I register an account on Gperya?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Click the \"Register\" button in the header, enter your valid mobile number, set a password, and complete verification. Players must be at least 21 years old."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "2. How long do deposits take?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Deposits via GCash, Maya, Bank Transfer, and Crypto are processed instantly into your wallet balance."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "3. How do I request a cashout?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Complete simple identity KYC verification and request your withdrawal directly to your bound e-wallet account for fast 24/7 processing."
+          }
+        }
+      ]
+    }
+  ]
+}
   </script>
 </head>
 <body class="dark-jackpot-theme">

@@ -85,6 +85,7 @@ function blog_post_list_item(array $post): array
         'id' => $post['id'] ?? '',
         'slug' => $post['slug'] ?? '',
         'title' => $post['title'] ?? '',
+        'seoTitle' => $post['seoTitle'] ?? '',
         'category' => $post['category'] ?? '',
         'author' => $post['author'] ?? '',
         'excerpt' => $post['excerpt'] ?? '',

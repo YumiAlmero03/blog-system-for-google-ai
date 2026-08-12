@@ -7,6 +7,8 @@ require_once __DIR__ . '/../includes/blog-storage.php';
 require_auth();
 
 $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($_GET['id']) : '';
+$blogCategoryOptions = blog_categories_all();
+$websiteTitle = blog_website_title();
 ?>
 <!DOCTYPE html>
 <html lang="en-PH">
@@ -349,6 +351,37 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
     .wysiwyg-editor .editor-image-block.is-dragging {
       opacity: 0.55;
     }
+    .wysiwyg-editor blockquote,
+    .markdown-preview blockquote {
+      position: relative;
+      margin: 18px 0;
+      padding: 18px 20px 18px 54px;
+      border: 1px solid rgba(166, 47, 61, 0.2);
+      border-left: 6px solid var(--brand);
+      border-radius: var(--radius-sm);
+      background: linear-gradient(135deg, #fff8f0 0%, var(--surface-soft) 100%);
+      color: var(--brand-dark);
+      font-size: 1rem;
+      font-weight: 650;
+      line-height: 1.7;
+      box-shadow: 0 8px 22px rgba(91, 24, 36, 0.08);
+    }
+    .wysiwyg-editor blockquote::before,
+    .markdown-preview blockquote::before {
+      content: "\"";
+      position: absolute;
+      top: 8px;
+      left: 18px;
+      color: rgba(166, 47, 61, 0.28);
+      font-family: Georgia, serif;
+      font-size: 3.2rem;
+      line-height: 1;
+      font-weight: 900;
+    }
+    .wysiwyg-editor blockquote p,
+    .markdown-preview blockquote p {
+      margin: 0;
+    }
     .markdown-preview {
       display: none;
       min-height: 280px;
@@ -569,6 +602,10 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
       grid-template-columns: minmax(0, 1fr) 340px;
       min-height: calc(100vh - 94px);
       background: #f0f0f1;
+      transition: grid-template-columns 0.2s ease;
+    }
+    .wp-editor-layout.is-sidebar-collapsed {
+      grid-template-columns: minmax(0, 1fr) 72px;
     }
     .wp-editor-main {
       min-width: 0;
@@ -583,9 +620,6 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
       background: #760000;
       color: #fff;
       position: relative;
-    }
-    .wp-canvas-inner {
-      max-width: 980px;
     }
     .wp-title-input {
       width: 100%;
@@ -622,12 +656,10 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
     }
     .wp-canvas .wysiwyg-toolbar,
     .wp-canvas .editor-block-inserter {
-      max-width: 980px;
       margin-top: 24px;
       background: rgba(255,255,255,0.96);
     }
     .wp-canvas .editor-shell {
-      max-width: 980px;
       margin-top: 10px;
     }
     .wp-canvas .wysiwyg-editor,
@@ -701,10 +733,17 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
       background: #fff;
       border-left: 1px solid #ddd;
       min-width: 0;
+      width: 100%;
       height: calc(100vh - 94px);
-      overflow: auto;
+      overflow: hidden;
       position: sticky;
       top: 58px;
+      transition: width 0.2s ease, min-width 0.2s ease, max-width 0.2s ease;
+    }
+    .yoast-sidebar.is-collapsed {
+      width: 72px;
+      min-width: 72px;
+      max-width: 72px;
     }
     .yoast-sidebar-header {
       height: 58px;
@@ -714,6 +753,43 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
       padding: 0 18px;
       border-bottom: 1px solid #ddd;
       font-weight: 800;
+      gap: 8px;
+    }
+    .yoast-sidebar.is-collapsed .yoast-sidebar-header {
+      justify-content: center;
+      padding: 0 8px;
+    }
+    .yoast-sidebar-title {
+      min-width: 0;
+      white-space: nowrap;
+    }
+    .yoast-sidebar.is-collapsed .yoast-sidebar-title {
+      display: none;
+    }
+    .yoast-sidebar-toggle {
+      width: 28px;
+      height: 28px;
+      border: 1px solid #dcdcde;
+      border-radius: 50%;
+      background: #f0f0f1;
+      color: #1e1e1e;
+      font-size: 1.2rem;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0;
+      display: inline-grid;
+      place-items: center;
+      transition: transform 0.2s ease;
+    }
+    .yoast-sidebar-toggle:hover {
+      background: #e5e5e5;
+    }
+    .yoast-sidebar-body {
+      height: calc(100% - 58px);
+      overflow: auto;
+    }
+    .yoast-sidebar.is-collapsed .yoast-sidebar-body {
+      display: none;
     }
     .yoast-panel {
       border-bottom: 1px solid #ddd;
@@ -876,12 +952,7 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
 </head>
 <body class="wp-admin-clone">
   <div class="page-shell">
-    <div class="wp-admin-bar">
-      <span class="wp-dot">GP</span>
-      <span>GperyaPH Admin</span>
-      <span>Blog</span>
-      <span>SEO Content</span>
-    </div>
+    <?php require __DIR__ . '/partials/admin-header.php'; ?>
 
     <form id="create-blog-form" method="post">
       <input type="hidden" name="csrf_token" id="csrf-token" value="<?= h(csrf_token()) ?>">
@@ -890,9 +961,8 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
       <header class="wp-editor-topbar">
         <div class="wp-toolbar-left">
           <a href="/admin/blogs.php" class="wp-icon-button" aria-label="Back to blogs">&#8592;</a>
-          <button type="button" class="wp-icon-button wp-plus" aria-label="Add block">+</button>
-          <button type="button" class="wp-icon-button" id="editor-undo-btn" aria-label="Undo" title="Undo" disabled>&#8630;</button>
-          <button type="button" class="wp-icon-button" id="editor-redo-btn" aria-label="Redo" title="Redo" disabled>&#8631;</button>
+          <button type="button" class="wp-icon-button" id="editor-undo-btn" aria-label="Undo" title="Undo" disabled>&#8592;</button>
+          <button type="button" class="wp-icon-button" id="editor-redo-btn" aria-label="Redo" title="Redo" disabled>&#8594;</button>
           <a href="/admin/blogs.php" class="wp-design-button">Design Library</a>
         </div>
         <div class="wp-document-title"><span id="form-title-text">No title · Post</span></div>
@@ -929,13 +999,12 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
                 <button type="button" class="wysiwyg-btn" data-command="ol" title="Numbered list">1.</button>
                 <button type="button" class="wysiwyg-btn" data-command="quote" title="Quote">Quote</button>
                 <button type="button" class="wysiwyg-btn" data-command="link" title="Insert link">Link</button>
-                <button type="button" class="wysiwyg-btn" data-command="image" title="Upload image block">Image</button>
                 <button type="button" class="wysiwyg-btn" data-command="clear" title="Clear formatting">Clear</button>
               </div>
               <div id="link-toolbox" class="link-toolbox" aria-hidden="true">
                 <input type="text" id="link-text-input" class="link-text-field" placeholder="Link text" aria-label="Link text" tabindex="-1">
                 <input type="url" id="link-url-input" placeholder="Search or type URL" aria-label="Link URL">
-                <button type="button" id="apply-link-btn" class="btn btn-primary btn-sm" aria-label="Apply link" title="Apply link">&#8630;</button>
+                <button type="button" id="apply-link-btn" class="btn btn-primary btn-sm" aria-label="Apply link" title="Apply link">&#8592;</button>
                 <button type="button" id="cancel-link-btn" class="btn btn-secondary btn-sm">Cancel</button>
                 <div id="link-toolbox-status" class="link-toolbox-status" role="status"></div>
               </div>
@@ -972,11 +1041,11 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
                 </div>
                 <div class="form-group">
                   <div class="field-label-row">
-                    <label for="blog-seo-title">SEO Title</label>
-                    <span class="char-counter">Same as Article Title</span>
+                    <label for="blog-seo-title">SEO Title *</label>
+                    <span id="seo-title-char-counter" class="char-counter">0/160</span>
                   </div>
-                  <input type="text" id="blog-seo-title" name="seo_title" class="form-control" maxlength="160" readonly aria-describedby="seo-title-sync-note">
-                  <span id="seo-title-sync-note" style="font-size:0.75rem; color:var(--text-muted); display:block; margin-top:4px;">This automatically uses the Article Title.</span>
+                  <input type="text" id="blog-seo-title" name="seo_title" class="form-control" maxlength="160" required aria-describedby="seo-title-sync-note">
+                  <span id="seo-title-sync-note" style="font-size:0.75rem; color:var(--text-muted); display:block; margin-top:4px;">Default: Article Title | <?= h($websiteTitle) ?>. Edit it here if you need a different search title.</span>
                 </div>
                 <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px;">
                   <div class="form-group">
@@ -987,8 +1056,8 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
                   <div class="form-group">
                     <label for="blog-category">Category Tag *</label>
                     <select id="blog-category" name="category" class="form-control" required>
-                      <?php foreach (BLOG_CATEGORIES as $category): ?>
-                        <option value="<?= h($category) ?>"><?= h($category) ?></option>
+                      <?php foreach ($blogCategoryOptions as $category): ?>
+                        <option value="<?= h($category['name']) ?>"><?= h($category['name']) ?></option>
                       <?php endforeach; ?>
                     </select>
                   </div>
@@ -1046,32 +1115,34 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
 
         <aside class="yoast-sidebar" aria-label="SEO Rating">
           <div class="yoast-sidebar-header">
-            <span>SEO Rating</span>
-            <span>&#9733; &times;</span>
+            <span class="yoast-sidebar-title">SEO Rating</span>
+            <button type="button" class="yoast-sidebar-toggle" aria-label="Collapse SEO Rating sidebar" aria-expanded="true" title="Collapse SEO Rating">&times;</button>
           </div>
-          <div class="yoast-panel">
-            <div class="yoast-logo">SEO</div>
-            <p class="yoast-help" style="margin-top:0;">Optimize your content for discovery with SEO checks.</p>
-          </div>
-          <div class="yoast-panel">
-            <label for="seo-focus-keyphrase">Focus keyphrase</label>
-            <input type="text" id="seo-focus-keyphrase" name="focus_keyphrase" class="form-control" placeholder="Type here" maxlength="160">
-            <p class="yoast-help">Use the main word or phrase you want your content found for across search.</p>
-          </div>
-          <div class="yoast-panel">
-            <div class="yoast-accordion-title"><span><span id="seo-analysis-icon" class="yoast-analysis-icon">!</span>SEO analysis</span><span>&#8964;</span></div>
-            <div class="seo-meter">
-              <div id="seo-meter-ring" class="seo-meter-ring"><span id="seo-meter-score">0</span></div>
-              <div>
-                <div id="seo-meter-status" class="seo-meter-status">Needs improvement</div>
-                <div class="yoast-help" id="seo-meter-help">Add a focus keyphrase and content to begin.</div>
-              </div>
+          <div class="yoast-sidebar-body">
+            <div class="yoast-panel">
+              <div class="yoast-logo">SEO</div>
+              <p class="yoast-help" style="margin-top:0;">Optimize your content for discovery with SEO checks.</p>
             </div>
-            <ul id="seo-check-list" class="yoast-check-list"></ul>
-          </div>
-          <div class="yoast-panel">
-            <div class="yoast-accordion-title"><span><span id="readability-analysis-icon" class="yoast-analysis-icon ok">!</span>Readability analysis</span><span>&#8964;</span></div>
-            <ul id="readability-check-list" class="yoast-check-list"></ul>
+            <div class="yoast-panel">
+              <label for="seo-focus-keyphrase">Focus keyphrase</label>
+              <input type="text" id="seo-focus-keyphrase" name="focus_keyphrase" class="form-control" placeholder="Type here" maxlength="160">
+              <p class="yoast-help">Use the main word or phrase you want your content found for across search.</p>
+            </div>
+            <div class="yoast-panel">
+              <div class="yoast-accordion-title"><span><span id="seo-analysis-icon" class="yoast-analysis-icon">!</span>SEO analysis</span><span>&#8964;</span></div>
+              <div class="seo-meter">
+                <div id="seo-meter-ring" class="seo-meter-ring"><span id="seo-meter-score">0</span></div>
+                <div>
+                  <div id="seo-meter-status" class="seo-meter-status">Needs improvement</div>
+                  <div class="yoast-help" id="seo-meter-help">Add a focus keyphrase and content to begin.</div>
+                </div>
+              </div>
+              <ul id="seo-check-list" class="yoast-check-list"></ul>
+            </div>
+            <div class="yoast-panel">
+              <div class="yoast-accordion-title"><span><span id="readability-analysis-icon" class="yoast-analysis-icon ok">!</span>Readability analysis</span><span>&#8964;</span></div>
+              <ul id="readability-check-list" class="yoast-check-list"></ul>
+            </div>
           </div>
         </aside>
       </div>
@@ -1082,12 +1153,14 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
     document.addEventListener('DOMContentLoaded', () => {
       let csrfToken = document.getElementById('csrf-token').value;
       const initialEditId = <?= json_encode($initialEditId, JSON_UNESCAPED_SLASHES) ?>;
+      const websiteTitle = <?= json_encode($websiteTitle, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
       const form = document.getElementById('create-blog-form');
       const notice = document.getElementById('notice');
       const title = document.getElementById('blog-title');
       const seoTitle = document.getElementById('blog-seo-title');
       const titlePreview = document.getElementById('blog-title-preview');
       const titleCharCounter = document.getElementById('title-char-counter');
+      const seoTitleCharCounter = document.getElementById('seo-title-char-counter');
       const excerpt = document.getElementById('blog-excerpt');
       const excerptCharCounter = document.getElementById('excerpt-char-counter');
       const blogStatus = document.getElementById('blog-status-field');
@@ -1112,6 +1185,10 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
       const editorToolbar = document.getElementById('editor-toolbar');
       const editorShell = document.getElementById('editor-shell');
       const markdownPreview = document.getElementById('markdown-preview');
+      const seoSidebar = document.querySelector('.yoast-sidebar');
+      const seoSidebarToggle = document.querySelector('.yoast-sidebar-toggle');
+      const seoSidebarTitle = document.querySelector('.yoast-sidebar-title');
+      const editorLayout = document.querySelector('.wp-editor-layout');
       const articleImageUpload = document.getElementById('article-image-upload');
       const articleImageButton = document.getElementById('article-image-button');
       const articleImageDropzone = document.getElementById('article-image-dropzone');
@@ -1144,6 +1221,7 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
       const saveState = document.querySelector('.wp-save-state');
       const hasLinkToolbox = linkToolbox && linkTextInput && linkUrlInput && linkToolboxStatus && applyLinkBtn && cancelLinkBtn;
       let manualSlug = false;
+      let manualSeoTitle = false;
       let savedEditorRange = null;
       let savedMarkdownSelection = null;
       let activeLinkElement = null;
@@ -1158,6 +1236,28 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
       let isRestoringHistory = false;
       const yoastModuleUrl = '/assets/vendor/yoastseo/yoastseo.bundle.js?v=3.6.0';
       const yoastResearcherUrl = '/assets/vendor/yoastseo/researcher.bundle.js?v=3.6.0';
+
+      function setSeoSidebarCollapsed(isCollapsed) {
+        if (!seoSidebar || !seoSidebarToggle || !editorLayout) {
+          return;
+        }
+
+        seoSidebar.classList.toggle('is-collapsed', isCollapsed);
+        editorLayout.classList.toggle('is-sidebar-collapsed', isCollapsed);
+        seoSidebarToggle.setAttribute('aria-expanded', String(!isCollapsed));
+        seoSidebarToggle.setAttribute('aria-label', isCollapsed ? 'Expand SEO Rating sidebar' : 'Collapse SEO Rating sidebar');
+        seoSidebarToggle.title = isCollapsed ? 'Expand SEO Rating' : 'Collapse SEO Rating';
+        seoSidebarToggle.textContent = isCollapsed ? '›' : '×';
+
+        if (seoSidebarTitle) {
+          seoSidebarTitle.hidden = isCollapsed;
+        }
+      }
+
+      seoSidebarToggle?.addEventListener('click', () => {
+        const isCollapsed = !seoSidebar.classList.contains('is-collapsed');
+        setSeoSidebarCollapsed(isCollapsed);
+      });
 
       function on(target, type, handler) {
         if (!target) return;
@@ -1378,14 +1478,15 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
       function analyzeSeo() {
         const keyphrase = focusKeyphrase ? focusKeyphrase.value.trim() : '';
         const synonyms = keyphraseSynonyms ? keyphraseSynonyms.value.trim() : '';
-        const titleText = title ? title.value.trim() : '';
+        const titleText = seoTitle && seoTitle.value.trim() ? seoTitle.value.trim() : (title ? title.value.trim() : '');
+        const articleTitleText = title ? title.value.trim() : '';
         const slugText = slug ? slug.value.trim() : '';
         const excerptText = excerpt ? excerpt.value.trim() : '';
         const markdown = editorShell && editorShell.classList.contains('editor-mode-write') ? editorHtmlToMarkdown() : (blogContent ? blogContent.value : '');
         const html = parseMarkdown(markdown);
         const plainText = plainTextFromMarkdown(markdown);
         const wordCount = countWords(markdown);
-        const keyCount = countPhrase([titleText, excerptText, plainText].join(' '), keyphrase);
+        const keyCount = countPhrase([titleText, articleTitleText, excerptText, plainText].join(' '), keyphrase);
         const density = wordCount > 0 && keyphrase ? (countPhrase(plainText, keyphrase) / wordCount) * 100 : 0;
         const paragraphs = markdown.split(/\n\s*\n/).map((item) => plainTextFromMarkdown(item)).filter(Boolean);
         const sentences = plainText.split(/[.!?]+/).map((item) => item.trim()).filter(Boolean);
@@ -1399,7 +1500,7 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
 
         const seoChecks = [
           { label: keyphrase ? 'Focus keyphrase is set.' : 'Add a focus keyphrase.', ok: Boolean(keyphrase), points: 12 },
-          { label: keyphrase && countPhrase(titleText, keyphrase) ? 'Keyphrase appears in the SEO title.' : 'Use the keyphrase in the title.', ok: keyphrase && countPhrase(titleText, keyphrase), points: 12 },
+          { label: keyphrase && countPhrase(titleText, keyphrase) ? 'Keyphrase appears in the SEO title.' : 'Use the keyphrase in the SEO title.', ok: keyphrase && countPhrase(titleText, keyphrase), points: 12 },
           { label: keyphrase && countPhrase(slugText.replace(/-/g, ' '), keyphrase) ? 'Keyphrase appears in the slug.' : 'Use the keyphrase in the slug.', ok: keyphrase && countPhrase(slugText.replace(/-/g, ' '), keyphrase), points: 10 },
           { label: keyphrase && countPhrase(excerptText, keyphrase) ? 'Keyphrase appears in the meta description/excerpt.' : 'Use the keyphrase in the excerpt.', ok: keyphrase && countPhrase(excerptText, keyphrase), points: 10 },
           { label: keyphrase && countPhrase(firstParagraph, keyphrase) ? 'Keyphrase appears near the introduction.' : 'Mention the keyphrase early in the content.', ok: keyphrase && countPhrase(firstParagraph, keyphrase), points: 10 },
@@ -1460,11 +1561,18 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
 
       function updateTitleDisplay() {
         const value = title ? title.value.trim() : '';
-        if (seoTitle) seoTitle.value = value;
+        if (seoTitle && !manualSeoTitle) {
+          seoTitle.value = value ? value + ' | ' + websiteTitle : '';
+        }
         setText(titlePreview, value || 'Add title');
         toggleClass(titlePreview, 'is-empty', !value);
         setText(formTitle, value ? value + ' · Post' : 'No title · Post');
         updateCharCounter(titleCharCounter, title ? title.value.length : 0, 160, 140);
+        updateSeoTitleCounter();
+      }
+
+      function updateSeoTitleCounter() {
+        updateCharCounter(seoTitleCharCounter, seoTitle ? seoTitle.value.length : 0, 160, 140);
       }
 
       function updateExcerptCounter() {
@@ -2290,6 +2398,12 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
         analyzeSeo();
       });
 
+      on(seoTitle, 'input', () => {
+        manualSeoTitle = true;
+        updateSeoTitleCounter();
+        analyzeSeo();
+      });
+
       if (imagePreset) {
         on(imagePreset, 'change', () => {
           setImage(imagePreset.value);
@@ -2507,6 +2621,7 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
         form.reset();
         if (editingId) editingId.value = '';
         manualSlug = false;
+        manualSeoTitle = false;
         setText(slugPreview, 'gperya-article');
         setImage('/uploads/blogs/default-featured.svg');
         setUploadStatus('');
@@ -2519,6 +2634,7 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
         resetEditorHistory('');
         pendingSaveStatus = '';
         updateTitleDisplay();
+        updateSeoTitleCounter();
         updateExcerptCounter();
         if (cancelBtn) cancelBtn.style.display = 'none';
         setEditorMode('write');
@@ -2529,6 +2645,7 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
         window.setTimeout(() => {
           if (editingId) editingId.value = '';
           manualSlug = false;
+          manualSeoTitle = false;
           setText(slugPreview, 'gperya-article');
           setImage('/uploads/blogs/default-featured.svg');
           setUploadStatus('');
@@ -2541,6 +2658,7 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
           resetEditorHistory('');
           pendingSaveStatus = '';
           updateTitleDisplay();
+          updateSeoTitleCounter();
           updateExcerptCounter();
           if (cancelBtn) cancelBtn.style.display = 'none';
           setEditorMode('write');
@@ -2560,7 +2678,7 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
         updateSaveState(currentStatus);
         const data = new FormData(form);
         data.set('slug', slugify(data.get('slug') || data.get('title') || ''));
-        data.set('seo_title', data.get('title') || '');
+        data.set('seo_title', data.get('seo_title') || '');
         data.set('status', currentStatus);
         data.set('focus_keyphrase', focusKeyphrase ? focusKeyphrase.value.trim() : '');
         data.set('csrf_token', csrfToken);
@@ -2597,6 +2715,8 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
         const blog = result.blog;
         if (editingId) editingId.value = blog.id || blog.slug || '';
         if (title) title.value = blog.title || '';
+        if (seoTitle) seoTitle.value = blog.seoTitle || (blog.title ? blog.title + ' | ' + websiteTitle : '');
+        manualSeoTitle = Boolean(seoTitle && seoTitle.value.trim());
         if (slug) slug.value = blog.slug || blog.id || '';
         setText(slugPreview, slug && slug.value ? slug.value : 'gperya-article');
         if (categoryField) categoryField.value = blog.category || 'Guides';
@@ -2606,6 +2726,7 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
         if (authorField) authorField.value = blog.author || 'GperyaPH Editorial Team';
         if (excerpt) excerpt.value = blog.excerpt || '';
         updateTitleDisplay();
+        updateSeoTitleCounter();
         updateExcerptCounter();
         setEditorMarkdown(blog.content || '');
         resetEditorHistory(blog.content || '');
@@ -2614,6 +2735,7 @@ $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($
         manualSlug = true;
         pendingSaveStatus = '';
         updateTitleDisplay();
+        updateSeoTitleCounter();
         if (cancelBtn) cancelBtn.style.display = 'inline-block';
         showNotice('Blog post loaded for editing.', 'ok');
         analyzeSeo();

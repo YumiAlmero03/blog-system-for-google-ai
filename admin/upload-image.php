@@ -15,6 +15,44 @@ const UPLOAD_MIN_HEIGHT = 80;
 const UPLOAD_MAX_WIDTH = 5000;
 const UPLOAD_MAX_HEIGHT = 5000;
 const UPLOAD_IMAGE_QUALITY = 60;
+const UPLOAD_OUTPUT_MAX_WIDTH = 1200;
+const UPLOAD_OUTPUT_MAX_HEIGHT = 675;
+
+function detect_uploaded_image_mime(string $path): ?string
+{
+    $allowed = [
+        'image/jpeg' => true,
+        'image/png' => true,
+        'image/webp' => true,
+    ];
+
+    if (class_exists('finfo') && defined('FILEINFO_MIME_TYPE')) {
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $mime = $finfo->file($path);
+        if (is_string($mime) && isset($allowed[$mime])) {
+            return $mime;
+        }
+    }
+
+    if (function_exists('mime_content_type')) {
+        $mime = @mime_content_type($path);
+        if (is_string($mime) && isset($allowed[$mime])) {
+            return $mime;
+        }
+    }
+
+    $dimensions = @getimagesize($path);
+    if (is_array($dimensions) && isset($dimensions['mime']) && is_string($dimensions['mime']) && isset($allowed[$dimensions['mime']])) {
+        return $dimensions['mime'];
+    }
+
+    return null;
+}
+
+function is_gd_image(mixed $image): bool
+{
+    return is_resource($image) || (class_exists('GdImage') && $image instanceof GdImage);
+}
 
 function optimize_uploaded_image(string $source, string $destination, string $mime): bool
 {
@@ -29,8 +67,30 @@ function optimize_uploaded_image(string $source, string $destination, string $mi
         default => false,
     };
 
-    if (!$image instanceof GdImage) {
+    if (!is_gd_image($image)) {
         return move_uploaded_file($source, $destination);
+    }
+
+    $sourceWidth = imagesx($image);
+    $sourceHeight = imagesy($image);
+    $scale = min(1, UPLOAD_OUTPUT_MAX_WIDTH / max(1, $sourceWidth), UPLOAD_OUTPUT_MAX_HEIGHT / max(1, $sourceHeight));
+    $wasResized = $scale < 1;
+
+    if ($wasResized) {
+        $targetWidth = max(1, (int) floor($sourceWidth * $scale));
+        $targetHeight = max(1, (int) floor($sourceHeight * $scale));
+        $resized = imagecreatetruecolor($targetWidth, $targetHeight);
+        if (is_gd_image($resized)) {
+            if ($mime === 'image/png' || $mime === 'image/webp') {
+                imagealphablending($resized, false);
+                imagesavealpha($resized, true);
+                $transparent = imagecolorallocatealpha($resized, 0, 0, 0, 127);
+                imagefilledrectangle($resized, 0, 0, $targetWidth, $targetHeight, $transparent);
+            }
+            imagecopyresampled($resized, $image, 0, 0, 0, 0, $targetWidth, $targetHeight, $sourceWidth, $sourceHeight);
+            imagedestroy($image);
+            $image = $resized;
+        }
     }
 
     if ($mime === 'image/jpeg') {
@@ -52,6 +112,12 @@ function optimize_uploaded_image(string $source, string $destination, string $mi
 
     imagedestroy($image);
     if ($saved && is_file($destination)) {
+        $sourceSize = @filesize($source);
+        $destinationSize = @filesize($destination);
+        if (!$wasResized && is_int($sourceSize) && is_int($destinationSize) && $destinationSize > $sourceSize) {
+            @unlink($destination);
+            return move_uploaded_file($source, $destination);
+        }
         return true;
     }
 
@@ -101,13 +167,12 @@ if (substr_count($originalName, '.') !== 1) {
     exit;
 }
 
-$finfo = new finfo(FILEINFO_MIME_TYPE);
-$mime = $finfo->file($file['tmp_name']);
 $extensions = [
     'image/jpeg' => 'jpg',
     'image/png' => 'png',
     'image/webp' => 'webp',
 ];
+$mime = detect_uploaded_image_mime($file['tmp_name']);
 
 if (!is_string($mime) || !isset($extensions[$mime])) {
     http_response_code(415);

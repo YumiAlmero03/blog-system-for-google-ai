@@ -142,21 +142,7 @@ $recent = tracker_recent($data);
 </head>
 <body>
   <div class="page-shell">
-    <header class="site-header">
-      <div class="header-inner">
-        <a href="/" class="brand-logo">
-          GperyaPH <span class="badge-tag" style="background-color: var(--brand); color:#fff;">ADMIN</span>
-        </a>
-        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-          <a href="/admin/blogs.php" class="btn btn-secondary btn-sm">Blogs</a>
-          <a href="/admin/settings.php" class="btn btn-secondary btn-sm">Settings</a>
-          <form action="/logout.php" method="post" style="margin:0;">
-            <?= csrf_input() ?>
-            <button type="submit" class="btn btn-secondary btn-sm">Logout</button>
-          </form>
-        </div>
-      </div>
-    </header>
+    <?php require __DIR__ . '/partials/admin-header.php'; ?>
 
     <main id="main-content" style="padding: 20px 16px;">
       <div class="admin-container">

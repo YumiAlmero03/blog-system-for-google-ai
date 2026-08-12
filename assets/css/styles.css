@@ -2003,13 +2003,49 @@ body {
 }
 
 .markdown-rendered-body blockquote {
-  border-left: 4px solid var(--brand);
-  background: var(--surface-soft);
-  padding: 10px 16px;
-  margin: 1rem 0;
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  font-style: italic;
-  color: var(--text-dark);
+  position: relative;
+  margin: 1.5rem 0;
+  padding: 20px 22px 20px 58px;
+  border: 1px solid rgba(166, 47, 61, 0.22);
+  border-left: 6px solid var(--brand);
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, #fff8f0 0%, var(--surface-soft) 100%);
+  color: var(--brand-dark);
+  font-size: 1.02rem;
+  font-weight: 650;
+  line-height: 1.75;
+  box-shadow: 0 10px 26px rgba(91, 24, 36, 0.09);
+}
+
+.markdown-rendered-body blockquote::before {
+  content: "\"";
+  position: absolute;
+  top: 10px;
+  left: 18px;
+  color: rgba(166, 47, 61, 0.28);
+  font-family: Georgia, serif;
+  font-size: 3.4rem;
+  line-height: 1;
+  font-weight: 900;
+}
+
+.markdown-rendered-body blockquote p {
+  margin: 0;
+}
+
+.markdown-rendered-body blockquote strong {
+  color: var(--brand-dark);
+}
+
+@media (max-width: 640px) {
+  .markdown-rendered-body blockquote {
+    padding: 18px 16px 18px 48px;
+  }
+
+  .markdown-rendered-body blockquote::before {
+    left: 14px;
+    font-size: 2.9rem;
+  }
 }
 
 .markdown-rendered-body code {

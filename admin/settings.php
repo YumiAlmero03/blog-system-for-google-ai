@@ -8,6 +8,7 @@ require_auth();
 
 const SETTINGS_REPLACE_COLUMNS = [
     'title' => 'Title',
+    'seo_title' => 'SEO title',
     'category' => 'Category',
     'author' => 'Author',
     'excerpt' => 'Short excerpt',
@@ -141,37 +142,59 @@ $replace = '';
 $result = null;
 $notice = '';
 $noticeType = '';
+$websiteTitle = blog_website_title();
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     require_valid_csrf();
-    $find = settings_post_value('find', 2000);
-    $replace = settings_post_value('replace', 2000);
     $action = settings_post_value('action', 20);
 
-    if ($find === '') {
-        $notice = 'Find text is required.';
-        $noticeType = 'error';
-    } else {
-        try {
-            if ($action === 'replace') {
-                if (($_POST['confirm_replace'] ?? '') !== '1') {
-                    $notice = 'Please confirm before replacing database text.';
-                    $noticeType = 'error';
-                } else {
-                    $result = settings_apply_replace($find, $replace);
-                    $notice = 'Replace complete. Updated ' . (int) $result['totalMatches'] . ' match' . ((int) $result['totalMatches'] === 1 ? '' : 'es') . ' across ' . (int) $result['totalRows'] . ' post' . ((int) $result['totalRows'] === 1 ? '' : 's') . '.';
-                    $noticeType = 'ok';
-                    csrf_rotate();
-                }
-            } else {
-                $result = settings_find_matches($find);
-                $notice = 'Preview found ' . (int) $result['totalMatches'] . ' match' . ((int) $result['totalMatches'] === 1 ? '' : 'es') . ' across ' . (int) $result['totalRows'] . ' post' . ((int) $result['totalRows'] === 1 ? '' : 's') . '.';
-                $noticeType = 'ok';
-            }
-        } catch (Throwable $exception) {
-            error_log('Settings find/replace error: ' . $exception->getMessage());
-            $notice = 'Database find/replace is unavailable.';
+    if ($action === 'save_website_title') {
+        $websiteTitle = settings_post_value('website_title', 120);
+        if ($websiteTitle === '') {
+            $notice = 'Website title is required.';
             $noticeType = 'error';
+        } else {
+            try {
+                blog_setting_set('website_title', $websiteTitle, 120);
+                $websiteTitle = blog_website_title();
+                $notice = 'Website title saved.';
+                $noticeType = 'ok';
+                csrf_rotate();
+            } catch (Throwable $exception) {
+                error_log('Settings website title error: ' . $exception->getMessage());
+                $notice = 'Website title could not be saved.';
+                $noticeType = 'error';
+            }
+        }
+    } else {
+        $find = settings_post_value('find', 2000);
+        $replace = settings_post_value('replace', 2000);
+
+        if ($find === '') {
+            $notice = 'Find text is required.';
+            $noticeType = 'error';
+        } else {
+            try {
+                if ($action === 'replace') {
+                    if (($_POST['confirm_replace'] ?? '') !== '1') {
+                        $notice = 'Please confirm before replacing database text.';
+                        $noticeType = 'error';
+                    } else {
+                        $result = settings_apply_replace($find, $replace);
+                        $notice = 'Replace complete. Updated ' . (int) $result['totalMatches'] . ' match' . ((int) $result['totalMatches'] === 1 ? '' : 'es') . ' across ' . (int) $result['totalRows'] . ' post' . ((int) $result['totalRows'] === 1 ? '' : 's') . '.';
+                        $noticeType = 'ok';
+                        csrf_rotate();
+                    }
+                } else {
+                    $result = settings_find_matches($find);
+                    $notice = 'Preview found ' . (int) $result['totalMatches'] . ' match' . ((int) $result['totalMatches'] === 1 ? '' : 'es') . ' across ' . (int) $result['totalRows'] . ' post' . ((int) $result['totalRows'] === 1 ? '' : 's') . '.';
+                    $noticeType = 'ok';
+                }
+            } catch (Throwable $exception) {
+                error_log('Settings find/replace error: ' . $exception->getMessage());
+                $notice = 'Database find/replace is unavailable.';
+                $noticeType = 'error';
+            }
         }
     }
 }
@@ -299,22 +322,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 </head>
 <body>
   <div class="page-shell">
-    <header class="site-header">
-      <div class="header-inner">
-        <a href="/" class="brand-logo">
-          GperyaPH <span class="badge-tag" style="background-color: var(--brand); color:#fff;">ADMIN</span>
-        </a>
-        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-          <a href="/admin/blogs.php" class="btn btn-secondary btn-sm">Blogs</a>
-          <a href="/admin/playnow-tracker.php" class="btn btn-secondary btn-sm">Play Now Tracker</a>
-          <a href="/admin/blog-publish.php" class="btn btn-primary btn-sm">Publish Post</a>
-          <form action="/logout.php" method="post" style="margin:0;">
-            <?= csrf_input() ?>
-            <button type="submit" class="btn btn-secondary btn-sm">Logout</button>
-          </form>
-        </div>
-      </div>
-    </header>
+    <?php require __DIR__ . '/partials/admin-header.php'; ?>
 
     <main id="main-content" style="padding: 20px 16px;">
       <div class="admin-container">
@@ -331,6 +339,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         <?php endif; ?>
 
         <div class="settings-grid">
+          <form method="post" class="settings-card">
+            <?= csrf_input() ?>
+            <div class="form-row">
+              <label for="website-title">Website Title</label>
+              <input type="text" id="website-title" name="website_title" maxlength="120" required value="<?= h($websiteTitle) ?>">
+            </div>
+            <div class="actions">
+              <button type="submit" name="action" value="save_website_title" class="btn btn-primary btn-sm">Save Website Title</button>
+            </div>
+          </form>
+
           <form method="post" class="settings-card">
             <?= csrf_input() ?>
             <div class="form-row">

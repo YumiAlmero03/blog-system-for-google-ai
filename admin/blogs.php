@@ -178,23 +178,7 @@ require_auth();
 </head>
 <body>
   <div class="page-shell">
-    <header class="site-header">
-      <div class="header-inner">
-        <a href="/" class="brand-logo">
-          GperyaPH <span class="badge-tag" style="background-color: var(--brand); color:#fff;">ADMIN</span>
-        </a>
-        <div style="display:flex; gap:8px; align-items:center;">
-          <a href="/admin/playnow-tracker.php" class="btn btn-secondary btn-sm">Play Now Tracker</a>
-          <a href="/admin/settings.php" class="btn btn-secondary btn-sm">Settings</a>
-          <a href="/admin/blog-publish.php" class="btn btn-primary btn-sm">Publish Post</a>
-          <a href="/blog/" class="btn btn-secondary btn-sm">View Blog Hub</a>
-          <form action="/logout.php" method="post" style="margin:0;">
-            <?= csrf_input() ?>
-            <button type="submit" class="btn btn-secondary btn-sm">Logout</button>
-          </form>
-        </div>
-      </div>
-    </header>
+    <?php require __DIR__ . '/partials/admin-header.php'; ?>
 
     <main id="main-content" style="padding: 20px 16px;">
       <div class="admin-container">
@@ -379,7 +363,7 @@ require_auth();
 
       function analyzeBlogSeo(blog) {
         const keyphrase = deriveFocusKeyphrase(blog);
-        const titleText = blog.title || '';
+        const titleText = blog.seoTitle || blog.title || '';
         const slugText = blog.slug || blog.id || '';
         const excerptText = blog.excerpt || '';
         const markdown = blog.content || '';
