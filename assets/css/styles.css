@@ -2004,29 +2004,44 @@ body {
 
 .markdown-rendered-body blockquote {
   position: relative;
-  margin: 1.5rem 0;
-  padding: 20px 22px 20px 58px;
-  border: 1px solid rgba(166, 47, 61, 0.22);
-  border-left: 6px solid var(--brand);
+  margin: 1.75rem 0;
+  padding: 24px 26px 24px 68px;
+  border: 1px solid rgba(166, 47, 61, 0.2);
+  border-left: 7px solid var(--brand);
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, #fff8f0 0%, var(--surface-soft) 100%);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 243, 244, 0.96) 100%),
+    radial-gradient(circle at 100% 0%, rgba(243, 198, 76, 0.18), transparent 34%);
   color: var(--brand-dark);
-  font-size: 1.02rem;
-  font-weight: 650;
+  font-size: 1.04rem;
+  font-weight: 700;
   line-height: 1.75;
-  box-shadow: 0 10px 26px rgba(91, 24, 36, 0.09);
+  box-shadow: 0 14px 32px rgba(91, 24, 36, 0.12);
+  overflow: hidden;
 }
 
 .markdown-rendered-body blockquote::before {
   content: "\"";
   position: absolute;
-  top: 10px;
-  left: 18px;
-  color: rgba(166, 47, 61, 0.28);
+  top: 14px;
+  left: 20px;
+  color: rgba(166, 47, 61, 0.24);
   font-family: Georgia, serif;
-  font-size: 3.4rem;
+  font-size: 3.8rem;
   line-height: 1;
   font-weight: 900;
+}
+
+.markdown-rendered-body blockquote::after {
+  content: "";
+  position: absolute;
+  right: -36px;
+  bottom: -42px;
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  background: rgba(243, 198, 76, 0.14);
+  pointer-events: none;
 }
 
 .markdown-rendered-body blockquote p {
@@ -2038,12 +2053,45 @@ body {
 }
 
 .markdown-rendered-body .blog-faq-block {
-  margin: 1.5rem 0;
-  padding: 20px 22px;
-  border: 1px solid rgba(166, 47, 61, 0.22);
+  position: relative;
+  margin: 1.75rem 0;
+  padding: 54px 22px 22px;
+  border: 1px solid rgba(166, 47, 61, 0.2);
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, #fff8f0 0%, var(--surface-soft) 100%);
-  box-shadow: 0 10px 26px rgba(91, 24, 36, 0.09);
+  background:
+    linear-gradient(135deg, rgba(255, 248, 240, 0.96) 0%, rgba(255, 243, 244, 0.98) 100%),
+    radial-gradient(circle at 100% 0%, rgba(243, 198, 76, 0.2), transparent 32%);
+  box-shadow: 0 14px 32px rgba(91, 24, 36, 0.12);
+  overflow: hidden;
+}
+
+.markdown-rendered-body .blog-faq-block::before {
+  content: "FAQs";
+  position: absolute;
+  top: 18px;
+  left: 22px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.markdown-rendered-body .blog-faq-block::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 110px;
+  height: 110px;
+  background: linear-gradient(135deg, rgba(255, 196, 61, 0.24), transparent 62%);
+  pointer-events: none;
 }
 
 .markdown-rendered-body .blog-faq-label {
@@ -2060,32 +2108,89 @@ body {
 }
 
 .markdown-rendered-body .blog-faq-item + .blog-faq-item {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid rgba(166, 47, 61, 0.18);
+  margin-top: 14px;
+}
+
+.markdown-rendered-body .blog-faq-item {
+  position: relative;
+  padding: 16px 18px;
+  border: 1px solid rgba(166, 47, 61, 0.14);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 6px 16px rgba(91, 24, 36, 0.06);
+  z-index: 1;
 }
 
 .markdown-rendered-body .blog-faq-block h3 {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
   margin: 0 0 8px;
   color: var(--brand-dark);
   font-size: 1.08rem;
   line-height: 1.35;
 }
 
+.markdown-rendered-body .blog-faq-block h3::before {
+  content: "Q";
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--brand);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
 .markdown-rendered-body .blog-faq-block p {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
   margin: 0;
   color: var(--text);
   line-height: 1.7;
 }
 
+.markdown-rendered-body .blog-faq-block p::before {
+  content: "A";
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface-gold);
+  color: var(--brand-dark);
+  border: 1px solid rgba(166, 47, 61, 0.18);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
 @media (max-width: 640px) {
   .markdown-rendered-body blockquote {
-    padding: 18px 16px 18px 48px;
+    padding: 20px 16px 20px 50px;
   }
 
   .markdown-rendered-body blockquote::before {
     left: 14px;
     font-size: 2.9rem;
+  }
+
+  .markdown-rendered-body .blog-faq-block {
+    padding: 50px 14px 14px;
+  }
+
+  .markdown-rendered-body .blog-faq-block::before {
+    left: 14px;
+  }
+
+  .markdown-rendered-body .blog-faq-item {
+    padding: 14px;
   }
 }
 

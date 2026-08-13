@@ -405,7 +405,7 @@ if ($faqEntities !== []) {
   <meta name="twitter:image:alt" content="<?= blog_h($articleTitle) ?>">
   <meta name="theme-color" content="#632121">
   <script type="application/ld+json"><?= json_encode($jsonLd, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?></script>
-  <link rel="preload" href="/assets/css/styles.min.css" as="style"><link rel="stylesheet" href="/assets/css/styles.min.css">
+  <link rel="preload" href="/assets/css/styles.min.css?v=20260812-23" as="style"><link rel="stylesheet" href="/assets/css/styles.min.css?v=20260812-23">
   <link rel="icon" href="/assets/icons/favicon.ico">
 </head>
 <body>

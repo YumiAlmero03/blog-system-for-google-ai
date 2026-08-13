@@ -568,22 +568,28 @@ $websiteTitle = blog_website_title();
     }
     .wysiwyg-editor .editor-faq-block,
     .markdown-preview .editor-faq-block {
+      position: relative;
       margin: 18px 0;
-      padding: 16px;
-      border: 1px solid rgba(166, 47, 61, 0.22);
+      padding: 18px;
+      border: 1px solid rgba(166, 47, 61, 0.2);
       border-radius: var(--radius-sm);
-      background: linear-gradient(135deg, #fff8f0 0%, #fff3f4 100%);
-      box-shadow: 0 8px 22px rgba(91, 24, 36, 0.08);
+      background:
+        linear-gradient(135deg, rgba(255, 248, 240, 0.96) 0%, rgba(255, 243, 244, 0.98) 100%),
+        radial-gradient(circle at 100% 0%, rgba(243, 198, 76, 0.2), transparent 32%);
+      box-shadow: 0 12px 28px rgba(91, 24, 36, 0.11);
+      overflow: hidden;
     }
     .editor-faq-label {
       display: inline-flex;
       align-items: center;
-      padding: 3px 8px;
+      min-height: 24px;
+      padding: 4px 10px;
       border-radius: 999px;
       background: var(--brand);
       color: #fff;
       font-size: 0.72rem;
       font-weight: 900;
+      letter-spacing: 0.04em;
       text-transform: uppercase;
     }
     .editor-faq-header {
@@ -624,10 +630,12 @@ $websiteTitle = blog_website_title();
     }
     .editor-faq-item {
       position: relative;
-      padding: 14px;
-      border: 1px solid rgba(166, 47, 61, 0.16);
+      padding: 16px;
+      border: 1px solid rgba(166, 47, 61, 0.14);
       border-radius: 8px;
-      background: rgba(255, 255, 255, 0.7);
+      background: rgba(255, 255, 255, 0.82);
+      box-shadow: 0 6px 16px rgba(91, 24, 36, 0.06);
+      z-index: 1;
     }
     .editor-faq-item-actions {
       justify-content: flex-end;
@@ -651,7 +659,7 @@ $websiteTitle = blog_website_title();
     .editor-faq-question {
       margin: 0 0 8px;
       min-height: 28px;
-      padding: 8px 10px;
+      padding: 10px 12px;
       border: 1px solid rgba(166, 47, 61, 0.16);
       border-radius: 6px;
       background: #fff;
@@ -663,7 +671,7 @@ $websiteTitle = blog_website_title();
     .editor-faq-answer {
       margin: 0;
       min-height: 54px;
-      padding: 8px 10px;
+      padding: 10px 12px;
       border: 1px solid rgba(166, 47, 61, 0.16);
       border-radius: 6px;
       background: #fff;
@@ -674,28 +682,43 @@ $websiteTitle = blog_website_title();
     .markdown-preview blockquote {
       position: relative;
       margin: 18px 0;
-      padding: 18px 20px 18px 54px;
+      padding: 22px 24px 22px 64px;
       border: 1px solid rgba(166, 47, 61, 0.2);
-      border-left: 6px solid var(--brand);
+      border-left: 7px solid var(--brand);
       border-radius: var(--radius-sm);
-      background: linear-gradient(135deg, #fff8f0 0%, var(--surface-soft) 100%);
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 243, 244, 0.96) 100%),
+        radial-gradient(circle at 100% 0%, rgba(243, 198, 76, 0.18), transparent 34%);
       color: var(--brand-dark);
-      font-size: 1rem;
-      font-weight: 650;
+      font-size: 1.02rem;
+      font-weight: 700;
       line-height: 1.7;
-      box-shadow: 0 8px 22px rgba(91, 24, 36, 0.08);
+      box-shadow: 0 12px 28px rgba(91, 24, 36, 0.11);
+      overflow: hidden;
     }
     .wysiwyg-editor blockquote::before,
     .markdown-preview blockquote::before {
       content: "\"";
       position: absolute;
-      top: 8px;
-      left: 18px;
-      color: rgba(166, 47, 61, 0.28);
+      top: 12px;
+      left: 20px;
+      color: rgba(166, 47, 61, 0.24);
       font-family: Georgia, serif;
-      font-size: 3.2rem;
+      font-size: 3.6rem;
       line-height: 1;
       font-weight: 900;
+    }
+    .wysiwyg-editor blockquote::after,
+    .markdown-preview blockquote::after {
+      content: "";
+      position: absolute;
+      right: -34px;
+      bottom: -40px;
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      background: rgba(243, 198, 76, 0.14);
+      pointer-events: none;
     }
     .wysiwyg-editor blockquote p,
     .markdown-preview blockquote p {
