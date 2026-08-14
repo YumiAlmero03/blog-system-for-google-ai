@@ -289,8 +289,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model", default=env_value("OLLAMA_MODEL") or default_model())
     parser.add_argument("--ollama-url", default=(env_value("OLLAMA_GENERATE_URL") or f"{ollama_base_url()}/api/generate"))
     parser.add_argument("--slug")
-    parser.add_argument("--overwrite", action="store_true", help="Rewrite existing RTP, volatility, and descriptions.")
-    parser.add_argument("--regenerate", action="store_true", help="Alias for --overwrite.")
+    parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--skip-errors", action="store_true")
     parser.add_argument("--fallback-only", action="store_true")
@@ -375,8 +374,6 @@ def process_batch(conn: sqlite3.Connection, args: argparse.Namespace) -> tuple[i
 
 def main() -> int:
     args = parse_args()
-    if args.regenerate:
-        args.overwrite = True
     args.limit = max(1, min(args.limit, 500))
     args.offset = max(0, args.offset)
     args.timeout = max(30, min(args.timeout, 3600))
@@ -390,7 +387,6 @@ def main() -> int:
         f"Timeout {args.timeout}s, retries {args.retries}"
         + (", skip errors on" if args.skip_errors else "")
         + (", fallback only on" if args.fallback_only else "")
-        + (", regenerate on" if args.regenerate else "")
         + (", once on" if args.once else "")
         + "."
     )
