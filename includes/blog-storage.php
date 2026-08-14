@@ -127,8 +127,236 @@ function blogs_schema(PDO $pdo): void
             updated_at INTEGER NOT NULL
         )'
     );
+    games_schema($pdo);
     blog_settings_seed($pdo);
     blog_categories_seed($pdo);
+}
+
+function games_schema(PDO $pdo): void
+{
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS game_providers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            api_id INTEGER NOT NULL UNIQUE,
+            name TEXT NOT NULL,
+            thumbnail TEXT NOT NULL DEFAULT "",
+            created_at INTEGER NOT NULL DEFAULT 0,
+            updated_at INTEGER NOT NULL DEFAULT 0
+        )'
+    );
+    game_providers_ensure_thumbnail_column($pdo);
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_game_providers_name ON game_providers(name)');
+
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS game_types (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            api_id INTEGER NOT NULL UNIQUE,
+            name TEXT NOT NULL,
+            created_at INTEGER NOT NULL DEFAULT 0,
+            updated_at INTEGER NOT NULL DEFAULT 0
+        )'
+    );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_game_types_name ON game_types(name)');
+
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS game_themes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            api_id INTEGER NOT NULL UNIQUE,
+            name TEXT NOT NULL,
+            created_at INTEGER NOT NULL DEFAULT 0,
+            updated_at INTEGER NOT NULL DEFAULT 0
+        )'
+    );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_game_themes_name ON game_themes(name)');
+
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS games (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            api_id INTEGER NOT NULL UNIQUE,
+            name TEXT NOT NULL,
+            slug TEXT NOT NULL,
+            url TEXT NOT NULL DEFAULT "",
+            thumb TEXT NOT NULL DEFAULT "",
+            short_description TEXT NOT NULL DEFAULT "",
+            long_description TEXT NOT NULL DEFAULT "",
+            provider_id INTEGER DEFAULT NULL,
+            provider TEXT NOT NULL DEFAULT "",
+            provider_slug TEXT NOT NULL DEFAULT "",
+            type_id INTEGER DEFAULT NULL,
+            type TEXT NOT NULL DEFAULT "",
+            type_slug TEXT NOT NULL DEFAULT "",
+            themes TEXT NOT NULL DEFAULT "[]",
+            megaways INTEGER NOT NULL DEFAULT 0,
+            bonus_buy INTEGER NOT NULL DEFAULT 0,
+            progressive INTEGER NOT NULL DEFAULT 0,
+            featured INTEGER NOT NULL DEFAULT 0,
+            release TEXT NOT NULL DEFAULT "",
+            reels TEXT NOT NULL DEFAULT "",
+            rtp REAL DEFAULT NULL,
+            volatility TEXT NOT NULL DEFAULT "",
+            currencies TEXT NOT NULL DEFAULT "[]",
+            languages TEXT NOT NULL DEFAULT "[]",
+            land_based INTEGER NOT NULL DEFAULT 0,
+            markets TEXT NOT NULL DEFAULT "[]",
+            paylines TEXT NOT NULL DEFAULT "",
+            max_exposure TEXT NOT NULL DEFAULT "",
+            min_bet REAL DEFAULT NULL,
+            max_bet REAL DEFAULT NULL,
+            max_win_per_spin REAL DEFAULT NULL,
+            autoplay INTEGER NOT NULL DEFAULT 0,
+            quickspin INTEGER NOT NULL DEFAULT 0,
+            tumbling_reels INTEGER NOT NULL DEFAULT 0,
+            increasing_multipliers INTEGER NOT NULL DEFAULT 0,
+            orientation TEXT NOT NULL DEFAULT "",
+            restrictions TEXT NOT NULL DEFAULT "[]",
+            upcoming INTEGER NOT NULL DEFAULT 0,
+            published INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL DEFAULT 0,
+            updated_at INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (provider_id) REFERENCES game_providers(id) ON DELETE SET NULL,
+            FOREIGN KEY (type_id) REFERENCES game_types(id) ON DELETE SET NULL
+        )'
+    );
+    games_ensure_text_column($pdo, 'short_description');
+    games_ensure_text_column($pdo, 'long_description');
+    games_remove_slug_unique_constraint($pdo);
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_games_slug ON games(slug)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_games_provider_id ON games(provider_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_games_type_id ON games(type_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_games_provider_slug ON games(provider_slug)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_games_type_slug ON games(type_slug)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_games_featured_published ON games(featured, published)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_games_published_updated_at ON games(published, updated_at DESC)');
+
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS game_theme_links (
+            game_id INTEGER NOT NULL,
+            theme_id INTEGER NOT NULL,
+            PRIMARY KEY (game_id, theme_id),
+            FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
+            FOREIGN KEY (theme_id) REFERENCES game_themes(id) ON DELETE CASCADE
+        )'
+    );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_game_theme_links_theme_id ON game_theme_links(theme_id)');
+}
+
+function game_providers_ensure_thumbnail_column(PDO $pdo): void
+{
+    $columns = $pdo->query('PRAGMA table_info(game_providers)')->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($columns as $column) {
+        if (($column['name'] ?? '') === 'thumbnail') {
+            return;
+        }
+    }
+
+    $pdo->exec('ALTER TABLE game_providers ADD COLUMN thumbnail TEXT NOT NULL DEFAULT ""');
+}
+
+function games_ensure_text_column(PDO $pdo, string $name): void
+{
+    if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $name)) {
+        throw new InvalidArgumentException('Invalid column name.');
+    }
+
+    $columns = $pdo->query('PRAGMA table_info(games)')->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($columns as $column) {
+        if (($column['name'] ?? '') === $name) {
+            return;
+        }
+    }
+
+    $pdo->exec('ALTER TABLE games ADD COLUMN ' . $name . ' TEXT NOT NULL DEFAULT ""');
+}
+
+function games_remove_slug_unique_constraint(PDO $pdo): void
+{
+    $sql = $pdo->query("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'games'")->fetchColumn();
+    if (!is_string($sql) || !str_contains($sql, 'slug TEXT NOT NULL UNIQUE')) {
+        return;
+    }
+
+    $pdo->exec('PRAGMA foreign_keys = OFF');
+    try {
+        $pdo->beginTransaction();
+        $pdo->exec(
+            'CREATE TABLE games_slug_migration (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                api_id INTEGER NOT NULL UNIQUE,
+                name TEXT NOT NULL,
+                slug TEXT NOT NULL,
+                url TEXT NOT NULL DEFAULT "",
+                thumb TEXT NOT NULL DEFAULT "",
+                short_description TEXT NOT NULL DEFAULT "",
+                long_description TEXT NOT NULL DEFAULT "",
+                provider_id INTEGER DEFAULT NULL,
+                provider TEXT NOT NULL DEFAULT "",
+                provider_slug TEXT NOT NULL DEFAULT "",
+                type_id INTEGER DEFAULT NULL,
+                type TEXT NOT NULL DEFAULT "",
+                type_slug TEXT NOT NULL DEFAULT "",
+                themes TEXT NOT NULL DEFAULT "[]",
+                megaways INTEGER NOT NULL DEFAULT 0,
+                bonus_buy INTEGER NOT NULL DEFAULT 0,
+                progressive INTEGER NOT NULL DEFAULT 0,
+                featured INTEGER NOT NULL DEFAULT 0,
+                release TEXT NOT NULL DEFAULT "",
+                reels TEXT NOT NULL DEFAULT "",
+                rtp REAL DEFAULT NULL,
+                volatility TEXT NOT NULL DEFAULT "",
+                currencies TEXT NOT NULL DEFAULT "[]",
+                languages TEXT NOT NULL DEFAULT "[]",
+                land_based INTEGER NOT NULL DEFAULT 0,
+                markets TEXT NOT NULL DEFAULT "[]",
+                paylines TEXT NOT NULL DEFAULT "",
+                max_exposure TEXT NOT NULL DEFAULT "",
+                min_bet REAL DEFAULT NULL,
+                max_bet REAL DEFAULT NULL,
+                max_win_per_spin REAL DEFAULT NULL,
+                autoplay INTEGER NOT NULL DEFAULT 0,
+                quickspin INTEGER NOT NULL DEFAULT 0,
+                tumbling_reels INTEGER NOT NULL DEFAULT 0,
+                increasing_multipliers INTEGER NOT NULL DEFAULT 0,
+                orientation TEXT NOT NULL DEFAULT "",
+                restrictions TEXT NOT NULL DEFAULT "[]",
+                upcoming INTEGER NOT NULL DEFAULT 0,
+                published INTEGER NOT NULL DEFAULT 0,
+                created_at INTEGER NOT NULL DEFAULT 0,
+                updated_at INTEGER NOT NULL DEFAULT 0,
+                FOREIGN KEY (provider_id) REFERENCES game_providers(id) ON DELETE SET NULL,
+                FOREIGN KEY (type_id) REFERENCES game_types(id) ON DELETE SET NULL
+            )'
+        );
+        $pdo->exec(
+            'INSERT INTO games_slug_migration (
+                id, api_id, name, slug, url, thumb, short_description, long_description, provider_id, provider, provider_slug,
+                type_id, type, type_slug, themes, megaways, bonus_buy, progressive, featured,
+                release, reels, rtp, volatility, currencies, languages, land_based, markets,
+                paylines, max_exposure, min_bet, max_bet, max_win_per_spin, autoplay, quickspin,
+                tumbling_reels, increasing_multipliers, orientation, restrictions, upcoming,
+                published, created_at, updated_at
+            )
+            SELECT
+                id, api_id, name, slug, url, thumb, short_description, long_description, provider_id, provider, provider_slug,
+                type_id, type, type_slug, themes, megaways, bonus_buy, progressive, featured,
+                release, reels, rtp, volatility, currencies, languages, land_based, markets,
+                paylines, max_exposure, min_bet, max_bet, max_win_per_spin, autoplay, quickspin,
+                tumbling_reels, increasing_multipliers, orientation, restrictions, upcoming,
+                published, created_at, updated_at
+            FROM games'
+        );
+        $pdo->exec('DROP TABLE games');
+        $pdo->exec('ALTER TABLE games_slug_migration RENAME TO games');
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        $pdo->exec('DROP TABLE IF EXISTS games_slug_migration');
+        $pdo->exec('PRAGMA foreign_keys = ON');
+        throw $e;
+    }
+
+    $pdo->exec('PRAGMA foreign_keys = ON');
 }
 
 function blog_settings_seed(PDO $pdo): void
@@ -209,7 +437,6 @@ function blogs_migrate_json(PDO $pdo): void
                 continue;
             }
             blogs_upsert_with_pdo($pdo, $normalized);
-            blog_ensure_post_route($normalized['slug']);
         }
         $pdo->commit();
         @file_put_contents($marker, (string) time());
@@ -655,51 +882,12 @@ function blogs_find(string $id): ?array
 
 function blog_ensure_post_route(string $slug): void
 {
-    $slug = normalize_slug($slug);
-    if ($slug === '') {
-        return;
-    }
-
-    $blogRoot = dirname(__DIR__) . '/blog';
-    $routeDir = $blogRoot . '/' . $slug;
-    $indexPath = $routeDir . '/index.php';
-
-    if (is_file($routeDir . '/index.html') || is_file($indexPath)) {
-        return;
-    }
-
-    if (!is_dir($routeDir) && !@mkdir($routeDir, 0755, true) && !is_dir($routeDir)) {
-        error_log('Blog route directory could not be created for slug: ' . $slug);
-        return;
-    }
-
-    $contents = "<?php\n"
-        . "declare(strict_types=1);\n\n"
-        . '$_GET[\'slug\'] = ' . var_export($slug, true) . ";\n"
-        . "require __DIR__ . '/../view.php';\n";
-
-    if (@file_put_contents($indexPath, $contents, LOCK_EX) === false) {
-        error_log('Blog route file could not be created for slug: ' . $slug);
-    }
+    unset($slug);
 }
 
 function blog_remove_post_route(string $slug): void
 {
-    $slug = normalize_slug($slug);
-    if ($slug === '') {
-        return;
-    }
-
-    $routeDir = dirname(__DIR__) . '/blog/' . $slug;
-    $indexPath = $routeDir . '/index.php';
-
-    if (is_file($indexPath)) {
-        @unlink($indexPath);
-    }
-
-    if (is_dir($routeDir)) {
-        @rmdir($routeDir);
-    }
+    unset($slug);
 }
 
 function blogs_upsert_with_pdo(PDO $pdo, array $blog): array
@@ -778,15 +966,6 @@ function blogs_upsert(array $blog, bool $manageTransaction = true): array
         throw $exception;
     }
 
-    if (is_string($oldSlug) && $oldSlug !== $blog['slug']) {
-        blog_remove_post_route($oldSlug);
-    }
-    if ($blog['status'] === 'published') {
-        blog_ensure_post_route($blog['slug']);
-    } else {
-        blog_remove_post_route($blog['slug']);
-    }
-
     return $blog;
 }
 
@@ -797,22 +976,12 @@ function blogs_delete(string $id): bool
     $stmt->execute([':id' => normalize_slug($id)]);
     $deleted = $stmt->rowCount() > 0;
 
-    if ($deleted && is_array($post)) {
-        blog_remove_post_route($post['slug']);
-    }
-
     return $deleted;
 }
 
 function blogs_sync_routes(): int
 {
-    $count = 0;
-    foreach (blogs_all() as $post) {
-        blog_ensure_post_route($post['slug']);
-        $count++;
-    }
-
-    return $count;
+    return 0;
 }
 
 function normalize_slug(string $value): string

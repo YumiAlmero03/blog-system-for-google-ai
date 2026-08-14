@@ -1339,7 +1339,6 @@ $websiteTitle = blog_website_title();
         <main class="wp-editor-main">
           <section class="wp-canvas">
             <div class="wp-canvas-inner">
-              <div id="blog-title-preview" class="wp-title-preview is-empty">Add title</div>
 
               <div class="editor-tabs-placeholder" id="editor-tabs-placeholder" aria-hidden="true"></div>
               <div class="editor-tabs-bar">
@@ -1471,10 +1470,10 @@ $websiteTitle = blog_website_title();
                 </div>
                 <div class="form-group">
                   <div class="field-label-row">
-                    <label for="blog-excerpt">Short Excerpt *</label>
-                    <span id="excerpt-char-counter" class="char-counter">0/360</span>
+                    <label for="blog-excerpt">Meta Description *</label>
+                    <span id="excerpt-char-counter" class="char-counter">0/170</span>
                   </div>
-                  <textarea id="blog-excerpt" name="excerpt" class="form-control" maxlength="360" style="min-height:96px;" required></textarea>
+                  <textarea id="blog-excerpt" name="excerpt" class="form-control" maxlength="170" style="min-height:96px;" required></textarea>
                 </div>
                 <div class="form-group">
                   <label for="blog-author">Author Name</label>
@@ -2049,7 +2048,7 @@ $websiteTitle = blog_website_title();
       }
 
       function updateExcerptCounter() {
-        updateCharCounter(excerptCharCounter, excerpt ? excerpt.value.length : 0, 360, 320);
+        updateCharCounter(excerptCharCounter, excerpt ? excerpt.value.length : 0, 170, 140);
       }
 
       async function parseJsonResponse(response) {
@@ -2189,9 +2188,9 @@ $websiteTitle = blog_website_title();
           return src ? `![${alt}](${src})` : '';
         }
         if (tag === 'br') return '\n';
-        if (tag === 'h1') return `# ${children.trim()}\n\n`;
-        if (tag === 'h2') return `## ${children.trim()}\n\n`;
-        if (tag === 'h3') return `### ${children.trim()}\n\n`;
+        if (tag === 'h1') return children.trim() ? `# ${children.trim()}\n\n` : '';
+        if (tag === 'h2') return children.trim() ? `## ${children.trim()}\n\n` : '';
+        if (tag === 'h3') return children.trim() ? `### ${children.trim()}\n\n` : '';
         if (tag === 'blockquote') return children.split('\n').filter(Boolean).map((line) => `> ${line.trim()}`).join('\n') + '\n\n';
         if (tag === 'li') return children.trim();
         if (tag === 'ul') {
@@ -2214,8 +2213,33 @@ $websiteTitle = blog_website_title();
           .trim();
       }
 
+      function removeEmptyMarkdownHeadings(markdown) {
+        const lines = String(markdown || '').split('\n');
+        const normalized = [];
+
+        lines.forEach((line) => {
+          const trimmed = line.trim();
+          if (/^#{1,6}\s*$/.test(trimmed)) return;
+
+          if (/^#{1,6}\s+\S/.test(trimmed) && normalized.length && normalized[normalized.length - 1] !== '') {
+            normalized.push('');
+          }
+
+          normalized.push(line);
+
+          if (/^#{1,6}\s+\S/.test(trimmed)) {
+            normalized.push('');
+          }
+        });
+
+        return normalized
+          .join('\n')
+          .replace(/\n{3,}/g, '\n\n')
+          .trim();
+      }
+
       function syncMarkdownFromEditor() {
-        blogContent.value = editorHtmlToMarkdown();
+        blogContent.value = removeEmptyMarkdownHeadings(editorHtmlToMarkdown());
         updateWordCounter();
       }
 
@@ -2243,14 +2267,53 @@ $websiteTitle = blog_website_title();
         });
       }
 
+      function isVisiblyEmptyElement(element) {
+        if (!element) return true;
+        const text = (element.textContent || '').replace(/\u00a0/g, ' ').trim();
+        if (text) return false;
+        return !element.querySelector('img,iframe,video,audio,section.editor-faq-block');
+      }
+
+      function normalizeEmptyEditorHeadings() {
+        if (!wysiwygEditor) return false;
+        let changed = false;
+        const selection = window.getSelection();
+        const selectedElement = selection && selection.rangeCount > 0 ? closestElement(selection.getRangeAt(0).startContainer) : null;
+
+        wysiwygEditor.querySelectorAll('h1,h2,h3,h4,h5,h6').forEach((heading) => {
+          if (!isVisiblyEmptyElement(heading)) return;
+          const paragraph = document.createElement('p');
+          paragraph.innerHTML = '<br>';
+          heading.replaceWith(paragraph);
+          changed = true;
+
+          if (selectedElement === heading || heading.contains(selectedElement)) {
+            const range = document.createRange();
+            range.selectNodeContents(paragraph);
+            range.collapse(true);
+            if (selection) {
+              selection.removeAllRanges();
+              selection.addRange(range);
+              savedEditorRange = range.cloneRange();
+            }
+          }
+        });
+
+        return changed;
+      }
+
       function setEditorMarkdown(markdown) {
-        blogContent.value = markdown || '';
+        blogContent.value = removeEmptyMarkdownHeadings(markdown || '');
         wysiwygEditor.innerHTML = parseMarkdown(blogContent.value);
         prepareEditorBlocks();
         updateWordCounter();
       }
 
       function syncEditorFromMarkdown() {
+        const normalizedMarkdown = removeEmptyMarkdownHeadings(blogContent.value);
+        if (normalizedMarkdown !== blogContent.value.trim()) {
+          blogContent.value = normalizedMarkdown;
+        }
         wysiwygEditor.innerHTML = parseMarkdown(blogContent.value);
         prepareEditorBlocks();
         updateWordCounter();
@@ -3573,6 +3636,8 @@ $websiteTitle = blog_website_title();
         scheduleEditorHistory(false);
       });
       on(wysiwygEditor, 'input', () => {
+        normalizeEmptyEditorHeadings();
+        prepareEditorBlocks();
         syncMarkdownFromEditor();
         updateWordCounter();
         if (!editorShell.classList.contains('editor-mode-write')) {

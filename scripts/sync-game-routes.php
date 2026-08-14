@@ -7,4 +7,4 @@ if (PHP_SAPI !== 'cli') {
     exit(1);
 }
 
-echo "Blog route syncing is no longer needed. /blog/{slug}/ is handled by blog/view.php and server rewrites.\n";
+echo "Game route syncing is no longer needed. /game/{slug}/ is handled by game/index.php and server rewrites.\n";
