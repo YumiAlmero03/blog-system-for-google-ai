@@ -61,7 +61,7 @@ function game_stat_text(mixed $value, string $suffix = ''): string
 {
     $text = game_compact_number($value);
     if ($text === '') {
-        return 'N/A';
+        return '';
     }
 
     if ($suffix !== '' && !str_ends_with($text, $suffix)) {
@@ -77,7 +77,7 @@ function game_bet_range(mixed $minBet, mixed $maxBet): string
     $max = game_compact_number($maxBet);
 
     if ($min === '' && $max === '') {
-        return 'N/A';
+        return '';
     }
 
     if ($min === '') {
@@ -89,6 +89,20 @@ function game_bet_range(mixed $minBet, mixed $maxBet): string
     }
 
     return 'PHP ' . $min . ' - PHP ' . $max;
+}
+
+function game_stat_item(string $label, string $value, string $class = ''): ?array
+{
+    $value = trim($value);
+    if ($value === '' || strcasecmp($value, 'N/A') === 0) {
+        return null;
+    }
+
+    return [
+        'label' => $label,
+        'value' => $value,
+        'class' => $class,
+    ];
 }
 
 $slug = isset($_GET['slug']) && is_string($_GET['slug']) ? normalize_slug($_GET['slug']) : '';
@@ -134,6 +148,14 @@ if ($overviewBlocks !== [] && strtolower($overviewBlocks[0]) === strtolower($ove
 if ($overviewBlocks === [] && $description !== '') {
     $overviewBlocks = [$description];
 }
+$gameStats = array_values(array_filter([
+    game_stat_item('RTP Rate', game_stat_text($game['rtp'] ?? null, '%'), 'is-green'),
+    game_stat_item('Volatility', game_stat_text($game['volatility'] ?? null)),
+    game_stat_item('Max Multiplier', game_stat_text($game['max_win_per_spin'] ?? null, 'x'), 'is-orange'),
+    game_stat_item('Paylines / Ways', game_stat_text($game['paylines'] ?? null), 'is-small'),
+    game_stat_item('Reels & Grid', game_stat_text($game['reels'] ?? null), 'is-small'),
+    game_stat_item('Min - Max Bet', game_bet_range($game['min_bet'] ?? null, $game['max_bet'] ?? null), 'is-small'),
+]));
 ?>
 <!DOCTYPE html>
 <html lang="en-PH">
@@ -335,6 +357,7 @@ if ($overviewBlocks === [] && $description !== '') {
     }
     .game-stat-value {
       display: flex;
+      text-transform: uppercase;
       align-items: center;
       justify-content: center;
       gap: 5px;
@@ -569,7 +592,7 @@ if ($overviewBlocks === [] && $description !== '') {
             <?php if ($provider !== ''): ?><span class="game-pill"><?= game_h($provider) ?></span><?php endif; ?>
             <?php if ($type !== ''): ?><span class="game-pill"><?= game_h($type) ?></span><?php endif; ?>
             <?php if ($game['rtp'] !== null && $game['rtp'] !== ''): ?><span class="game-pill">RTP <?= game_h($game['rtp']) ?>%</span><?php endif; ?>
-            <?php if (($game['volatility'] ?? '') !== ''): ?><span class="game-pill"><?= game_h($game['volatility']) ?></span><?php endif; ?>
+            <?php if (($game['volatility'] ?? '') !== ''): ?><span class="game-pill" style="text-transform: capitalize;"><?= game_h($game['volatility']) ?></span><?php endif; ?>
           </div>
         </div>
         <a href="/slots/" class="btn btn-secondary btn-sm">Back to Slots</a>
@@ -609,39 +632,16 @@ if ($overviewBlocks === [] && $description !== '') {
       </section>
 
       <?php if ($overviewBlocks !== []): ?>
-        <div class="game-stats">
-          <div class="game-stat-card">
-            <span class="game-stat-label">RTP Rate</span>
-            <div class="game-stat-value is-green">
-              <span><?= game_h(game_stat_text($game['rtp'] ?? null, '%')) ?></span>
-            </div>
+        <?php if ($gameStats !== []): ?>
+          <div class="game-stats">
+            <?php foreach ($gameStats as $stat): ?>
+              <div class="game-stat-card">
+                <span class="game-stat-label"><?= game_h($stat['label']) ?></span>
+                <div class="game-stat-value <?= game_h($stat['class']) ?>"><?= game_h($stat['value']) ?></div>
+              </div>
+            <?php endforeach; ?>
           </div>
-
-          <div class="game-stat-card">
-            <span class="game-stat-label">Volatility</span>
-            <div class="game-stat-value"><?= game_h(game_stat_text($game['volatility'] ?? null)) ?></div>
-          </div>
-
-          <div class="game-stat-card">
-            <span class="game-stat-label">Max Multiplier</span>
-            <div class="game-stat-value is-orange"><?= game_h(game_stat_text($game['max_win_per_spin'] ?? null, 'x')) ?></div>
-          </div>
-
-          <div class="game-stat-card">
-            <span class="game-stat-label">Paylines / Ways</span>
-            <div class="game-stat-value is-small"><?= game_h(game_stat_text($game['paylines'] ?? null)) ?></div>
-          </div>
-
-          <div class="game-stat-card">
-            <span class="game-stat-label">Reels & Grid</span>
-            <div class="game-stat-value is-small"><?= game_h(game_stat_text($game['reels'] ?? null)) ?></div>
-          </div>
-
-          <div class="game-stat-card">
-            <span class="game-stat-label">Min - Max Bet</span>
-            <div class="game-stat-value is-small"><?= game_h(game_bet_range($game['min_bet'] ?? null, $game['max_bet'] ?? null)) ?></div>
-          </div>
-        </div>
+        <?php endif; ?>
         <section class="game-overview" aria-labelledby="game-overview-title">
           <h2 id="game-overview-title"><?= game_h($overviewTitle) ?></h2>
           <?php foreach ($overviewBlocks as $block): ?>
