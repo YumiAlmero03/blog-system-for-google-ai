@@ -24,63 +24,60 @@
 
   <!-- Structured Data -->
   <script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "WebSite",
-      "@id": "https://gperya-apk.com/#website",
-      "url": "https://gperya-apk.com/",
-      "name": "GperyaPH Guide",
-      "description": "Independent Gperya.com Philippines Guide",
-      "publisher": {
-        "@type": "Organization",
-        "name": "GperyaPH",
-        "url": "https://gperya-apk.com/"
-      }
-    },
-    {
-      "@type": "WebPage",
-      "@id": "https://gperya-apk.com/#webpage",
-      "url": "https://gperya-apk.com/",
-      "name": "Gperya.com Philippines Guide: Login, Casino & App | GperyaPH",
-      "description": "Explore Gperya.com with guides to login, registration, casino games, APK checks, KYC, withdrawals and account safety.",
-      "isPartOf": {
-        "@id": "https://gperya-apk.com/#website"
-      }
-    },
-    {
-      "@type": "FAQPage",
-      "@id": "https://gperya-apk.com/#faq",
-      "mainEntity": [
-        {
-          "@type": "Question",
-          "name": "1. How do I register an account on Gperya?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Click the \"Register\" button in the header, enter your valid mobile number, set a password, and complete verification. Players must be at least 21 years old."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "2. How long do deposits take?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Deposits via GCash, Maya, Bank Transfer, and Crypto are processed instantly into your wallet balance."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "3. How do I request a cashout?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Complete simple identity KYC verification and request your withdrawal directly to your bound e-wallet account for fast 24/7 processing."
-          }
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://gperya-apk.com/#website",
+        "url": "https://gperya-apk.com/",
+        "name": "GperyaPH Guide",
+        "description": "Independent Gperya.com Philippines Guide",
+        "publisher": {
+          "@type": "Organization",
+          "name": "GperyaPH",
+          "url": "https://gperya-apk.com/"
         }
-      ]
-    }
-  ]
-}
+      },
+      {
+        "@type": "WebPage",
+        "@id": "https://gperya-apk.com/#webpage",
+        "url": "https://gperya-apk.com/",
+        "name": "Gperya.com Philippines Guide: Login, Casino & App | GperyaPH",
+        "description": "Explore Gperya.com with guides to login, registration, casino games, APK checks, KYC, withdrawals and account safety.",
+        "isPartOf": { "@id": "https://gperya-apk.com/#website" }
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "What is Gperya.com?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Gperya.com is an online entertainment platform popular among players in the Philippines. GperyaPH is an independent informational guide providing access, registration, APK, KYC, and withdrawal guidance."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is this the official Gperya website?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. GperyaPH is an independent informational and casino-affiliate guide. It is not the official operator or platform of Gperya."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What is the correct Gperya.com link?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Visitors should always check the exact URL domain and SSL security certificate before entering account credentials or making payments."
+            }
+          }
+        ]
+      }
+    ]
+  }
   </script>
 </head>
 <body class="dark-jackpot-theme">
@@ -289,7 +286,25 @@
           </div>
 
           <!-- Direct Official iFrame Embed -->
-          <iframe class="demo-iframe-wrap" data-src="https://slotslaunch.com/iframe/16716?token=KljjshkJEwm9XlVUTiGCzsyYkQw4mG22pOKNzS3enaABIHoTdj" title="Pragmatic Play Official Demo Slot" loading="lazy" width="960" height="540"></iframe>
+          <div class="demo-frame-shell" style="--demo-gate-image:url('/assets/images/gperya_home_bg.webp');">
+            <iframe class="demo-iframe-wrap" src="about:blank" data-src="https://slotslaunch.com/iframe/16716?token=KljjshkJEwm9XlVUTiGCzsyYkQw4mG22pOKNzS3enaABIHoTdj" title="Pragmatic Play Official Demo Slot" loading="lazy" width="960" height="540"></iframe>
+            <div class="demo-game-gate" data-demo-gate>
+              <div class="demo-game-gate-panel">
+                <h3>Gates of Olympus 1000</h3>
+                <p>Choose demo mode to preview the game, or continue to the real play portal.</p>
+                <div class="demo-game-gate-actions">
+                  <button type="button" class="btn btn-gold" data-demo-play-real>Play Real Here</button>
+                  <button type="button" class="btn btn-secondary" data-demo-play-free>Play Free Demo</button>
+                </div>
+              </div>
+            </div>
+            <div class="demo-frame-loading" data-demo-loading aria-live="polite" aria-hidden="true">
+              <div class="demo-frame-loading-panel">
+                <span class="demo-loading-spinner" aria-hidden="true"></span>
+                <strong>Loading demo...</strong>
+              </div>
+            </div>
+          </div>
 
           <!-- Bottom Real Money CTA -->
           <div class="demo-footer-cta">

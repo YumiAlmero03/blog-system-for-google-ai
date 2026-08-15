@@ -2992,12 +2992,138 @@ body {
   border-radius: 6px;
 }
 
+.demo-frame-shell {
+  position: relative;
+  min-height: 540px;
+  background: #000000;
+}
+
 .demo-iframe-wrap {
   width: 100%;
   height: 540px;
   border: none;
   display: block;
   background: #000000;
+}
+
+.demo-game-gate {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background:
+    linear-gradient(135deg, rgba(22, 5, 5, 0.78), rgba(99, 33, 33, 0.7)),
+    var(--demo-gate-image, none) center / cover no-repeat;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  text-align: center;
+}
+
+.demo-game-gate::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.42);
+}
+
+.demo-game-gate.is-hidden {
+  display: none;
+}
+
+.demo-game-gate-panel {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 420px);
+  padding: 24px;
+  border-radius: 8px;
+  border: 1px solid rgba(243, 198, 76, 0.38);
+  background: rgba(22, 5, 5, 0.82);
+  color: #ffffff;
+  box-shadow: 0 16px 46px rgba(0, 0, 0, 0.38);
+}
+
+.demo-game-gate-panel img {
+  width: 132px;
+  height: 132px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid rgba(243, 198, 76, 0.45);
+  margin-bottom: 14px;
+  background: #2a0c0c;
+}
+
+.demo-game-gate-panel h3 {
+  margin: 0 0 8px;
+  color: #ffffff;
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+
+.demo-game-gate-panel p {
+  margin: 0 0 18px;
+  color: #ffd6d6;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.demo-game-gate-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.demo-game-gate-actions .btn {
+  justify-content: center;
+  min-height: 44px;
+  white-space: normal;
+}
+
+.demo-frame-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(12, 3, 3, 0.72);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  pointer-events: none;
+}
+
+.demo-frame-loading.is-visible {
+  display: flex;
+}
+
+.demo-frame-loading-panel {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: 8px;
+  border: 1px solid rgba(243, 198, 76, 0.45);
+  background: rgba(22, 5, 5, 0.88);
+  color: #ffffff;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.36);
+}
+
+.demo-loading-spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.26);
+  border-top-color: #f3c64c;
+  animation: demo-loading-spin 0.8s linear infinite;
+}
+
+@keyframes demo-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .demo-footer-cta {
@@ -3026,6 +3152,15 @@ body {
   }
   .demo-iframe-wrap {
     height: 420px;
+  }
+  .demo-frame-shell {
+    min-height: 420px;
+  }
+  .demo-game-gate-panel {
+    padding: 18px;
+  }
+  .demo-game-gate-actions {
+    grid-template-columns: 1fr;
   }
 }
 

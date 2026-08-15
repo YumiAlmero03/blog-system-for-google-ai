@@ -194,7 +194,25 @@
           </div>
 
           <!-- Direct Official iFrame Embed -->
-          <iframe class="demo-iframe-wrap" data-src="https://demogamesfree.pragmaticplay.net/gs2c/openGame.do?gameSymbol=vs20olympgate&websiteUrl=https%3A%2F%2Fwww.pragmaticplay.com&jurisdiction=99" title="Pragmatic Play Official Demo Slot" loading="lazy" width="960" height="540"></iframe>
+          <div class="demo-frame-shell" style="--demo-gate-image:url('/assets/images/gperya_home_bg.webp');">
+            <iframe class="demo-iframe-wrap" src="about:blank" data-src="https://slotslaunch.com/iframe/16716?token=KljjshkJEwm9XlVUTiGCzsyYkQw4mG22pOKNzS3enaABIHoTdj" title="Pragmatic Play Official Demo Slot" loading="lazy" width="960" height="540"></iframe>
+            <div class="demo-game-gate" data-demo-gate>
+              <div class="demo-game-gate-panel">
+                <h3>Gates of Olympus 1000</h3>
+                <p>Choose demo mode to preview the game, or continue to the real play portal.</p>
+                <div class="demo-game-gate-actions">
+                  <button type="button" class="btn btn-gold" data-demo-play-real>Play Real Here</button>
+                  <button type="button" class="btn btn-secondary" data-demo-play-free>Play Free Demo</button>
+                </div>
+              </div>
+            </div>
+            <div class="demo-frame-loading" data-demo-loading aria-live="polite" aria-hidden="true">
+              <div class="demo-frame-loading-panel">
+                <span class="demo-loading-spinner" aria-hidden="true"></span>
+                <strong>Loading demo...</strong>
+              </div>
+            </div>
+          </div>
 
           <!-- Bottom Real Money CTA -->
           <div class="demo-footer-cta">

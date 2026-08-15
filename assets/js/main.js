@@ -592,27 +592,27 @@ function initPragmaticDemoSection() {
     'sweet-bonanza': {
       title: 'Sweet Bonanza 1000',
       rtp: '96.51% RTP • ⚡ High Volatility',
-      iframeUrl: 'https://demogamesfree.dorwemqgtv.net/gs2c/openGame.do?gameSymbol=vs20fruitswx&lang=en&stylename=g128pr_bybet&treq=tqjYh2EFVNef8XnlFJJNokeu4vrptKrSjxPoEtMXi8rC3Dqx0uAoU5WGojKVpMbC&isGameUrlApiCalled=true&userId=demoPlayer'
+      iframeUrl: 'https://slotslaunch.com/iframe/23537?token=KljjshkJEwm9XlVUTiGCzsyYkQw4mG22pOKNzS3enaABIHoTdj'
     },
     'starlight-princess': {
       title: 'Starlight Princess 1000',
       rtp: '96.50% RTP • ⚡ High Volatility',
-      iframeUrl: 'https://demogamesfree.pragmaticplay.net/gs2c/openGame.do?gameSymbol=vs20starlight&websiteUrl=https%3A%2F%2Fwww.pragmaticplay.com&jurisdiction=99'
+      iframeUrl: 'https://slotslaunch.com/iframe/15726?token=KljjshkJEwm9XlVUTiGCzsyYkQw4mG22pOKNzS3enaABIHoTdj'
     },
     'sugar-rush': {
       title: 'Sugar Rush 1000',
       rtp: '96.53% RTP • ⚡ High Volatility',
-      iframeUrl: 'https://demogamesfree.pragmaticplay.net/gs2c/openGame.do?gameSymbol=vs20sugarrush&websiteUrl=https%3A%2F%2Fwww.pragmaticplay.com&jurisdiction=99'
+      iframeUrl: 'https://slotslaunch.com/iframe/20070?token=KljjshkJEwm9XlVUTiGCzsyYkQw4mG22pOKNzS3enaABIHoTdj'
     },
     'big-bass': {
       title: 'Big Bass Splash',
       rtp: '96.71% RTP • ⚡ High Volatility',
-      iframeUrl: 'https://demogamesfree.pragmaticplay.net/gs2c/openGame.do?gameSymbol=vs10bbbonanza&websiteUrl=https%3A%2F%2Fwww.pragmaticplay.com&jurisdiction=99'
+      iframeUrl: 'https://slotslaunch.com/iframe/742?token=KljjshkJEwm9XlVUTiGCzsyYkQw4mG22pOKNzS3enaABIHoTdj'
     },
     'wolf-gold': {
       title: 'Wolf Gold',
       rtp: '96.01% RTP • 🔥 Medium Volatility',
-      iframeUrl: 'https://demogamesfree.pragmaticplay.net/gs2c/openGame.do?gameSymbol=vs25wolfgold&websiteUrl=https%3A%2F%2Fwww.pragmaticplay.com&jurisdiction=99'
+      iframeUrl: 'https://slotslaunch.com/iframe/23541?token=KljjshkJEwm9XlVUTiGCzsyYkQw4mG22pOKNzS3enaABIHoTdj'
     }
   };
 
@@ -621,24 +621,71 @@ function initPragmaticDemoSection() {
     const nameEl = section.querySelector('.demo-game-name');
     const rtpEl = section.querySelector('.demo-rtp-badge');
     const iframeEl = section.querySelector('.demo-iframe-wrap');
-    const loadDemoFrame = () => {
-      if (!iframeEl || iframeEl.src || !iframeEl.dataset.src) return;
-      iframeEl.src = iframeEl.dataset.src;
-      iframeEl.classList.add('is-loaded');
+    const gateEl = section.querySelector('[data-demo-gate]');
+    const loadingEl = section.querySelector('[data-demo-loading]');
+    const gateTitleEl = gateEl ? gateEl.querySelector('h3') : null;
+    const playFreeBtn = section.querySelector('[data-demo-play-free]');
+    const playRealBtn = section.querySelector('[data-demo-play-real]');
+    let demoStarted = false;
+    let demoLoadingTimer = null;
+
+    const setDemoGateTitle = (title) => {
+      if (gateTitleEl) gateTitleEl.textContent = title || 'Free Slot Demo';
     };
 
-    if (iframeEl && iframeEl.dataset.src) {
-      if ('IntersectionObserver' in window) {
-        const observer = new IntersectionObserver(entries => {
-          if (entries.some(entry => entry.isIntersecting)) {
-            loadDemoFrame();
-            observer.disconnect();
-          }
-        }, { rootMargin: '120px 0px' });
-        observer.observe(iframeEl);
-      } else {
-        runWhenIdle(loadDemoFrame);
+    const showDemoGate = () => {
+      demoStarted = false;
+      hideDemoLoading();
+      if (iframeEl) {
+        iframeEl.src = 'about:blank';
+        iframeEl.classList.remove('is-loaded');
       }
+      if (gateEl) gateEl.classList.remove('is-hidden');
+    };
+
+    function showDemoLoading() {
+      if (!loadingEl) return;
+      loadingEl.classList.add('is-visible');
+      loadingEl.setAttribute('aria-hidden', 'false');
+      clearTimeout(demoLoadingTimer);
+      demoLoadingTimer = setTimeout(hideDemoLoading, 7000);
+    }
+
+    function hideDemoLoading() {
+      if (!loadingEl) return;
+      loadingEl.classList.remove('is-visible');
+      loadingEl.setAttribute('aria-hidden', 'true');
+      clearTimeout(demoLoadingTimer);
+      demoLoadingTimer = null;
+    }
+
+    const loadDemoFrame = (showLoading = true) => {
+      if (!iframeEl || !iframeEl.dataset.src) return;
+      if (showLoading) showDemoLoading();
+      iframeEl.src = iframeEl.dataset.src;
+      iframeEl.classList.add('is-loaded');
+      if (gateEl) gateEl.classList.add('is-hidden');
+      demoStarted = true;
+    };
+
+    setDemoGateTitle(nameEl ? nameEl.textContent : '');
+
+    if (playFreeBtn) {
+      playFreeBtn.addEventListener('click', loadDemoFrame);
+    }
+
+    if (playRealBtn) {
+      playRealBtn.addEventListener('click', () => {
+        window.location.href = 'https://gperya-apk.com/playnow';
+      });
+    }
+
+    if (iframeEl) {
+      iframeEl.addEventListener('load', () => {
+        if (iframeEl.src && iframeEl.src !== 'about:blank') {
+          hideDemoLoading();
+        }
+      });
     }
 
     tabs.forEach(tab => {
@@ -653,10 +700,16 @@ function initPragmaticDemoSection() {
 
         if (nameEl) nameEl.textContent = data.title;
         if (rtpEl) rtpEl.textContent = data.rtp;
+        setDemoGateTitle(data.title);
         if (iframeEl) {
           iframeEl.dataset.src = data.iframeUrl;
-          iframeEl.src = data.iframeUrl;
-          iframeEl.classList.add('is-loaded');
+          if (demoStarted) {
+            showDemoLoading();
+            iframeEl.src = data.iframeUrl;
+            iframeEl.classList.add('is-loaded');
+          } else {
+            showDemoGate();
+          }
         }
       });
     });

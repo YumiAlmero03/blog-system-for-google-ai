@@ -7,4 +7,3 @@ Disallow: /storage/
 
 Sitemap: https://gperya-apk.com/sitemap.xml
 Sitemap: https://gperya-apk.com/sitemap-blog.php
-Sitemap: https://gperya-apk.com/sitemap-games.php
