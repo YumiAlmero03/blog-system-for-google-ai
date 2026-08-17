@@ -32,10 +32,38 @@ function admin_slots_page_url(int $page): string
 }
 
 $pdo = blogs_pdo();
+
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+    require_valid_csrf();
+
+    $slotId = isset($_POST['slot_id']) && is_string($_POST['slot_id']) && ctype_digit($_POST['slot_id'])
+        ? (int) $_POST['slot_id']
+        : 0;
+    $featuredValue = isset($_POST['featured']) && (string) $_POST['featured'] === '1' ? 1 : 0;
+
+    if ($slotId > 0) {
+        $stmt = $pdo->prepare('UPDATE games SET featured = :featured, updated_at = :updated_at WHERE id = :id');
+        $stmt->execute([
+            ':featured' => $featuredValue,
+            ':updated_at' => time(),
+            ':id' => $slotId,
+        ]);
+    }
+
+    csrf_rotate();
+    $redirect = '/admin/slots.php';
+    if (isset($_POST['return_to']) && is_string($_POST['return_to']) && str_starts_with($_POST['return_to'], '/admin/slots.php')) {
+        $redirect = $_POST['return_to'];
+    }
+    header('Location: ' . $redirect, true, 303);
+    exit;
+}
+
 $search = admin_slots_get_string('search');
 $provider = admin_slots_get_string('provider');
 $type = admin_slots_get_string('type');
 $published = admin_slots_get_string('published', 16);
+$featured = admin_slots_get_string('featured', 16);
 $page = admin_slots_get_int('page', 1, 1, 1000000);
 $perPage = admin_slots_get_int('count', 25, 5, 100);
 $offset = ($page - 1) * $perPage;
@@ -57,6 +85,10 @@ if ($type !== '') {
 if ($published === '1' || $published === '0') {
     $where[] = 'published = :published';
     $params[':published'] = (int) $published;
+}
+if ($featured === '1' || $featured === '0') {
+    $where[] = 'featured = :featured';
+    $params[':featured'] = (int) $featured;
 }
 $whereSql = $where === [] ? '' : 'WHERE ' . implode(' AND ', $where);
 
@@ -101,93 +133,91 @@ $featuredCount = (int) $pdo->query('SELECT COUNT(*) FROM games WHERE featured = 
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Slots | GperyaPH Admin</title>
-  <link rel="preload" href="/assets/css/styles.min.css" as="style"><link rel="stylesheet" href="/assets/css/styles.min.css">
+  <link rel="preload" href="/admin/style.css" as="style"><link rel="stylesheet" href="/admin/style.css">
   <link rel="icon" href="/assets/icons/favicon.ico">
   <style>
+    body {
+      background: #f6f7f9;
+    }
     .admin-container {
-      max-width: 1180px;
-      margin: 40px auto;
-      padding: 24px;
-      background: var(--surface);
-      border: 1px solid var(--border-strong);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow);
+      max-width: 1200px;
+      margin: 24px auto;
+      padding: 20px;
+      background: #fff;
+      border: 1px solid #e4e7ec;
+      border-radius: 8px;
     }
     .admin-header {
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
-      gap: 16px;
+      align-items: center;
+      gap: 12px;
       margin-bottom: 20px;
-      padding-bottom: 16px;
-      border-bottom: 2px solid var(--border);
+      padding-bottom: 14px;
+      border-bottom: 1px solid #e4e7ec;
     }
     .slot-metrics {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 12px;
+      gap: 10px;
       margin-bottom: 16px;
     }
     .slot-metric {
-      padding: 14px;
-      background: var(--surface-soft);
-      border: 1px solid var(--border);
+      padding: 12px;
+      background: #fafafa;
+      border: 1px solid #e4e7ec;
       border-radius: 8px;
     }
     .slot-metric strong {
       display: block;
-      color: var(--brand-dark);
-      font-size: 1.45rem;
+      color: #111827;
+      font-size: 1.25rem;
       line-height: 1.1;
     }
     .slot-metric span {
       display: block;
       margin-top: 4px;
-      color: var(--text-muted);
+      color: #667085;
       font-size: 0.78rem;
-      font-weight: 800;
+      font-weight: 700;
     }
     .slot-filters {
       display: grid;
-      grid-template-columns: minmax(180px, 1fr) 180px 160px 140px auto;
+      grid-template-columns: minmax(180px, 1fr) 180px 160px 140px 140px auto;
       gap: 8px;
       align-items: center;
       margin-bottom: 16px;
-      padding: 12px;
-      background: var(--surface-soft);
-      border: 1px solid var(--border);
-      border-radius: 8px;
     }
     .slot-input,
     .slot-select {
       width: 100%;
-      min-height: 38px;
+      min-height: 36px;
       padding: 8px 10px;
-      border: 1px solid var(--border-strong);
-      border-radius: var(--radius-sm);
+      border: 1px solid #d0d5dd;
+      border-radius: 6px;
       background: #fff;
-      color: var(--text);
+      color: #101828;
       font: inherit;
-      font-size: 0.9rem;
+      font-size: 0.88rem;
     }
     .slot-card {
       display: grid;
-      grid-template-columns: 86px minmax(0, 1fr) auto;
-      gap: 14px;
+      grid-template-columns: 72px minmax(0, 1fr) auto;
+      gap: 12px;
       align-items: center;
-      padding: 14px;
-      margin-bottom: 10px;
+      padding: 12px;
+      margin-bottom: 8px;
       background: #fff;
-      border: 1px solid var(--border);
+      border: 1px solid #e4e7ec;
       border-radius: 8px;
     }
     .slot-thumb {
-      width: 86px;
-      height: 64px;
+      width: 72px;
+      height: 54px;
       object-fit: cover;
       border-radius: 6px;
-      border: 1px solid var(--border);
-      background: var(--surface-warm);
+      border: 1px solid #e4e7ec;
+      background: #f2f4f7;
     }
     .slot-title-row {
       display: flex;
@@ -197,40 +227,40 @@ $featuredCount = (int) $pdo->query('SELECT COUNT(*) FROM games WHERE featured = 
       margin-bottom: 4px;
     }
     .slot-title {
-      color: var(--brand-dark);
-      font-size: 1rem;
-      font-weight: 900;
+      color: #101828;
+      font-size: 0.96rem;
+      font-weight: 800;
       line-height: 1.25;
     }
     .slot-meta {
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
-      color: var(--text-muted);
+      color: #667085;
       font-size: 0.78rem;
     }
     .slot-badge {
       display: inline-flex;
       align-items: center;
-      min-height: 22px;
-      padding: 3px 8px;
-      border-radius: 999px;
-      background: var(--surface-soft);
-      border: 1px solid var(--border);
-      color: var(--brand-dark);
-      font-size: 0.72rem;
-      font-weight: 900;
+      min-height: 20px;
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: #f2f4f7;
+      border: 1px solid #e4e7ec;
+      color: #344054;
+      font-size: 0.7rem;
+      font-weight: 800;
       text-transform: uppercase;
     }
     .slot-badge.ok {
-      background: #e9f8ef;
-      border-color: #9bd5af;
-      color: #008a20;
+      background: #ecfdf3;
+      border-color: #abefc6;
+      color: #067647;
     }
     .slot-badge.warn {
-      background: #fff8e5;
-      border-color: #f0b849;
-      color: #996800;
+      background: #fffaeb;
+      border-color: #fedf89;
+      color: #b54708;
     }
     .slot-actions {
       display: flex;
@@ -238,12 +268,35 @@ $featuredCount = (int) $pdo->query('SELECT COUNT(*) FROM games WHERE featured = 
       justify-content: flex-end;
       flex-wrap: wrap;
     }
+    .slot-featured-form {
+      margin: 0;
+    }
+    .slot-featured-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 32px;
+      padding: 5px 9px;
+      border: 1px solid #d0d5dd;
+      border-radius: 6px;
+      background: #fff;
+      color: #344054;
+      font-size: 0.78rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .slot-featured-label input {
+      width: 16px;
+      height: 16px;
+      accent-color: #a62f3d;
+      cursor: pointer;
+    }
     .slot-empty {
       padding: 18px;
-      border: 1px dashed var(--border-strong);
+      border: 1px dashed #d0d5dd;
       border-radius: 8px;
-      color: var(--text-muted);
-      background: var(--surface-soft);
+      color: #667085;
+      background: #fafafa;
     }
     .slot-pagination {
       display: flex;
@@ -315,6 +368,11 @@ $featuredCount = (int) $pdo->query('SELECT COUNT(*) FROM games WHERE featured = 
             <option value="1" <?= $published === '1' ? 'selected' : '' ?>>Published</option>
             <option value="0" <?= $published === '0' ? 'selected' : '' ?>>Unpublished</option>
           </select>
+          <select class="slot-select" name="featured">
+            <option value="">Any featured</option>
+            <option value="1" <?= $featured === '1' ? 'selected' : '' ?>>Featured</option>
+            <option value="0" <?= $featured === '0' ? 'selected' : '' ?>>Not featured</option>
+          </select>
           <button class="btn btn-primary btn-sm" type="submit">Filter</button>
         </form>
 
@@ -352,6 +410,16 @@ $featuredCount = (int) $pdo->query('SELECT COUNT(*) FROM games WHERE featured = 
                 <?php endif; ?>
               </div>
               <div class="slot-actions">
+                <form class="slot-featured-form" method="post" action="/admin/slots.php">
+                  <?= csrf_input() ?>
+                  <input type="hidden" name="slot_id" value="<?= (int) $slot['id'] ?>">
+                  <input type="hidden" name="return_to" value="<?= h($_SERVER['REQUEST_URI'] ?? '/admin/slots.php') ?>">
+                  <input type="hidden" name="featured" value="0">
+                  <label class="slot-featured-label">
+                    <input type="checkbox" name="featured" value="1" <?= (int) $slot['featured'] === 1 ? 'checked' : '' ?> onchange="this.form.submit()">
+                    Featured
+                  </label>
+                </form>
                 <a class="btn btn-primary btn-sm" href="/game/<?= h(rawurlencode((string) $slot['slug'])) ?>/" target="_blank" rel="noopener">View</a>
                 <?php if ($slot['url'] !== ''): ?>
                   <a class="btn btn-secondary btn-sm" href="<?= h($slot['url']) ?>" target="_blank" rel="noopener nofollow">Open</a>

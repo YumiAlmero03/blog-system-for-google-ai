@@ -1,0 +1,14 @@
+<svg width="800" height="800" viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Invite and earn rewards">
+  <rect width="800" height="800" rx="64" fill="#170c05"/>
+  <circle cx="640" cy="150" r="210" fill="#f59e0b" opacity=".18"/>
+  <circle cx="145" cy="650" r="240" fill="#ea580c" opacity=".16"/>
+  <rect x="96" y="120" width="608" height="560" rx="44" fill="#211107" stroke="#f59e0b" stroke-width="10"/>
+  <path d="M400 222c-54 0-98 44-98 98s44 98 98 98 98-44 98-98-44-98-98-98Z" fill="#fbbf24"/>
+  <path d="M400 260c-33 0-60 27-60 60s27 60 60 60 60-27 60-60-27-60-60-60Z" fill="#78350f"/>
+  <path d="M210 522c34-66 101-104 190-104s156 38 190 104v42H210v-42Z" fill="#f97316"/>
+  <circle cx="210" cy="320" r="54" fill="#fde68a"/>
+  <circle cx="590" cy="320" r="54" fill="#fde68a"/>
+  <path d="M178 488c15-47 60-78 114-78 20 0 39 4 56 12-47 19-86 53-111 99h-59v-33Z" fill="#f59e0b"/>
+  <path d="M563 521c-25-46-64-80-111-99 17-8 36-12 56-12 54 0 99 31 114 78v33h-59Z" fill="#f59e0b"/>
+  <path d="M400 130l35 70 77 11-56 55 13 77-69-36-69 36 13-77-56-55 77-11 35-70Z" fill="#facc15"/>
+</svg>
