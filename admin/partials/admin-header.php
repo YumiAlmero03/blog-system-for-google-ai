@@ -6,6 +6,7 @@ $adminNavItems = [
     ['/admin/blogs.php', 'Blogs', str_ends_with($adminCurrentPath, '/admin/blogs.php')],
     ['/admin/blog-categories.php', 'Categories', str_ends_with($adminCurrentPath, '/admin/blog-categories.php')],
     ['/admin/slots.php', 'Slots', str_ends_with($adminCurrentPath, '/admin/slots.php')],
+    ['/admin/seo-checker-v2.php', 'SEO Checker V2', str_ends_with($adminCurrentPath, '/admin/seo-checker-v2.php')],
     ['/admin/playnow-tracker.php', 'Play Now Tracker', str_ends_with($adminCurrentPath, '/admin/playnow-tracker.php')],
     ['/admin/settings.php', 'Settings', str_ends_with($adminCurrentPath, '/admin/settings.php')],
     ['/admin/blog-publish.php', 'Publish Post', str_ends_with($adminCurrentPath, '/admin/blog-publish.php')],
@@ -15,7 +16,7 @@ $adminNavItems = [
 <header class="site-header">
   <div class="header-inner">
     <a href="/admin/blogs.php" class="brand-logo">
-      GperyaPH <span class="badge-tag" style="background-color: var(--brand); color:#fff;">ADMIN</span>
+      <span class="badge-tag" style="background-color: var(--brand); color:#fff;">ADMIN</span>
     </a>
     <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
       <?php foreach ($adminNavItems as [$href, $label, $isActive]): ?>

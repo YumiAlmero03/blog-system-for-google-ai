@@ -108,8 +108,8 @@ if ($fullName === '' || $contact === '' || $topic === '' || $problem === '') {
 }
 
 $recipient = env_value('TICKET_RECIPIENT_EMAIL') ?? 'lanialmerogphi@gmail.com';
-$subject = 'Gperya ticket';
-$body = "Gperya ticket\n\n"
+$subject = 'Customer Ticket';
+$body = "Customer Ticket\n\n"
     . "Fullname: {$fullName}\n"
     . "Gcash/Mobile No: {$contact}\n"
     . "Inquiry topic: {$topicLabel}\n"
@@ -118,9 +118,9 @@ $body = "Gperya ticket\n\n"
     . "Page: {$pageUrl}\n"
     . "IP: " . ticket_client_ip() . "\n";
 
-$fromEmail = env_value('TICKET_FROM_EMAIL') ?? 'noreply@gperya-apk.com';
+$fromEmail = env_value('TICKET_FROM_EMAIL') ?? 'noreply@example.com';
 $headers = [
-    'From: Gperya Ticket <' . $fromEmail . '>',
+    'From: Customer Ticket <' . $fromEmail . '>',
     'Reply-To: ' . $recipient,
     'Content-Type: text/plain; charset=UTF-8',
     'X-Mailer: PHP/' . PHP_VERSION,
@@ -173,7 +173,7 @@ if (is_dir($storageDir)) {
 
 $smtpResult = ['ok' => false, 'error' => 'SMTP is not configured.'];
 if (smtp_is_configured()) {
-    $smtpResult = smtp_send_mail($recipient, $subject, $body, $fromEmail, 'Gperya Ticket');
+    $smtpResult = smtp_send_mail($recipient, $subject, $body, $fromEmail, 'Customer Ticket');
 }
 
 $sent = (bool) ($smtpResult['ok'] ?? false);

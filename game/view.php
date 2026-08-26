@@ -12,7 +12,7 @@ function game_base_url(): string
 {
     $siteBaseUrl = env_value('SITE_BASE_URL');
     if (!is_string($siteBaseUrl) || trim($siteBaseUrl) === '') {
-        $siteBaseUrl = 'https://gperya-apk.com';
+        $siteBaseUrl = 'https://freeonlinegames.info';
     }
 
     return rtrim($siteBaseUrl, '/');
@@ -156,7 +156,113 @@ $gameStats = array_values(array_filter([
     game_stat_item('Reels & Grid', game_stat_text($game['reels'] ?? null), 'is-small'),
     game_stat_item('Min - Max Bet', game_bet_range($game['min_bet'] ?? null, $game['max_bet'] ?? null), 'is-small'),
 ]));
+$seoTitle = 'Play ' . $title . ' Online | Free Online Games Philippines';
+$seoKeywords = implode(', ', array_filter([
+    $title,
+    $provider,
+    $type,
+    game_stat_text($game['paylines'] ?? null),
+    $game['rtp'] !== null && $game['rtp'] !== '' ? 'RTP ' . $game['rtp'] . '%' : '',
+    'Free Online Games',
+    'GCash Slot Philippines',
+]));
+$ogImage = $thumb !== '' ? $thumb : '/assets/free-online-games-logo-BnwzQedm.webp';
+$assetJsFiles = glob(__DIR__ . '/../assets/index-*.js') ?: [];
+$assetCssFiles = glob(__DIR__ . '/../assets/index-*.css') ?: [];
+usort($assetJsFiles, static fn (string $a, string $b): int => (int) @filemtime($b) <=> (int) @filemtime($a));
+usort($assetCssFiles, static fn (string $a, string $b): int => (int) @filemtime($b) <=> (int) @filemtime($a));
+$assetJs = '/assets/' . basename($assetJsFiles[0] ?? 'index-CYybfb-X.js');
+$assetCss = '/assets/' . basename($assetCssFiles[0] ?? 'index-CRQwvacc.css');
+$jsonLd = json_encode([
+    '@context' => 'https://schema.org',
+    '@graph' => [
+        [
+            '@type' => 'Organization',
+            '@id' => $baseUrl . '/#organization',
+            'name' => 'Free Online Games Philippines',
+            'url' => $baseUrl,
+            'logo' => [
+                '@type' => 'ImageObject',
+                'url' => $baseUrl . '/assets/free-online-games-logo-BnwzQedm.webp',
+            ],
+        ],
+        [
+            '@type' => 'BreadcrumbList',
+            '@id' => $canonical . '#breadcrumb',
+            'itemListElement' => [
+                ['@type' => 'ListItem', 'position' => 1, 'name' => 'Home', 'item' => $baseUrl . '/'],
+                ['@type' => 'ListItem', 'position' => 2, 'name' => strtoupper($type !== '' ? $type : 'Games'), 'item' => $baseUrl . '/slots/'],
+                ['@type' => 'ListItem', 'position' => 3, 'name' => $title, 'item' => $canonical],
+            ],
+        ],
+        [
+            '@type' => 'SoftwareApplication',
+            '@id' => $canonical . '#game',
+            'name' => $title,
+            'applicationCategory' => 'GameApplication',
+            'operatingSystem' => 'Web, Android, iOS',
+            'author' => ['@type' => 'Organization', 'name' => $provider !== '' ? $provider : 'Free Online Games'],
+            'description' => $description,
+            'image' => $ogImage,
+            'offers' => [
+                '@type' => 'Offer',
+                'price' => '0',
+                'priceCurrency' => 'PHP',
+                'availability' => 'https://schema.org/InStock',
+                'description' => 'Free Demo & Real Money Play',
+            ],
+            'aggregateRating' => [
+                '@type' => 'AggregateRating',
+                'ratingValue' => '4.9',
+                'ratingCount' => '1420',
+                'bestRating' => '5',
+                'worstRating' => '1',
+            ],
+        ],
+    ],
+], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 ?>
+<!doctype html>
+<html lang="en-PH" class="theme-dark" style="color-scheme: dark;">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <title><?= game_h($seoTitle) ?></title>
+  <meta name="title" content="<?= game_h($seoTitle) ?>">
+  <meta name="description" content="<?= game_h($description) ?>">
+  <meta name="keywords" content="<?= game_h($seoKeywords) ?>">
+  <meta name="author" content="Free Online Games Official">
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+  <meta name="theme-color" content="#0e0a07">
+  <link rel="icon" type="image/svg+xml" href="/assets/icons/favicon-club.svg">
+  <link rel="alternate icon" href="/assets/icons/favicon.ico">
+  <link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png">
+  <link rel="canonical" href="<?= game_h($canonical) ?>">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="<?= game_h($canonical) ?>">
+  <meta property="og:title" content="<?= game_h($seoTitle) ?>">
+  <meta property="og:description" content="<?= game_h($description) ?>">
+  <meta property="og:image" content="<?= game_h($ogImage) ?>">
+  <meta property="og:site_name" content="Free Online Games Philippines">
+  <meta property="og:locale" content="en_PH">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:url" content="<?= game_h($canonical) ?>">
+  <meta name="twitter:title" content="<?= game_h($seoTitle) ?>">
+  <meta name="twitter:description" content="<?= game_h($description) ?>">
+  <meta name="twitter:image" content="<?= game_h($ogImage) ?>">
+  <meta name="geo.region" content="PH">
+  <meta name="geo.placename" content="Manila, Philippines">
+  <link rel="preconnect" href="https://assets.slotslaunch.com">
+  <link rel="dns-prefetch" href="https://assets.slotslaunch.com">
+  <script id="freegames-jsonld-schema" type="application/ld+json"><?= $jsonLd ?: '{}' ?></script>
+  <script type="module" crossorigin src="<?= game_h($assetJs) ?>"></script>
+  <link rel="stylesheet" crossorigin href="<?= game_h($assetCss) ?>">
+</head>
+<body class="bg-[#0e0a07] text-stone-100">
+  <div id="root"></div>
+</body>
+</html>
+<?php exit; ?>
 <!DOCTYPE html>
 <html lang="en-PH">
 <head>
@@ -760,3 +866,4 @@ $gameStats = array_values(array_filter([
   <script src="/assets/js/main.min.js" defer></script>
 </body>
 </html>
+

@@ -1,1 +1,0 @@
-const SITE_CONFIG={brandName:"GperyaPH",targetBrand:"Gperya",domain:"gperya-apk.com",verifiedGperyaUrl:"https://gperya-apk.com/playnow",affiliateUrl:"https://gperya-apk.com/playnow",redirectTarget:"https://bybet.com/p/xjSD",operatorUrlConfigured:!0,affiliateConfigured:!0,defaultRel:"sponsored nofollow noopener"};"undefined"!=typeof window&&(window.SITE_CONFIG=SITE_CONFIG);

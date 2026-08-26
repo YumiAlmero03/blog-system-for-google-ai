@@ -7,7 +7,7 @@ function games_sitemap_base_url(): string
 {
     $baseUrl = env_value('SITE_BASE_URL');
     if (!is_string($baseUrl) || $baseUrl === '') {
-        $baseUrl = 'https://gperya-apk.com';
+        $baseUrl = 'http://localhost';
     }
 
     return rtrim($baseUrl, '/');

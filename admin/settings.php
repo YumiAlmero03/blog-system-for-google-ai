@@ -143,6 +143,7 @@ $result = null;
 $notice = '';
 $noticeType = '';
 $websiteTitle = blog_website_title();
+$ignoredEngagementIps = blog_ignored_engagement_ips();
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     require_valid_csrf();
@@ -165,6 +166,19 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 $notice = 'Website title could not be saved.';
                 $noticeType = 'error';
             }
+        }
+    } elseif ($action === 'save_ignored_engagement_ips') {
+        $ignoredEngagementIps = settings_post_value('ignored_engagement_ips', 4000);
+        try {
+            blog_setting_set_multiline('ignored_engagement_ips', $ignoredEngagementIps, 4000);
+            $ignoredEngagementIps = blog_ignored_engagement_ips();
+            $notice = 'Ignored IP addresses saved.';
+            $noticeType = 'ok';
+            csrf_rotate();
+        } catch (Throwable $exception) {
+            error_log('Settings ignored IP error: ' . $exception->getMessage());
+            $notice = 'Ignored IP addresses could not be saved.';
+            $noticeType = 'error';
         }
     } else {
         $find = settings_post_value('find', 2000);
@@ -205,7 +219,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
   <meta name="robots" content="noindex, nofollow">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Settings | GperyaPH Admin</title>
+  <title>Settings | Admin</title>
   <link rel="preload" href="/admin/style.css" as="style"><link rel="stylesheet" href="/admin/style.css">
   <link rel="icon" href="/assets/icons/favicon.ico">
   <style>
@@ -347,6 +361,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             </div>
             <div class="actions">
               <button type="submit" name="action" value="save_website_title" class="btn btn-primary btn-sm">Save Website Title</button>
+            </div>
+          </form>
+
+          <form method="post" class="settings-card">
+            <?= csrf_input() ?>
+            <div class="form-row">
+              <label for="ignored-engagement-ips">Ignored IP Addresses</label>
+              <textarea id="ignored-engagement-ips" name="ignored_engagement_ips" maxlength="4000" placeholder="127.0.0.1&#10;203.0.113.24"><?= h($ignoredEngagementIps) ?></textarea>
+              <p style="font-size:0.82rem; color:var(--text-muted); margin:0;">One IP per line, or separate with commas. CIDR ranges such as 203.0.113.0/24 are also supported.</p>
+            </div>
+            <div class="actions">
+              <button type="submit" name="action" value="save_ignored_engagement_ips" class="btn btn-primary btn-sm">Save Ignored IPs</button>
             </div>
           </form>
 

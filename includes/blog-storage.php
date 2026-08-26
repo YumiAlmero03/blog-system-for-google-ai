@@ -5,9 +5,9 @@ require_once __DIR__ . '/env.php';
 
 const BLOG_CATEGORIES = ['Guides', 'Troubleshooting', 'Casino', 'Promotions', 'Community'];
 const BLOG_STATUSES = ['published', 'draft'];
-const BLOG_DEFAULT_AUTHOR = 'GperyaPH Editorial Team';
+const BLOG_DEFAULT_AUTHOR = 'Editorial Team';
 const BLOG_DEFAULT_IMAGE = '/uploads/blogs/default-featured.svg';
-const BLOG_DEFAULT_SITE_TITLE = 'GperyaPH';
+const BLOG_DEFAULT_SITE_TITLE = 'Blog';
 
 function blog_storage_dir(): string
 {
@@ -127,6 +127,18 @@ function blogs_schema(PDO $pdo): void
             updated_at INTEGER NOT NULL
         )'
     );
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS blog_engagements (
+            post_id TEXT NOT NULL,
+            action TEXT NOT NULL,
+            ip_hash TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            PRIMARY KEY (post_id, action, ip_hash),
+            FOREIGN KEY (post_id) REFERENCES blog_posts(id) ON DELETE CASCADE
+        )'
+    );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_blog_engagements_post_action ON blog_engagements(post_id, action)');
     games_schema($pdo);
     blog_settings_seed($pdo);
     blog_categories_seed($pdo);
@@ -370,6 +382,11 @@ function blog_settings_seed(PDO $pdo): void
         ':setting_value' => BLOG_DEFAULT_SITE_TITLE,
         ':updated_at' => time(),
     ]);
+    $stmt->execute([
+        ':setting_key' => 'ignored_engagement_ips',
+        ':setting_value' => '',
+        ':updated_at' => time(),
+    ]);
 }
 
 function blog_categories_seed(PDO $pdo): void
@@ -481,6 +498,15 @@ function blog_normalize_existing(array $blog): ?array
 
 function blog_row_to_array(array $row): array
 {
+    $stats = [
+        'views' => array_key_exists('views', $row) ? (int) $row['views'] : null,
+        'likes' => array_key_exists('likes', $row) ? (int) $row['likes'] : null,
+        'dislikes' => array_key_exists('dislikes', $row) ? (int) $row['dislikes'] : null,
+    ];
+    if ($stats['views'] === null || $stats['likes'] === null || $stats['dislikes'] === null) {
+        $stats = blog_engagement_counts((string) ($row['id'] ?? ''));
+    }
+
     return [
         'id' => $row['id'],
         'slug' => $row['slug'],
@@ -496,6 +522,9 @@ function blog_row_to_array(array $row): array
         'date' => $row['date_label'],
         'createdAt' => (int) $row['created_at'],
         'updatedAt' => (int) $row['updated_at'],
+        'views' => (int) $stats['views'],
+        'likes' => (int) $stats['likes'],
+        'dislikes' => (int) $stats['dislikes'],
     ];
 }
 
@@ -569,6 +598,209 @@ function blog_setting_set(string $key, string $value, int $maxLength = 255): voi
 function blog_website_title(): string
 {
     return blog_setting_get('website_title', BLOG_DEFAULT_SITE_TITLE);
+}
+
+function blog_ignored_engagement_ips(): string
+{
+    return blog_setting_get('ignored_engagement_ips', '');
+}
+
+function blog_setting_set_multiline(string $key, string $value, int $maxLength = 4000): void
+{
+    $key = strtolower(trim($key));
+    $key = preg_replace('/[^a-z0-9_:-]+/', '_', $key) ?? '';
+    $key = trim($key, '_');
+    if ($key === '') {
+        throw new InvalidArgumentException('Setting key is invalid.');
+    }
+
+    $value = str_replace(["\r\n", "\r"], "\n", trim($value));
+    $value = preg_replace("/[ \t]+/", ' ', $value) ?? '';
+    $value = substr($value, 0, $maxLength);
+
+    $stmt = blogs_pdo()->prepare(
+        'INSERT INTO app_settings (setting_key, setting_value, updated_at)
+         VALUES (:setting_key, :setting_value, :updated_at)
+         ON CONFLICT(setting_key) DO UPDATE SET
+            setting_value = excluded.setting_value,
+            updated_at = excluded.updated_at'
+    );
+    $stmt->execute([
+        ':setting_key' => $key,
+        ':setting_value' => $value,
+        ':updated_at' => time(),
+    ]);
+}
+
+function blog_plain_text_from_markdown(string $markdown): string
+{
+    $text = preg_replace('/```[\s\S]*?```/', ' ', $markdown) ?? $markdown;
+    $text = preg_replace('/!\[[^\]]*\]\([^)]+\)/', ' ', $text) ?? $text;
+    $text = preg_replace('/\[([^\]]+)\]\([^)]+\)/', '$1', $text) ?? $text;
+    $text = preg_replace('/:::faq|:::|[#>*_`~|[\](){}-]+/', ' ', $text) ?? $text;
+    return trim(preg_replace('/\s+/', ' ', strip_tags($text)) ?? '');
+}
+
+function blog_read_minutes(string $content): int
+{
+    preg_match_all('/[\p{L}\p{N}]+(?:[\'’.-][\p{L}\p{N}]+)*/u', blog_plain_text_from_markdown($content), $matches);
+    $wordCount = isset($matches[0]) ? count($matches[0]) : 0;
+    return max(1, (int) ceil($wordCount / 200));
+}
+
+function blog_engagement_counts(string $postId): array
+{
+    $postId = normalize_slug($postId);
+    if ($postId === '') {
+        return ['views' => 0, 'likes' => 0, 'dislikes' => 0];
+    }
+
+    $stmt = blogs_pdo()->prepare(
+        'SELECT action, COUNT(*) AS total
+         FROM blog_engagements
+         WHERE post_id = :post_id
+         GROUP BY action'
+    );
+    $stmt->execute([':post_id' => $postId]);
+
+    $counts = ['views' => 0, 'likes' => 0, 'dislikes' => 0];
+    foreach ($stmt->fetchAll() as $row) {
+        $action = (string) ($row['action'] ?? '');
+        if ($action === 'view') {
+            $counts['views'] = (int) ($row['total'] ?? 0);
+        } elseif ($action === 'like') {
+            $counts['likes'] = (int) ($row['total'] ?? 0);
+        } elseif ($action === 'dislike') {
+            $counts['dislikes'] = (int) ($row['total'] ?? 0);
+        }
+    }
+
+    return $counts;
+}
+
+function blog_request_ip(): string
+{
+    foreach (['HTTP_CF_CONNECTING_IP', 'HTTP_X_REAL_IP', 'REMOTE_ADDR'] as $key) {
+        $value = $_SERVER[$key] ?? '';
+        if (is_string($value) && filter_var($value, FILTER_VALIDATE_IP)) {
+            return $value;
+        }
+    }
+
+    $forwarded = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '';
+    if (is_string($forwarded)) {
+        $first = trim(explode(',', $forwarded)[0] ?? '');
+        if (filter_var($first, FILTER_VALIDATE_IP)) {
+            return $first;
+        }
+    }
+
+    return '';
+}
+
+function blog_ip_matches_cidr(string $ip, string $cidr): bool
+{
+    [$range, $bits] = array_pad(explode('/', $cidr, 2), 2, null);
+    if (!is_string($bits) || !ctype_digit($bits)) {
+        return false;
+    }
+
+    $ipBin = @inet_pton($ip);
+    $rangeBin = @inet_pton(trim($range));
+    if ($ipBin === false || $rangeBin === false || strlen($ipBin) !== strlen($rangeBin)) {
+        return false;
+    }
+
+    $maxBits = strlen($ipBin) * 8;
+    $bitsInt = max(0, min($maxBits, (int) $bits));
+    $bytes = intdiv($bitsInt, 8);
+    $remainder = $bitsInt % 8;
+    if ($bytes > 0 && substr($ipBin, 0, $bytes) !== substr($rangeBin, 0, $bytes)) {
+        return false;
+    }
+    if ($remainder === 0) {
+        return true;
+    }
+
+    $mask = (0xff << (8 - $remainder)) & 0xff;
+    return (ord($ipBin[$bytes]) & $mask) === (ord($rangeBin[$bytes]) & $mask);
+}
+
+function blog_ip_is_ignored(string $ip): bool
+{
+    if ($ip === '') {
+        return true;
+    }
+
+    $entries = preg_split('/[\s,]+/', blog_ignored_engagement_ips()) ?: [];
+    foreach ($entries as $entry) {
+        $entry = trim($entry);
+        if ($entry === '') {
+            continue;
+        }
+        if ($entry === $ip || (str_contains($entry, '/') && blog_ip_matches_cidr($ip, $entry))) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function blog_engagement_ip_hash(string $ip): string
+{
+    $salt = env_value('APP_KEY');
+    if (!is_string($salt) || $salt === '') {
+        $salt = blogs_db_path();
+    }
+
+    return hash_hmac('sha256', $ip, $salt);
+}
+
+function blog_record_engagement(string $postId, string $action): array
+{
+    $post = blogs_find($postId);
+    if ($post === null) {
+        return ['ok' => false, 'error' => 'Blog post not found.', 'counts' => ['views' => 0, 'likes' => 0, 'dislikes' => 0]];
+    }
+
+    $action = strtolower(trim($action));
+    if (!in_array($action, ['view', 'like', 'dislike'], true)) {
+        return ['ok' => false, 'error' => 'Invalid action.', 'counts' => blog_engagement_counts((string) $post['id'])];
+    }
+
+    $ip = blog_request_ip();
+    if (blog_ip_is_ignored($ip)) {
+        return ['ok' => true, 'ignored' => true, 'counts' => blog_engagement_counts((string) $post['id'])];
+    }
+
+    $pdo = blogs_pdo();
+    $now = time();
+    $ipHash = blog_engagement_ip_hash($ip);
+    if ($action === 'like' || $action === 'dislike') {
+        $opposite = $action === 'like' ? 'dislike' : 'like';
+        $deleteStmt = $pdo->prepare('DELETE FROM blog_engagements WHERE post_id = :post_id AND action = :action AND ip_hash = :ip_hash');
+        $deleteStmt->execute([
+            ':post_id' => $post['id'],
+            ':action' => $opposite,
+            ':ip_hash' => $ipHash,
+        ]);
+    }
+
+    $stmt = $pdo->prepare(
+        'INSERT INTO blog_engagements (post_id, action, ip_hash, created_at, updated_at)
+         VALUES (:post_id, :action, :ip_hash, :created_at, :updated_at)
+         ON CONFLICT(post_id, action, ip_hash) DO UPDATE SET updated_at = excluded.updated_at'
+    );
+    $stmt->execute([
+        ':post_id' => $post['id'],
+        ':action' => $action,
+        ':ip_hash' => $ipHash,
+        ':created_at' => $now,
+        ':updated_at' => $now,
+    ]);
+
+    blog_clear_api_cache();
+    return ['ok' => true, 'ignored' => false, 'counts' => blog_engagement_counts((string) $post['id'])];
 }
 
 function normalize_blog_category_name(mixed $value): ?string
@@ -846,7 +1078,18 @@ function blogs_page(int $count, int $page, ?string $category = null, ?string $st
     $totalStmt->execute($params);
     $total = (int) $totalStmt->fetchColumn();
 
-    $stmt = $pdo->prepare('SELECT * FROM blog_posts' . $whereSql . ' ORDER BY updated_at DESC, created_at DESC LIMIT :limit OFFSET :offset');
+    $stmt = $pdo->prepare(
+        'SELECT p.*,
+            SUM(CASE WHEN e.action = "view" THEN 1 ELSE 0 END) AS views,
+            SUM(CASE WHEN e.action = "like" THEN 1 ELSE 0 END) AS likes,
+            SUM(CASE WHEN e.action = "dislike" THEN 1 ELSE 0 END) AS dislikes
+         FROM blog_posts p
+         LEFT JOIN blog_engagements e ON e.post_id = p.id' .
+         $whereSql .
+        ' GROUP BY p.id
+          ORDER BY p.updated_at DESC, p.created_at DESC
+          LIMIT :limit OFFSET :offset'
+    );
     foreach ($params as $key => $value) {
         $stmt->bindValue($key, $value, PDO::PARAM_STR);
     }
@@ -873,7 +1116,17 @@ function blogs_all(): array
 function blogs_find(string $id): ?array
 {
     $id = normalize_slug($id);
-    $stmt = blogs_pdo()->prepare('SELECT * FROM blog_posts WHERE id = :id OR slug = :id LIMIT 1');
+    $stmt = blogs_pdo()->prepare(
+        'SELECT p.*,
+            SUM(CASE WHEN e.action = "view" THEN 1 ELSE 0 END) AS views,
+            SUM(CASE WHEN e.action = "like" THEN 1 ELSE 0 END) AS likes,
+            SUM(CASE WHEN e.action = "dislike" THEN 1 ELSE 0 END) AS dislikes
+         FROM blog_posts p
+         LEFT JOIN blog_engagements e ON e.post_id = p.id
+         WHERE p.id = :id OR p.slug = :id
+         GROUP BY p.id
+         LIMIT 1'
+    );
     $stmt->execute([':id' => $id]);
     $row = $stmt->fetch();
 
@@ -972,6 +1225,10 @@ function blogs_upsert(array $blog, bool $manageTransaction = true): array
 function blogs_delete(string $id): bool
 {
     $post = blogs_find($id);
+    if ($post !== null) {
+        $engagementStmt = blogs_pdo()->prepare('DELETE FROM blog_engagements WHERE post_id = :post_id');
+        $engagementStmt->execute([':post_id' => $post['id']]);
+    }
     $stmt = blogs_pdo()->prepare('DELETE FROM blog_posts WHERE id = :id OR slug = :id');
     $stmt->execute([':id' => normalize_slug($id)]);
     $deleted = $stmt->rowCount() > 0;

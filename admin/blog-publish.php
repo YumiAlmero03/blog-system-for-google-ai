@@ -16,7 +16,7 @@ $websiteTitle = blog_website_title();
   <meta name="robots" content="noindex, nofollow">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Publish Blog Post | GperyaPH Admin</title>
+  <title>Publish Blog Post | Admin</title>
   <link rel="preload" href="/admin/style.css" as="style"><link rel="stylesheet" href="/admin/style.css">
   <link rel="icon" href="/assets/icons/favicon.ico">
   <style>
@@ -1450,7 +1450,7 @@ $websiteTitle = blog_website_title();
                   <div class="form-group">
                     <label for="blog-slug">SEO Slug *</label>
                     <input type="text" id="blog-slug" name="slug" class="form-control" maxlength="96" pattern="[a-z0-9-]+" required>
-                    <span style="font-size:0.75rem; color:var(--text-muted); display:block; margin-top:4px;">Page URL: <code>/blog/<span id="slug-preview-text">gperya-article</span>/</code></span>
+                    <span style="font-size:0.75rem; color:var(--text-muted); display:block; margin-top:4px;">Page URL: <code>/blog/<span id="slug-preview-text">blog-article</span>/</code></span>
                   </div>
                   <div class="form-group">
                     <label for="blog-category">Category Tag *</label>
@@ -1651,7 +1651,7 @@ $websiteTitle = blog_website_title();
       let editorBlockClipboardHtml = '';
       let editorTabsFloating = false;
       let editorTabsFrame = 0;
-      const editorBlockClipboardPrefix = 'GPERYA_EDITOR_BLOCK::';
+      const editorBlockClipboardPrefix = 'BLOG_EDITOR_BLOCK::';
       const yoastModuleUrl = '/assets/vendor/yoastseo/yoastseo.bundle.js?v=3.6.0';
       const yoastResearcherUrl = '/assets/vendor/yoastseo/researcher.bundle.js?v=3.6.0';
 
@@ -1923,7 +1923,7 @@ $websiteTitle = blog_website_title();
           textTitle: fields.titleText,
           titleWidth: measureSeoTitleWidth(fields.titleText),
           locale: 'en_US',
-          permalink: window.location.origin + '/blog/' + (fields.slugText || 'gperya-article') + '/',
+          permalink: window.location.origin + '/blog/' + (fields.slugText || 'blog-article') + '/',
         });
         const researcher = new modules.EnglishResearcher(paper);
         const seoAssessor = new SeoAssessor(researcher);
@@ -2823,7 +2823,7 @@ $websiteTitle = blog_website_title();
       function editorBlockFromHtml(html) {
         const template = document.createElement('template');
         template.innerHTML = String(html || '').trim();
-        const markedBlock = template.content.querySelector('[data-gperya-editor-block="true"] > .editor-block');
+        const markedBlock = template.content.querySelector('[data-blog-editor-block="true"] > .editor-block');
         const block = markedBlock || template.content.querySelector('.editor-block');
         return block ? cleanPastedEditorBlock(block.cloneNode(true)) : null;
       }
@@ -2875,7 +2875,7 @@ $websiteTitle = blog_website_title();
         editorBlockClipboardHtml = block.outerHTML;
         const markdown = nodeToMarkdown(block).trim();
         if (event.clipboardData) {
-          event.clipboardData.setData('text/html', `<div data-gperya-editor-block="true">${editorBlockClipboardHtml}</div>`);
+          event.clipboardData.setData('text/html', `<div data-blog-editor-block="true">${editorBlockClipboardHtml}</div>`);
           event.clipboardData.setData('text/plain', editorBlockClipboardPrefix + markdown);
         }
         event.preventDefault();
@@ -2900,7 +2900,7 @@ $websiteTitle = blog_website_title();
       function pasteCopiedEditorBlock(event) {
         const html = event.clipboardData ? event.clipboardData.getData('text/html') : '';
         const text = event.clipboardData ? event.clipboardData.getData('text/plain') : '';
-        const hasBlockMarker = html.includes('data-gperya-editor-block="true"') || text.startsWith(editorBlockClipboardPrefix);
+        const hasBlockMarker = html.includes('data-blog-editor-block="true"') || text.startsWith(editorBlockClipboardPrefix);
         if (!hasBlockMarker) return false;
         const block = editorBlockFromHtml(html || editorBlockClipboardHtml);
         if (!block) return false;
@@ -3035,7 +3035,7 @@ $websiteTitle = blog_website_title();
 
       function pasteFormattedDocumentHtml(event) {
         const html = event.clipboardData ? event.clipboardData.getData('text/html') : '';
-        if (!html || html.includes('data-gperya-editor-block="true"')) return false;
+        if (!html || html.includes('data-blog-editor-block="true"')) return false;
         const sanitized = sanitizePastedDocumentHtml(html);
         if (!sanitized) return false;
         event.preventDefault();
@@ -3550,7 +3550,7 @@ $websiteTitle = blog_website_title();
         if (!manualSlug) {
           const generated = slugify(title.value);
           if (slug) slug.value = generated;
-          setText(slugPreview, generated || 'gperya-article');
+          setText(slugPreview, generated || 'blog-article');
           updateViewPageButton();
         }
         updateTitleDisplay();
@@ -3561,7 +3561,7 @@ $websiteTitle = blog_website_title();
         manualSlug = true;
         const clean = slugify(slug.value);
         slug.value = clean;
-        setText(slugPreview, clean || 'gperya-article');
+        setText(slugPreview, clean || 'blog-article');
         updateViewPageButton();
         analyzeSeo();
       });
@@ -3716,7 +3716,7 @@ $websiteTitle = blog_website_title();
         block.classList.add('is-dragging');
         if (event.dataTransfer) {
           event.dataTransfer.effectAllowed = 'move';
-          event.dataTransfer.setData('text/plain', 'gperya-editor-block');
+          event.dataTransfer.setData('text/plain', 'blog-editor-block');
         }
       });
       on(wysiwygEditor, 'dragend', () => {
@@ -3895,7 +3895,7 @@ $websiteTitle = blog_website_title();
         if (editingId) editingId.value = '';
         manualSlug = false;
         manualSeoTitle = false;
-        setText(slugPreview, 'gperya-article');
+        setText(slugPreview, 'blog-article');
         setImage('/uploads/blogs/default-featured.svg');
         setUploadStatus('');
         setArticleImageStatus('');
@@ -3919,7 +3919,7 @@ $websiteTitle = blog_website_title();
           if (editingId) editingId.value = '';
           manualSlug = false;
           manualSeoTitle = false;
-          setText(slugPreview, 'gperya-article');
+          setText(slugPreview, 'blog-article');
           setImage('/uploads/blogs/default-featured.svg');
           setUploadStatus('');
           setArticleImageStatus('');
@@ -4008,12 +4008,12 @@ $websiteTitle = blog_website_title();
         if (seoTitle) seoTitle.value = blog.seoTitle || (blog.title ? blog.title + ' | ' + websiteTitle : '');
         manualSeoTitle = Boolean(seoTitle && seoTitle.value.trim());
         if (slug) slug.value = blog.slug || blog.id || '';
-        setText(slugPreview, slug && slug.value ? slug.value : 'gperya-article');
+        setText(slugPreview, slug && slug.value ? slug.value : 'blog-article');
         if (categoryField) categoryField.value = blog.category || 'Guides';
         if (blogStatus) blogStatus.value = blog.status || 'published';
         if (focusKeyphrase) focusKeyphrase.value = blog.focusKeyphrase || '';
         updateSaveState(blogStatus ? blogStatus.value : (blog.status || 'published'));
-        if (authorField) authorField.value = blog.author || 'GperyaPH Editorial Team';
+        if (authorField) authorField.value = blog.author || ' Editorial Team';
         if (excerpt) excerpt.value = blog.excerpt || '';
         updateTitleDisplay();
         updateSeoTitleCounter();

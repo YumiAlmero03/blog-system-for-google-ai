@@ -12,7 +12,7 @@ require_auth();
   <meta name="robots" content="noindex, nofollow">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Blogs | GperyaPH Admin</title>
+  <title>Blogs | Admin</title>
   <link rel="preload" href="/admin/style.css" as="style"><link rel="stylesheet" href="/admin/style.css">
   <link rel="icon" href="/assets/icons/favicon.ico">
   <style>
@@ -122,6 +122,24 @@ require_auth();
       background: #fff8e5;
       color: #996800;
       border-color: #f0b849;
+    }
+    .blog-stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .blog-stat {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: #fff;
+      color: var(--text-muted);
+      font-size: 0.74rem;
+      font-weight: 900;
     }
     .blog-list-tools {
       display: flex;
@@ -471,7 +489,7 @@ require_auth();
           textTitle: titleText,
           titleWidth: measureSeoTitleWidth(titleText),
           locale: 'en_US',
-          permalink: window.location.origin + '/blog/' + (slugText || 'gperya-article') + '/',
+          permalink: window.location.origin + '/blog/' + (slugText || 'blog-article') + '/',
         });
         const researcher = new EnglishResearcher(paper);
         const seoAssessor = new SeoAssessor(researcher);
@@ -598,6 +616,11 @@ require_auth();
                   ${escapeHtml(blog.category)} | Slug: <code style="color:var(--brand);">${escapeHtml(slug)}</code> | ${escapeHtml(blog.date || '')} | By ${escapeHtml(blog.author || '')}
                 </span>
                 <span class="blog-status-badge ${status}">${escapeHtml(status)}</span>
+                <div class="blog-stats" aria-label="Blog engagement">
+                  <span class="blog-stat">${Number(blog.views || 0).toLocaleString()} views</span>
+                  <span class="blog-stat">${Number(blog.likes || 0).toLocaleString()} likes</span>
+                  <span class="blog-stat">${Number(blog.dislikes || 0).toLocaleString()} dislikes</span>
+                </div>
                 <p style="font-size:0.85rem; color:var(--text); margin-top:4px;">${escapeHtml(blog.excerpt || '')}</p>
               </div>
               <div class="seo-rating" data-seo-id="${escapeHtml(id)}" title="YoastSEO.js SEO rating">

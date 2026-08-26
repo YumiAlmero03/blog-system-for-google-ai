@@ -70,14 +70,14 @@ function slotslaunch_max_pages(): int
 
 function http_json(string $url): array
 {
-    $origin = env_value('SLOTSLAUNCH_ORIGIN') ?: 'gperya-apk.com';
+    $origin = env_value('SLOTSLAUNCH_ORIGIN') ?: 'https://slotslaunch.com';
     $headers = [
         'Accept: application/json',
         'Content-Type: application/json',
         'Accept-Encoding: application/json',
         'Origin: ' . $origin,
         'Referer: ' . rtrim($origin, '/') . '/',
-        'User-Agent: GperyaPH SlotsLaunch Importer',
+        'User-Agent: SlotsLaunch Importer',
     ];
 
     if (function_exists('curl_init') && (str_starts_with($url, 'http://') || str_starts_with($url, 'https://'))) {

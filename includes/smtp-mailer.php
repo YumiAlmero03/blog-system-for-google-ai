@@ -72,7 +72,7 @@ function smtp_subject_header(string $subject): string
     return '=?UTF-8?B?' . base64_encode($subject) . '?=';
 }
 
-function smtp_send_mail(string $to, string $subject, string $body, string $fromEmail, string $fromName = 'Gperya Ticket'): array
+function smtp_send_mail(string $to, string $subject, string $body, string $fromEmail, string $fromName = 'Ticket'): array
 {
     $host = smtp_env('SMTP_HOST');
     if ($host === null) {

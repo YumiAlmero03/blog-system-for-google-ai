@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../includes/blog-storage.php';
 
 const SLOT_LIST_CACHE_TTL = 60;
+const SLOT_IFRAME_TOKEN = 'KljjshkJEwm9XlVUTiGCzsyYkQw4mG22pOKNzS3enaABIHoTdj';
 
 function slot_list_cache_dir(): string
 {
@@ -171,6 +172,28 @@ function slot_list_number(mixed $value): null|int|float
     return floor($number) === $number ? (int) $number : $number;
 }
 
+function slot_list_iframe_url(mixed $value): string
+{
+    if (!is_string($value) || trim($value) === '') {
+        return '';
+    }
+
+    $url = trim($value);
+    if (preg_match('/(?:[?&])token=/', $url) === 1) {
+        return $url;
+    }
+
+    $fragment = '';
+    $hashPosition = strpos($url, '#');
+    if ($hashPosition !== false) {
+        $fragment = substr($url, $hashPosition);
+        $url = substr($url, 0, $hashPosition);
+    }
+
+    $separator = str_contains($url, '?') ? '&' : '?';
+    return $url . $separator . 'token=' . rawurlencode(SLOT_IFRAME_TOKEN) . $fragment;
+}
+
 function slot_list_item(array $slot): array
 {
     $slug = (string) ($slot['slug'] ?? '');
@@ -181,7 +204,7 @@ function slot_list_item(array $slot): array
         'name' => (string) ($slot['name'] ?? ''),
         'slug' => $slug,
         'gameUrl' => $slug !== '' ? '/game/' . rawurlencode($slug) . '/' : '',
-        'iframeUrl' => (string) ($slot['url'] ?? ''),
+        'iframeUrl' => slot_list_iframe_url($slot['url'] ?? ''),
         'thumbnail' => (string) ($slot['thumb'] ?? ''),
         'shortDescription' => (string) ($slot['short_description'] ?? ''),
         'longDescription' => (string) ($slot['long_description'] ?? ''),

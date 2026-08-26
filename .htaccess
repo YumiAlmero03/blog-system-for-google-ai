@@ -5,5 +5,14 @@ Options -Indexes
     RewriteEngine On
 
     RewriteRule ^game/([A-Za-z0-9-]+)/?$ /game/index.php?slug=$1 [L,QSA]
+    RewriteRule ^games/([A-Za-z0-9-]+)/?$ /game/index.php?slug=$1 [L,QSA]
     RewriteRule ^blog/([A-Za-z0-9-]+)/?$ /blog/view.php?slug=$1 [L,QSA]
+    RewriteRule ^blogs/([A-Za-z0-9-]+)/?$ /blog/view.php?slug=$1 [L,QSA]
+    RewriteRule ^bonus/([A-Za-z0-9-]+)/?$ /bonus/index.php?code=$1 [L,QSA]
+
+    RewriteRule ^(app|invite|vip|payments|support|contact|blogs?)/?$ /index.html [L]
+
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(app|invite|vip|payments|support|contact|blogs?|games)(/.*)?$ /index.html [L]
 </IfModule>

@@ -17,7 +17,7 @@ $retryMinutes = isset($_GET['retry']) && ctype_digit((string) $_GET['retry']) ? 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Login | GperyaPH Blog Manager</title>
+  <title>Admin Login | Blog Manager</title>
   <meta name="robots" content="noindex, nofollow">
   <link rel="preload" href="/admin/style.css" as="style"><link rel="stylesheet" href="/admin/style.css">
   <link rel="icon" href="/assets/icons/favicon.ico">
@@ -61,7 +61,7 @@ $retryMinutes = isset($_GET['retry']) && ctype_digit((string) $_GET['retry']) ? 
     <header class="site-header">
       <div class="header-inner">
         <a href="/" class="brand-logo">
-          GperyaPH <span class="badge-tag" style="background-color: var(--brand); color:#fff;">ADMIN</span>
+          <span class="badge-tag" style="background-color: var(--brand); color:#fff;">ADMIN</span>
         </a>
         <a href="/blog/" class="btn btn-secondary btn-sm">View Blog Hub</a>
       </div>
@@ -71,7 +71,7 @@ $retryMinutes = isset($_GET['retry']) && ctype_digit((string) $_GET['retry']) ? 
       <div class="admin-login-box">
         <h1 style="font-size: 1.5rem; color: var(--brand-dark); margin-bottom: 8px;">Admin Portal</h1>
         <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 20px;">
-          Sign in to manage GperyaPH blog posts.
+          Sign in to manage blog posts.
         </p>
 
         <?php if ($loginLocked): ?>

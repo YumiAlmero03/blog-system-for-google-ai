@@ -1,0 +1,30 @@
+{
+    "sessionId": "player-vip_2026-08-18_001.json",
+    "name": "Player_VIP",
+    "contact": "",
+    "pageUrl": "http://localhost:8082/contact",
+    "startedAt": "2026-08-18T04:31:52+00:00",
+    "updatedAt": "2026-08-18T04:31:53+00:00",
+    "ip": "172.217.116.4",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+    "messages": [
+        {
+            "sender": "bot",
+            "text": "Good day! I am Maria from 24/7 Live Customer Care. Please provide your Name and Email/Phone below for fast verification.",
+            "time": "Now",
+            "type": "welcome"
+        },
+        {
+            "sender": "user",
+            "text": "test",
+            "time": "Now",
+            "type": "chat"
+        },
+        {
+            "sender": "bot",
+            "text": "Thank you for your message Player_VIP! Our live support specialist is checking your concern. If you need an instant response, message our Telegram Live Agent!",
+            "time": "Now",
+            "type": "chat"
+        }
+    ]
+}
