@@ -92,8 +92,15 @@ function blog_post_list_item(array $post): array
         'featuredImage' => $post['featuredImage'] ?? BLOG_DEFAULT_IMAGE,
         'status' => $post['status'] ?? 'published',
         'date' => $post['date'] ?? '',
+        'publishedAt' => $post['publishedAt'] ?? null,
+        'scheduledAt' => $post['scheduledAt'] ?? null,
+        'isPublic' => (bool) ($post['isPublic'] ?? false),
         'createdAt' => $post['createdAt'] ?? null,
         'updatedAt' => $post['updatedAt'] ?? null,
+        'views' => (int) ($post['views'] ?? 0),
+        'likes' => (int) ($post['likes'] ?? 0),
+        'dislikes' => (int) ($post['dislikes'] ?? 0),
+        'readTime' => blog_read_minutes((string) ($post['content'] ?? '')),
     ];
 }
 
@@ -114,7 +121,8 @@ $category = normalize_blog_category_filter(blog_post_list_param('category'));
 
 try {
     $cacheKey = blog_post_list_cache_key($count, $page, $category);
-    $cachedPayload = blog_post_list_cache_read($cacheKey);
+    $allowCache = !blogs_have_future_scheduled_posts();
+    $cachedPayload = $allowCache ? blog_post_list_cache_read($cacheKey) : null;
     if ($cachedPayload !== null) {
         header('X-API-Cache: HIT');
         echo $cachedPayload;
@@ -137,11 +145,13 @@ try {
         throw new RuntimeException('Blog response encoding failed.');
     }
 
-    blog_post_list_cache_write($cacheKey, $payload);
+    if ($allowCache) {
+        blog_post_list_cache_write($cacheKey, $payload);
+    }
     header('X-API-Cache: MISS');
     echo $payload;
 } catch (Throwable $exception) {
-    error_log('Blog storage error: ' . $exception->getMessage());
+    blog_storage_log_error('public blog list', $exception);
     http_response_code(500);
     echo json_encode(['ok' => false, 'error' => 'Blog storage is unavailable.'], JSON_UNESCAPED_SLASHES);
 }

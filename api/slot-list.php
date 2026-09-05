@@ -250,6 +250,7 @@ $provider = slot_list_string('provider');
 $types = slot_list_type_filter();
 $featured = slot_list_bool_filter('featured');
 $progressive = slot_list_bool_filter('progressive');
+$megaways = slot_list_bool_filter('megaways') === 1 ? 1 : null;
 $upcoming = slot_list_bool_filter('upcoming');
 $published = slot_list_bool_filter('published') ?? 1;
 $sort = slot_list_string('sort', 32);
@@ -264,6 +265,7 @@ try {
         'types' => $types,
         'featured' => $featured,
         'progressive' => $progressive,
+        'megaways' => $megaways,
         'upcoming' => $upcoming,
         'published' => $published,
         'sort' => $sort,
@@ -275,7 +277,7 @@ try {
         exit;
     }
 
-    $where = ['published = :published'];
+    $where = ['published = :published', 'done_processing = 1'];
     $params = [':published' => $published];
 
     if ($search !== '') {
@@ -302,6 +304,10 @@ try {
     if ($progressive !== null) {
         $where[] = 'progressive = :progressive';
         $params[':progressive'] = $progressive;
+    }
+    if ($megaways !== null) {
+        $where[] = 'megaways = :megaways';
+        $params[':megaways'] = $megaways;
     }
     if ($upcoming !== null) {
         $where[] = 'upcoming = :upcoming';
@@ -355,6 +361,7 @@ try {
             'types' => $types,
             'featured' => $featured,
             'progressive' => $progressive,
+            'megaways' => $megaways,
             'upcoming' => $upcoming,
             'published' => $published,
             'sort' => $sort,

@@ -31,7 +31,7 @@ try {
         'csrfToken' => csrf_token(),
     ], JSON_UNESCAPED_SLASHES);
 } catch (Throwable $exception) {
-    error_log('Blog storage error: ' . $exception->getMessage());
+    blog_storage_log_error('admin blog list', $exception);
     http_response_code(500);
     echo json_encode(['ok' => false, 'error' => 'Blog storage is unavailable.', 'csrfToken' => csrf_token()], JSON_UNESCAPED_SLASHES);
 }

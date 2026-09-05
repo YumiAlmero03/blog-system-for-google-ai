@@ -10,12 +10,7 @@ function game_h(mixed $value): string
 
 function game_base_url(): string
 {
-    $siteBaseUrl = env_value('SITE_BASE_URL');
-    if (!is_string($siteBaseUrl) || trim($siteBaseUrl) === '') {
-        $siteBaseUrl = 'https://freeonlinegames.info';
-    }
-
-    return rtrim($siteBaseUrl, '/');
+    return site_base_url();
 }
 
 function game_iframe_url(string $url): string
@@ -111,7 +106,7 @@ if ($slug !== '') {
     $stmt = blogs_pdo()->prepare(
         'SELECT *
          FROM games
-         WHERE slug = :slug
+         WHERE slug = :slug AND done_processing = 1
          ORDER BY published DESC, updated_at DESC, id DESC
          LIMIT 1'
     );
@@ -166,7 +161,7 @@ $seoKeywords = implode(', ', array_filter([
     'Free Online Games',
     'GCash Slot Philippines',
 ]));
-$ogImage = $thumb !== '' ? $thumb : '/assets/free-online-games-logo-BnwzQedm.webp';
+$ogImage = public_url($thumb !== '' ? $thumb : '/assets/free-online-games-logo-BnwzQedm.webp', $baseUrl);
 $assetJsFiles = glob(__DIR__ . '/../assets/index-*.js') ?: [];
 $assetCssFiles = glob(__DIR__ . '/../assets/index-*.css') ?: [];
 usort($assetJsFiles, static fn (string $a, string $b): int => (int) @filemtime($b) <=> (int) @filemtime($a));
@@ -221,6 +216,7 @@ $jsonLd = json_encode([
         ],
     ],
 ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+ob_start(static fn(string $html): string => public_html_absolute_urls($html, $baseUrl));
 ?>
 <!doctype html>
 <html lang="en-PH" class="theme-dark" style="color-scheme: dark;">
@@ -235,7 +231,7 @@ $jsonLd = json_encode([
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
   <meta name="theme-color" content="#0e0a07">
   <link rel="icon" type="image/svg+xml" href="/assets/icons/favicon-club.svg">
-  <link rel="alternate icon" href="/assets/icons/favicon.ico">
+  <link rel="alternate icon" href="/assets/favicon.svg">
   <link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png">
   <link rel="canonical" href="<?= game_h($canonical) ?>">
   <meta property="og:type" content="website">
@@ -255,8 +251,10 @@ $jsonLd = json_encode([
   <link rel="preconnect" href="https://assets.slotslaunch.com">
   <link rel="dns-prefetch" href="https://assets.slotslaunch.com">
   <script id="freegames-jsonld-schema" type="application/ld+json"><?= $jsonLd ?: '{}' ?></script>
+  <script src="/assets/absolute-urls.min.js"></script>
   <script type="module" crossorigin src="<?= game_h($assetJs) ?>"></script>
   <link rel="stylesheet" crossorigin href="<?= game_h($assetCss) ?>">
+  <script defer src="/assets/playnow-click-tracker.min.js"></script>
 </head>
 <body class="bg-[#0e0a07] text-stone-100">
   <div id="root"></div>
@@ -278,7 +276,7 @@ $jsonLd = json_encode([
   <?php if ($thumb !== ''): ?><meta property="og:image" content="<?= game_h($thumb) ?>"><?php endif; ?>
   <meta name="twitter:card" content="summary_large_image">
   <link rel="preload" href="/assets/css/styles.min.css" as="style"><link rel="stylesheet" href="/assets/css/styles.min.css">
-  <link rel="icon" href="/assets/icons/favicon.ico">
+  <link rel="icon" href="/assets/favicon.svg">
   <style>
     .game-play-wrap {
       max-width: 1180px;
@@ -866,4 +864,3 @@ $jsonLd = json_encode([
   <script src="/assets/js/main.min.js" defer></script>
 </body>
 </html>
-

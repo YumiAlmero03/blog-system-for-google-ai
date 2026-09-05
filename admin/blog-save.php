@@ -18,6 +18,13 @@ if (!$payload['ok']) {
 }
 
 try {
+    $duplicateErrors = blog_duplicate_validation_errors($payload['blog']);
+    if ($duplicateErrors !== []) {
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'errors' => $duplicateErrors, 'csrfToken' => csrf_token()], JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
     $saved = blogs_upsert($payload['blog']);
 } catch (Throwable $exception) {
     error_log('Blog storage error: ' . $exception->getMessage());

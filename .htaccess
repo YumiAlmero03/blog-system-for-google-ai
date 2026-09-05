@@ -9,6 +9,7 @@ Options -Indexes
     RewriteRule ^blog/([A-Za-z0-9-]+)/?$ /blog/view.php?slug=$1 [L,QSA]
     RewriteRule ^blogs/([A-Za-z0-9-]+)/?$ /blog/view.php?slug=$1 [L,QSA]
     RewriteRule ^bonus/([A-Za-z0-9-]+)/?$ /bonus/index.php?code=$1 [L,QSA]
+    RewriteRule ^promo-code/([A-Za-z0-9_-]{8,64})/?$ /promo-code/view.php?code=$1 [L,QSA]
 
     RewriteRule ^(app|invite|vip|payments|support|contact|blogs?)/?$ /index.html [L]
 

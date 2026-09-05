@@ -18,7 +18,7 @@ $websiteTitle = blog_website_title();
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Publish Blog Post | Admin</title>
   <link rel="preload" href="/admin/style.css" as="style"><link rel="stylesheet" href="/admin/style.css">
-  <link rel="icon" href="/assets/icons/favicon.ico">
+  <link rel="icon" href="/assets/favicon.svg">
   <style>
     .admin-container {
       max-width: 960px;
@@ -567,6 +567,14 @@ $websiteTitle = blog_website_title();
       opacity: 0.55;
     }
     .wysiwyg-editor .editor-faq-block,
+    .wysiwyg-editor .editor-button-block,
+    .markdown-preview .editor-button-block,
+    .wysiwyg-editor .editor-custom-code-block,
+    .markdown-preview .editor-custom-code-block,
+    .wysiwyg-editor .editor-table-block,
+    .markdown-preview .editor-table-block,
+    .wysiwyg-editor .editor-slot-demo-block,
+    .markdown-preview .editor-slot-demo-block,
     .markdown-preview .editor-faq-block {
       position: relative;
       margin: 18px 0;
@@ -591,6 +599,299 @@ $websiteTitle = blog_website_title();
       font-weight: 900;
       letter-spacing: 0.04em;
       text-transform: uppercase;
+    }
+    .editor-block-close {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 2;
+      display: inline-grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border: 1px solid rgba(166, 47, 61, 0.24);
+      border-radius: 50%;
+      background: #fff;
+      color: var(--brand-dark);
+      cursor: pointer;
+      font: inherit;
+      font-size: 1rem;
+      font-weight: 900;
+      line-height: 1;
+    }
+    .editor-block-close:hover {
+      border-color: var(--brand);
+      background: var(--surface-soft);
+    }
+    .editor-slot-demo-block {
+      display: grid;
+      gap: 12px;
+    }
+    .editor-slot-demo-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .editor-slot-demo-title,
+    .editor-slot-demo-status,
+    .editor-slot-demo-button {
+      min-height: 36px;
+      padding: 9px 11px;
+      border: 1px solid rgba(166, 47, 61, 0.16);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--text);
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+    .editor-slot-demo-title {
+      flex: 1 1 220px;
+      color: var(--brand-dark);
+      font-size: 1.05rem;
+      font-weight: 900;
+    }
+    .editor-slot-demo-button {
+      flex: 0 1 150px;
+      color: var(--brand-dark);
+      font-weight: 800;
+      text-align: center;
+    }
+    .editor-slot-demo-status {
+      width: 100%;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 0.86rem;
+    }
+    .editor-slot-demo-frame {
+      aspect-ratio: 16 / 9;
+      min-height: 220px;
+      border: 1px solid rgba(166, 47, 61, 0.16);
+      border-radius: 6px;
+      background: #170c06;
+      color: rgba(255, 255, 255, 0.72);
+      overflow: hidden;
+    }
+    .editor-slot-demo-frame iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+    }
+    .editor-slot-demo-search {
+      display: grid;
+      gap: 8px;
+    }
+    .editor-slot-demo-search input,
+    .editor-button-url,
+    .editor-custom-code-pane textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid rgba(166, 47, 61, 0.16);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      line-height: 1.45;
+    }
+    .editor-slot-demo-results {
+      display: grid;
+      gap: 6px;
+      max-height: 220px;
+      overflow: auto;
+    }
+    .editor-slot-demo-result {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 10px;
+      border: 1px solid rgba(166, 47, 61, 0.16);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--text);
+      cursor: pointer;
+      text-align: left;
+      font: inherit;
+    }
+    .editor-slot-demo-result:hover {
+      border-color: var(--brand);
+      background: var(--surface-soft);
+    }
+    .editor-slot-demo-status {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 0.82rem;
+    }
+    .editor-button-block {
+      display: grid;
+      gap: 10px;
+      padding-top: 44px;
+    }
+    .editor-button-preview {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: fit-content;
+      min-height: 40px;
+      padding: 0.65rem 1rem;
+      border-radius: 6px;
+      background: var(--brand);
+      color: #fff;
+      font-weight: 900;
+      text-decoration: none;
+    }
+    .editor-button-follow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      font-weight: 800;
+    }
+    .editor-custom-code-block {
+      display: grid;
+      gap: 12px;
+      padding-top: 44px;
+    }
+    .editor-custom-code-tabs {
+      display: inline-flex;
+      width: fit-content;
+      gap: 4px;
+      padding: 3px;
+      border: 1px solid rgba(166, 47, 61, 0.16);
+      border-radius: 6px;
+      background: #fff;
+    }
+    .editor-custom-code-tab {
+      border: 0;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.8rem;
+      font-weight: 900;
+      padding: 7px 10px;
+    }
+    .editor-custom-code-tab.is-active {
+      background: var(--brand);
+      color: #fff;
+    }
+    .editor-custom-code-pane {
+      display: none;
+    }
+    .editor-custom-code-pane.is-active {
+      display: block;
+    }
+    .editor-custom-code-pane textarea {
+      min-height: 180px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 0.86rem;
+      resize: vertical;
+    }
+    .editor-table-picker {
+      display: none;
+      position: fixed;
+      z-index: 70;
+      width: 224px;
+      padding: 12px;
+      border: 1px solid #dcdcde;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 16px 34px rgba(0,0,0,0.18);
+      color: #1e1e1e;
+    }
+    .editor-table-picker.is-open {
+      display: block;
+    }
+    .editor-table-picker-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 4px;
+      margin-bottom: 10px;
+    }
+    .editor-table-picker-cell {
+      aspect-ratio: 1;
+      border: 1px solid #c3c4c7;
+      border-radius: 3px;
+      background: #fff;
+      cursor: pointer;
+    }
+    .editor-table-picker-cell.is-selected {
+      border-color: #3858e9;
+      background: rgba(56, 88, 233, 0.18);
+    }
+    .editor-table-picker-status {
+      min-height: 18px;
+      color: var(--brand-dark);
+      font-size: 0.82rem;
+      font-weight: 800;
+      text-align: center;
+    }
+    .editor-table-block {
+      display: grid;
+      gap: 12px;
+      padding-top: 44px;
+    }
+    .editor-table-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .editor-table-actions button {
+      border: 1px solid rgba(166, 47, 61, 0.24);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--brand-dark);
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 800;
+      padding: 7px 10px;
+    }
+    .editor-table-actions button:hover {
+      border-color: var(--brand);
+      background: var(--surface-soft);
+    }
+    .editor-table-actions button.is-active {
+      border-color: var(--brand);
+      background: var(--brand);
+      color: #fff;
+    }
+    .editor-table-wrap {
+      overflow-x: auto;
+    }
+    .editor-table {
+      width: 100%;
+      min-width: 420px;
+      border-collapse: collapse;
+      background: #fff;
+    }
+    .editor-table th,
+    .editor-table td {
+      min-width: 120px;
+      border: 1px solid rgba(166, 47, 61, 0.16);
+      padding: 0;
+      vertical-align: top;
+    }
+    .editor-table th {
+      background: var(--surface-soft);
+    }
+    .editor-table textarea {
+      display: block;
+      width: 100%;
+      min-height: 46px;
+      padding: 9px 10px;
+      border: 0;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+      line-height: 1.45;
+      resize: vertical;
+    }
+    .editor-table textarea:focus {
+      outline: 2px solid #3858e9;
+      outline-offset: -2px;
     }
     .editor-faq-header {
       display: flex;
@@ -659,6 +960,7 @@ $websiteTitle = blog_website_title();
     .editor-faq-question {
       margin: 0 0 8px;
       min-height: 28px;
+      width: 100%;
       padding: 10px 12px;
       border: 1px solid rgba(166, 47, 61, 0.16);
       border-radius: 6px;
@@ -667,16 +969,20 @@ $websiteTitle = blog_website_title();
       font-size: 1.05rem;
       font-weight: 900;
       line-height: 1.35;
+      font-family: inherit;
     }
     .editor-faq-answer {
       margin: 0;
       min-height: 54px;
+      width: 100%;
       padding: 10px 12px;
       border: 1px solid rgba(166, 47, 61, 0.16);
       border-radius: 6px;
       background: #fff;
       color: var(--text);
       line-height: 1.65;
+      font-family: inherit;
+      resize: vertical;
     }
     .wysiwyg-editor blockquote,
     .markdown-preview blockquote {
@@ -786,6 +1092,12 @@ $websiteTitle = blog_website_title();
     }
     .content-word-counter {
       color: var(--text-muted);
+      font-size: 0.82rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .content-link-counter {
+      color: rgba(255,255,255,0.78);
       font-size: 0.82rem;
       font-weight: 600;
       white-space: nowrap;
@@ -1344,6 +1656,8 @@ $websiteTitle = blog_website_title();
               <div class="editor-tabs-bar">
                 <div class="editor-tabs-header">
                   <span id="content-word-counter" class="content-word-counter" aria-live="polite" style="color:rgba(255,255,255,0.78);">0 words</span>
+                  <span id="internal-link-counter" class="content-link-counter" aria-live="polite">Internal Links: 0</span>
+                  <span id="external-link-counter" class="content-link-counter" aria-live="polite">External Links: 0</span>
                   <div class="editor-tabs-actions">
                     <div class="editor-tabs" aria-label="Markdown editor view">
                       <button type="button" class="editor-tab active" id="tab-write">WYSIWYG</button>
@@ -1375,8 +1689,16 @@ $websiteTitle = blog_website_title();
                     <button type="button" class="wysiwyg-btn" data-command="ol" title="Numbered list">1.</button>
                     <button type="button" class="wysiwyg-btn" data-command="quote" title="Quote">Quote</button>
                     <button type="button" class="wysiwyg-btn" data-command="faq" title="FAQ block">FAQ</button>
+                    <button type="button" class="wysiwyg-btn" data-command="button" title="Button block">Button</button>
+                    <button type="button" class="wysiwyg-btn" data-command="table" title="Table block">Table</button>
+                    <button type="button" class="wysiwyg-btn" data-command="custom-code" title="Custom code block">Code</button>
+                    <button type="button" class="wysiwyg-btn" data-command="slot-demo" title="Slot demo block">Demo</button>
                     <button type="button" class="wysiwyg-btn" data-command="link" title="Insert link">Link</button>
                     <button type="button" class="wysiwyg-btn" data-command="clear" title="Clear formatting">Clear</button>
+                  </div>
+                  <div id="editor-table-picker" class="editor-table-picker" aria-hidden="true">
+                    <div class="editor-table-picker-grid" id="editor-table-picker-grid" aria-label="Choose table size"></div>
+                    <div class="editor-table-picker-status" id="editor-table-picker-status">1 x 1</div>
                   </div>
                   <div class="editor-block-inserter" id="article-image-dropzone" role="button" tabindex="0" aria-controls="article-image-upload">
                     <div>
@@ -1463,9 +1785,15 @@ $websiteTitle = blog_website_title();
                   <div class="form-group">
                     <label for="blog-status-field">Blog Status *</label>
                     <select id="blog-status-field" name="status" class="form-control" required>
-                      <option value="published">Published</option>
                       <option value="draft">Draft</option>
+                      <option value="published">Publish now</option>
+                      <option value="scheduled">Schedule</option>
                     </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="blog-published-at">Publish Date/Time</label>
+                    <input type="datetime-local" id="blog-published-at" name="published_at" class="form-control">
+                    <input type="hidden" id="blog-scheduled-at" name="scheduled_at" value="">
                   </div>
                 </div>
                 <div class="form-group">
@@ -1554,6 +1882,7 @@ $websiteTitle = blog_website_title();
       let csrfToken = document.getElementById('csrf-token').value;
       const initialEditId = <?= json_encode($initialEditId, JSON_UNESCAPED_SLASHES) ?>;
       const websiteTitle = <?= json_encode($websiteTitle, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+      const siteBaseUrl = <?= json_encode((string) (env_value('SITE_BASE_URL') ?: ''), JSON_UNESCAPED_SLASHES) ?>;
       const form = document.getElementById('create-blog-form');
       const notice = document.getElementById('notice');
       const title = document.getElementById('blog-title');
@@ -1564,6 +1893,8 @@ $websiteTitle = blog_website_title();
       const excerpt = document.getElementById('blog-excerpt');
       const excerptCharCounter = document.getElementById('excerpt-char-counter');
       const blogStatus = document.getElementById('blog-status-field');
+      const publishedAtField = document.getElementById('blog-published-at');
+      const scheduledAtField = document.getElementById('blog-scheduled-at');
       const categoryField = document.getElementById('blog-category');
       const authorField = document.getElementById('blog-author');
       const slug = document.getElementById('blog-slug');
@@ -1609,10 +1940,15 @@ $websiteTitle = blog_website_title();
       const applyImageSettingsBtn = document.getElementById('apply-image-settings-btn');
       const removeImageLinkBtn = document.getElementById('remove-image-link-btn');
       const contentWordCounter = document.getElementById('content-word-counter');
+      const internalLinkCounter = document.getElementById('internal-link-counter');
+      const externalLinkCounter = document.getElementById('external-link-counter');
       const editorTabsBar = document.querySelector('.editor-tabs-bar');
       const editorTabsPlaceholder = document.getElementById('editor-tabs-placeholder');
       const shortcutHelperToggle = document.getElementById('shortcut-helper-toggle');
       const shortcutHelper = document.getElementById('shortcut-helper');
+      const tablePicker = document.getElementById('editor-table-picker');
+      const tablePickerGrid = document.getElementById('editor-table-picker-grid');
+      const tablePickerStatus = document.getElementById('editor-table-picker-status');
       const tabWrite = document.getElementById('tab-write');
       const tabMarkdown = document.getElementById('tab-markdown');
       const tabPreview = document.getElementById('tab-preview');
@@ -1642,6 +1978,10 @@ $websiteTitle = blog_website_title();
       let draggedEditorBlock = null;
       let editorDropMarker = null;
       let pendingSaveStatus = '';
+      let tablePickerRows = 1;
+      let tablePickerCols = 1;
+      let isChoosingTableSize = false;
+      let slotDemoSearchTimer = 0;
       let yoastLoaderPromise = null;
       let yoastAnalysisRequest = 0;
       let editorHistory = [];
@@ -1686,6 +2026,67 @@ $websiteTitle = blog_website_title();
         if (!shortcutHelper || !shortcutHelperToggle) return;
         shortcutHelper.classList.remove('is-open');
         shortcutHelperToggle.setAttribute('aria-expanded', 'false');
+      }
+
+      function closeTablePicker() {
+        if (!tablePicker) return;
+        tablePicker.classList.remove('is-open');
+        tablePicker.setAttribute('aria-hidden', 'true');
+        isChoosingTableSize = false;
+      }
+
+      function setTablePickerSize(rows, cols) {
+        tablePickerRows = Math.max(1, Math.min(6, rows));
+        tablePickerCols = Math.max(1, Math.min(6, cols));
+        if (tablePickerStatus) {
+          tablePickerStatus.textContent = `${tablePickerRows} x ${tablePickerCols}`;
+        }
+        if (!tablePickerGrid) return;
+        tablePickerGrid.querySelectorAll('.editor-table-picker-cell').forEach((cell) => {
+          const row = Number(cell.dataset.row || 0);
+          const col = Number(cell.dataset.col || 0);
+          cell.classList.toggle('is-selected', row <= tablePickerRows && col <= tablePickerCols);
+        });
+      }
+
+      function openTablePicker(anchor) {
+        if (!tablePicker || !tablePickerGrid) return;
+        closeShortcutHelper();
+        const rect = anchor ? anchor.getBoundingClientRect() : editorToolbar.getBoundingClientRect();
+        tablePicker.style.left = Math.max(16, Math.min(window.innerWidth - 240, rect.left)) + 'px';
+        tablePicker.style.top = Math.max(72, Math.min(window.innerHeight - 240, rect.bottom + 8)) + 'px';
+        tablePicker.classList.add('is-open');
+        tablePicker.setAttribute('aria-hidden', 'false');
+        setTablePickerSize(tablePickerRows, tablePickerCols);
+      }
+
+      function insertTableBlock(rows, cols) {
+        const tableRows = createEmptyTableRows(rows, cols);
+        if (editorShell.classList.contains('editor-mode-markdown') || editorShell.classList.contains('editor-mode-split')) {
+          const markdown = ':::table\n' + tableRows.map((row) => '| ' + row.join(' | ') + ' |').join('\n') + '\n:::';
+          const start = savedMarkdownSelection ? savedMarkdownSelection.start : (blogContent.selectionStart || 0);
+          const end = savedMarkdownSelection ? savedMarkdownSelection.end : (blogContent.selectionEnd || start);
+          const before = blogContent.value.slice(0, start);
+          const after = blogContent.value.slice(end);
+          const prefix = before && !before.endsWith('\n\n') ? '\n\n' : '';
+          const suffix = after && !after.startsWith('\n\n') ? '\n\n' : '';
+          blogContent.value = before + prefix + markdown + suffix + after;
+          const cursor = (before + prefix + markdown).length;
+          blogContent.focus();
+          blogContent.setSelectionRange(cursor, cursor);
+          syncEditorFromMarkdown();
+          if (editorShell.classList.contains('editor-mode-split')) {
+            renderMarkdownPreview();
+          }
+          savedMarkdownSelection = null;
+          scheduleEditorHistory(true);
+          return;
+        }
+
+        focusEditor();
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = renderTableBlock(tableRows);
+        insertEditorBlock(wrapper.firstElementChild);
       }
 
       function updateFloatingEditorTabs() {
@@ -1748,22 +2149,45 @@ $websiteTitle = blog_website_title();
         return currentSlug ? `/blog/${encodeURIComponent(currentSlug)}/` : '';
       }
 
+      function currentBlogPreviewUrl() {
+        const publicUrl = currentBlogPublicUrl();
+        return publicUrl ? `${publicUrl}?preview=1` : '';
+      }
+
+      function currentDateTimeInput() {
+        const now = new Date();
+        now.setSeconds(0, 0);
+        const offsetMs = now.getTimezoneOffset() * 60000;
+        return new Date(now.getTime() - offsetMs).toISOString().slice(0, 16);
+      }
+
+      function ensurePublishDateValue() {
+        if (publishedAtField && !publishedAtField.value) {
+          publishedAtField.value = currentDateTimeInput();
+        }
+      }
+
       function updateViewPageButton() {
         if (!viewBlogPageBtn) return;
         const status = blogStatus ? blogStatus.value : 'published';
         const publicUrl = currentBlogPublicUrl();
-        const canView = status === 'published' && Boolean(publicUrl);
+        const href = status === 'published' ? publicUrl : currentBlogPreviewUrl();
+        const canView = Boolean(href);
+        viewBlogPageBtn.textContent = status === 'published' ? 'View Page' : 'Preview';
         viewBlogPageBtn.style.display = canView ? 'inline-flex' : 'none';
         viewBlogPageBtn.disabled = !canView;
         if (canView) {
-          viewBlogPageBtn.dataset.href = publicUrl;
+          viewBlogPageBtn.dataset.href = href;
         } else {
           delete viewBlogPageBtn.dataset.href;
         }
       }
 
       function updateSaveState(status) {
-        setText(saveState, status === 'draft' ? 'Draft' : 'Publish ready');
+        if (status === 'scheduled') {
+          ensurePublishDateValue();
+        }
+        setText(saveState, status === 'draft' ? 'Draft' : (status === 'scheduled' ? 'Scheduled' : 'Publish ready'));
         updateViewPageButton();
       }
 
@@ -1779,6 +2203,53 @@ $websiteTitle = blog_website_title();
           .replace(/[#>*_`~|[\](){}-]/g, ' ');
         const words = plainText.match(/[\p{L}\p{N}]+(?:['’.-][\p{L}\p{N}]+)*/gu);
         return words ? words.length : 0;
+      }
+
+      function linkHost(value) {
+        try {
+          return new URL(value).hostname.toLowerCase();
+        } catch (error) {
+          return '';
+        }
+      }
+
+      function classifyEditorLink(value) {
+        const href = String(value || '').trim();
+        if (!href || href === '#' || /^javascript:/i.test(href)) return '';
+        if (/^(mailto|tel|data):/i.test(href)) return '';
+
+        const resolved = (() => {
+          try {
+            return new URL(href, window.location.origin);
+          } catch (error) {
+            return null;
+          }
+        })();
+        if (!resolved || !/^(https?:)$/.test(resolved.protocol)) return '';
+
+        const ownHosts = new Set([window.location.hostname.toLowerCase()]);
+        const configuredHost = linkHost(siteBaseUrl);
+        if (configuredHost) ownHosts.add(configuredHost);
+        return ownHosts.has(resolved.hostname.toLowerCase()) ? 'internal' : 'external';
+      }
+
+      function countEditorLinks(markdown) {
+        const rendered = document.createElement('div');
+        rendered.innerHTML = parseMarkdown(markdown || '');
+        const counts = { internal: 0, external: 0 };
+        rendered.querySelectorAll('a').forEach((anchor) => {
+          if (anchor.classList.contains('editor-button-preview')) return;
+          const type = classifyEditorLink(anchor.getAttribute('href'));
+          if (type) counts[type]++;
+        });
+
+        const buttonUrls = String(markdown || '').matchAll(/:::button\s*\n?([\s\S]*?)\n?:::/g);
+        for (const match of buttonUrls) {
+          const urlMatch = match[1].match(/^\s*url\s*:\s*(.*?)\s*$/im);
+          const type = classifyEditorLink(urlMatch ? urlMatch[1] : '');
+          if (type) counts[type]++;
+        }
+        return counts;
       }
 
       function plainTextFromMarkdown(value) {
@@ -2020,8 +2491,12 @@ $websiteTitle = blog_website_title();
       }
 
       function updateWordCounter() {
-        const words = countWords(blogContent ? blogContent.value : '');
+        const markdown = blogContent ? blogContent.value : '';
+        const words = countWords(markdown);
         setText(contentWordCounter, `${words.toLocaleString()} ${words === 1 ? 'word' : 'words'}`);
+        const links = countEditorLinks(markdown);
+        setText(internalLinkCounter, `Internal Links: ${links.internal}`);
+        setText(externalLinkCounter, `External Links: ${links.external}`);
         window.requestAnimationFrame(analyzeSeo);
       }
 
@@ -2080,7 +2555,7 @@ $websiteTitle = blog_website_title();
             };
           } else if (/^A:\s*/i.test(line)) {
             if (!current) {
-              current = { question: 'FAQ question', answer: '' };
+              current = { question: '', answer: '' };
             }
             current.answer = line.replace(/^A:\s*/i, '').trim();
           } else if (current && current.answer && line.trim()) {
@@ -2088,31 +2563,157 @@ $websiteTitle = blog_website_title();
           }
         });
         if (current) items.push(current);
-        return (items.length ? items : [{ question: 'FAQ question', answer: 'FAQ answer' }]).map((item) => ({
-          question: item.question || 'FAQ question',
-          answer: item.answer || 'FAQ answer',
+        return (items.length ? items : [{ question: '', answer: '' }]).map((item) => ({
+          question: item.question || '',
+          answer: item.answer || '',
         }));
       }
 
       function renderFaqItem(question, answer) {
-        return `<div class="editor-faq-item"><div class="editor-faq-item-actions" contenteditable="false"><button type="button" class="editor-faq-remove" data-faq-remove>Remove</button></div><div class="editor-faq-field"><span class="editor-faq-field-label" contenteditable="false">Question</span><div class="editor-faq-question" contenteditable="true" role="textbox" aria-label="FAQ question">${escapeHtml(question)}</div></div><div class="editor-faq-field"><span class="editor-faq-field-label" contenteditable="false">Answer</span><div class="editor-faq-answer" contenteditable="true" role="textbox" aria-label="FAQ answer">${escapeHtml(answer)}</div></div></div>`;
+        return `<div class="editor-faq-item" contenteditable="false"><div class="editor-faq-item-actions"><button type="button" class="editor-faq-remove" data-faq-remove>Remove</button></div><div class="editor-faq-field"><label class="editor-faq-field-label">Question</label><input type="text" class="editor-faq-question" aria-label="FAQ question" value="${escapeHtml(question)}" draggable="false"></div><div class="editor-faq-field"><label class="editor-faq-field-label">Answer</label><textarea class="editor-faq-answer" aria-label="FAQ answer" rows="3" draggable="false">${escapeHtml(answer)}</textarea></div></div>`;
       }
 
       function renderFaqBlock(items) {
-        const normalizedItems = (Array.isArray(items) && items.length ? items : [{ question: 'FAQ question', answer: 'FAQ answer' }])
+        const normalizedItems = (Array.isArray(items) && items.length ? items : [{ question: '', answer: '' }])
           .map((item) => ({
-            question: item.question || 'FAQ question',
-            answer: item.answer || 'FAQ answer',
+            question: item.question || '',
+            answer: item.answer || '',
           }));
-        return `<section class="editor-block editor-faq-block" data-block-type="faq" draggable="true"><div class="editor-faq-header" contenteditable="false"><span class="editor-faq-label">FAQ Group</span><div class="editor-faq-actions"><button type="button" class="editor-faq-add" data-faq-add>Add FAQ</button></div></div><div class="editor-faq-items">${normalizedItems.map((item) => renderFaqItem(item.question, item.answer)).join('')}</div></section>`;
+        return `<section class="editor-block editor-faq-block" data-block-type="faq" draggable="true"><button type="button" class="editor-block-close" data-faq-remove-block aria-label="Remove FAQ block" title="Remove FAQ block">&times;</button><div class="editor-faq-header" contenteditable="false"><span class="editor-faq-label">FAQ Group</span><div class="editor-faq-actions"><button type="button" class="editor-faq-add" data-faq-add>Add FAQ</button></div></div><div class="editor-faq-items" contenteditable="false">${normalizedItems.map((item) => renderFaqItem(item.question, item.answer)).join('')}</div></section>`;
+      }
+
+      function normalizeTableRows(value) {
+        let headings = false;
+        const rows = String(value || '')
+          .split(/\n/)
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .filter((line) => {
+            const match = line.match(/^\s*headings\s*:\s*(.*?)\s*$/i);
+            if (!match) return true;
+            headings = /^(1|true|yes|on)$/i.test(match[1].trim());
+            return false;
+          })
+          .map((line) => {
+            const clean = line.replace(/^\|/, '').replace(/\|$/, '');
+            return clean.split(/(?<!\\)\|/).map((cell) => cell.replace(/\\\|/g, '|').trim());
+          })
+          .filter((row) => row.length);
+        return { rows: rows.length ? rows : [['', ''], ['', '']], headings };
+      }
+
+      function createEmptyTableRows(rows, cols) {
+        return Array.from({ length: Math.max(1, rows) }, () => Array.from({ length: Math.max(1, cols) }, () => ''));
+      }
+
+      function renderTableBlock(table) {
+        const normalizedRows = Array.isArray(table) ? table : (Array.isArray(table?.rows) ? table.rows : createEmptyTableRows(2, 2));
+        const hasHeadings = !Array.isArray(table) && Boolean(table?.headings);
+        const maxCols = Math.max(1, ...normalizedRows.map((row) => Array.isArray(row) ? row.length : 0));
+        const body = normalizedRows.map((row, rowIndex) => {
+          const cells = Array.from({ length: maxCols }, (_, index) => Array.isArray(row) ? (row[index] || '') : '');
+          const tag = hasHeadings && rowIndex === 0 ? 'th' : 'td';
+          return `<tr>${cells.map((cell) => `<${tag}><textarea rows="2" aria-label="Table cell" draggable="false">${escapeHtml(cell)}</textarea></${tag}>`).join('')}</tr>`;
+        }).join('');
+        return `<section class="editor-block editor-table-block" data-block-type="table" data-table-headings="${hasHeadings ? 'true' : 'false'}" draggable="true"><div class="editor-table-actions" contenteditable="false"><button type="button" data-table-add-row>Add Row</button><button type="button" data-table-remove-row>Remove Row</button><button type="button" data-table-add-col>Add Column</button><button type="button" data-table-remove-col>Remove Column</button><button type="button" data-table-toggle-headings class="${hasHeadings ? 'is-active' : ''}">Styled Headings</button></div><div class="editor-table-wrap" contenteditable="false"><table class="editor-table"><tbody>${body}</tbody></table></div></section>`;
+      }
+
+      function normalizeButtonBlock(value) {
+        const button = { url: '/playnow', nofollow: false };
+        String(value || '').split(/\n/).forEach((line) => {
+          const match = line.match(/^\s*(url|nofollow)\s*:\s*(.*)\s*$/i);
+          if (!match) return;
+          const key = match[1].toLowerCase();
+          const raw = match[2].trim();
+          if (key === 'url') button.url = raw || '/playnow';
+          if (key === 'nofollow') button.nofollow = /^(1|true|yes|on)$/i.test(raw);
+        });
+        return button;
+      }
+
+      function renderButtonBlock(button) {
+        const normalized = Object.assign({ url: '/playnow', nofollow: false }, button || {});
+        const checked = normalized.nofollow ? ' checked' : '';
+        return `<section class="editor-block editor-button-block" data-block-type="button" draggable="true"><button type="button" class="editor-block-close" data-remove-block aria-label="Remove button block" title="Remove button block">&times;</button><label class="editor-faq-field-label">Button URL</label><input type="url" class="editor-button-url" value="${escapeHtml(normalized.url || '/playnow')}" aria-label="Button URL" draggable="false"><label class="editor-button-follow"><input type="checkbox" class="editor-button-nofollow"${checked}> Nofollow link</label><a class="editor-button-preview" href="${escapeHtml(normalized.url || '/playnow')}" target="_blank" rel="noopener noreferrer">Open Link</a></section>`;
+      }
+
+      function splitCustomCode(value) {
+        const source = String(value || '');
+        const sections = { html: '', css: '', js: '' };
+        const pattern = /^---(html|css|js)\s*$/gim;
+        const matches = Array.from(source.matchAll(pattern));
+        if (!matches.length) {
+          sections.html = source.trim();
+          return sections;
+        }
+        matches.forEach((match, index) => {
+          const key = match[1].toLowerCase();
+          const start = (match.index || 0) + match[0].length;
+          const end = index + 1 < matches.length ? (matches[index + 1].index || source.length) : source.length;
+          sections[key] = source.slice(start, end).trim();
+        });
+        return sections;
+      }
+
+      function renderCustomCodeBlock(sections) {
+        const code = Object.assign({ html: '', css: '', js: '' }, sections || {});
+        return `<section class="editor-block editor-custom-code-block" data-block-type="custom-code" draggable="true"><button type="button" class="editor-block-close" data-remove-block aria-label="Remove custom code block" title="Remove custom code block">&times;</button><div class="editor-custom-code-tabs" contenteditable="false"><button type="button" class="editor-custom-code-tab is-active" data-code-tab="html">HTML</button><button type="button" class="editor-custom-code-tab" data-code-tab="css">CSS</button><button type="button" class="editor-custom-code-tab" data-code-tab="js">JavaScript</button></div><div class="editor-custom-code-pane is-active" data-code-pane="html" contenteditable="false"><textarea aria-label="Custom HTML" rows="8" draggable="false">${escapeHtml(code.html)}</textarea></div><div class="editor-custom-code-pane" data-code-pane="css" contenteditable="false"><textarea aria-label="Custom CSS" rows="8" draggable="false">${escapeHtml(code.css)}</textarea></div><div class="editor-custom-code-pane" data-code-pane="js" contenteditable="false"><textarea aria-label="Custom JavaScript" rows="8" draggable="false">${escapeHtml(code.js)}</textarea></div></section>`;
+      }
+
+      function normalizeSlotDemo(value) {
+        const demo = {
+          url: '/playnow',
+          title: '',
+          slug: '',
+        };
+        String(value || '').split(/\n/).forEach((line) => {
+          const match = line.match(/^\s*(title|url|slug)\s*:\s*(.+)\s*$/i);
+          if (!match) return;
+          demo[match[1].toLowerCase()] = match[2].trim();
+        });
+        return demo;
+      }
+
+      function renderSlotDemoBlock(demo) {
+        const normalized = Object.assign({
+          url: '/playnow',
+          title: '',
+          slug: '',
+        }, demo || {});
+        const title = normalized.title ? `${normalized.title} Demo` : 'Select a game for this demo';
+        return `<section class="editor-block editor-slot-demo-block" data-block-type="slot-demo" data-game-slug="${escapeHtml(normalized.slug || '')}" draggable="true"><button type="button" class="editor-block-close" data-remove-block aria-label="Remove demo block" title="Remove demo block">&times;</button><div class="editor-slot-demo-search" contenteditable="false"><h3 class="editor-slot-demo-title" aria-live="polite">${escapeHtml(title)}</h3><input type="search" class="editor-slot-demo-query" placeholder="Search games..." aria-label="Search games" draggable="false"><div class="editor-slot-demo-results" role="listbox"></div></div><div class="editor-slot-demo-frame" contenteditable="false"><iframe src="${escapeHtml(normalized.url || '/playnow')}" title="${escapeHtml(title)}" loading="lazy"></iframe></div></section>`;
       }
 
       function parseMarkdown(markdown) {
         let html = escapeHtml(markdown || '');
         const faqBlocks = [];
-        html = html.replace(/:::faq\n([\s\S]*?)\n:::/g, (match, content) => {
+        const buttonBlocks = [];
+        const tableBlocks = [];
+        const customCodeBlocks = [];
+        const slotDemoBlocks = [];
+        html = html.replace(/:::faq\s*\n?([\s\S]*?)\n?:::/g, (match, content) => {
           const token = `@@FAQ_BLOCK_${faqBlocks.length}@@`;
           faqBlocks.push(renderFaqBlock(normalizeFaqItems(content)));
+          return token;
+        });
+        html = html.replace(/:::button\s*\n?([\s\S]*?)\n?:::/g, (match, content) => {
+          const token = `@@BUTTON_BLOCK_${buttonBlocks.length}@@`;
+          buttonBlocks.push(renderButtonBlock(normalizeButtonBlock(content)));
+          return token;
+        });
+        html = html.replace(/:::table\s*\n?([\s\S]*?)\n?:::/g, (match, content) => {
+          const token = `@@TABLE_BLOCK_${tableBlocks.length}@@`;
+          tableBlocks.push(renderTableBlock(normalizeTableRows(content)));
+          return token;
+        });
+        html = html.replace(/:::custom-code\s*\n?([\s\S]*?)\n?:::/g, (match, content) => {
+          const token = `@@CUSTOM_CODE_BLOCK_${customCodeBlocks.length}@@`;
+          customCodeBlocks.push(renderCustomCodeBlock(splitCustomCode(content)));
+          return token;
+        });
+        html = html.replace(/:::slot-demo\s*\n?([\s\S]*?)\n?:::/g, (match, content) => {
+          const token = `@@SLOT_DEMO_BLOCK_${slotDemoBlocks.length}@@`;
+          slotDemoBlocks.push(renderSlotDemoBlock(normalizeSlotDemo(content)));
           return token;
         });
         html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
@@ -2134,6 +2735,14 @@ $websiteTitle = blog_website_title();
             if (!trimmed) return '';
             const faqMatch = trimmed.match(/^@@FAQ_BLOCK_(\d+)@@$/);
             if (faqMatch) return faqBlocks[Number(faqMatch[1])] || '';
+            const buttonMatch = trimmed.match(/^@@BUTTON_BLOCK_(\d+)@@$/);
+            if (buttonMatch) return buttonBlocks[Number(buttonMatch[1])] || '';
+            const tableMatch = trimmed.match(/^@@TABLE_BLOCK_(\d+)@@$/);
+            if (tableMatch) return tableBlocks[Number(tableMatch[1])] || '';
+            const customCodeMatch = trimmed.match(/^@@CUSTOM_CODE_BLOCK_(\d+)@@$/);
+            if (customCodeMatch) return customCodeBlocks[Number(customCodeMatch[1])] || '';
+            const slotDemoMatch = trimmed.match(/^@@SLOT_DEMO_BLOCK_(\d+)@@$/);
+            if (slotDemoMatch) return slotDemoBlocks[Number(slotDemoMatch[1])] || '';
             if (/^<h1/.test(trimmed) || /^<h2/.test(trimmed) || /^<h3/.test(trimmed)) return trimmed;
             if (/^<blockquote/.test(trimmed)) return trimmed.replace(/^<blockquote/, '<blockquote class="editor-block editor-quote-block"');
             if (/^<pre/.test(trimmed)) return trimmed;
@@ -2165,11 +2774,42 @@ $websiteTitle = blog_website_title();
         if (node.classList && node.classList.contains('editor-faq-block')) {
           const items = Array.from(node.querySelectorAll('.editor-faq-item'));
           const faqMarkdown = items.map((item) => {
-            const question = (item.querySelector('.editor-faq-question')?.textContent || 'FAQ question').trim();
-            const answer = (item.querySelector('.editor-faq-answer')?.textContent || 'FAQ answer').trim();
+            const questionField = item.querySelector('.editor-faq-question');
+            const answerField = item.querySelector('.editor-faq-answer');
+            const question = ((questionField && 'value' in questionField ? questionField.value : questionField?.textContent) || '').trim();
+            const answer = ((answerField && 'value' in answerField ? answerField.value : answerField?.textContent) || '').trim();
             return `Q: ${question}\nA: ${answer}`;
-          }).join('\n\n') || 'Q: FAQ question\nA: FAQ answer';
+          }).join('\n\n') || 'Q: \nA: ';
           return `:::faq\n${faqMarkdown}\n:::\n\n`;
+        }
+
+        if (node.classList && node.classList.contains('editor-button-block')) {
+          const url = (node.querySelector('.editor-button-url')?.value || '/playnow').trim();
+          const nofollow = node.querySelector('.editor-button-nofollow')?.checked ? 'true' : 'false';
+          return `:::button\nurl: ${url}\nnofollow: ${nofollow}\n:::\n\n`;
+        }
+
+        if (node.classList && node.classList.contains('editor-table-block')) {
+          const headings = node.dataset.tableHeadings === 'true' ? 'headings: true\n' : '';
+          const rows = Array.from(node.querySelectorAll('tbody tr')).map((row) => {
+            const cells = Array.from(row.querySelectorAll('textarea')).map((cell) => String(cell.value || '').replace(/\s+/g, ' ').replace(/\|/g, '\\|').trim());
+            return '| ' + cells.join(' | ') + ' |';
+          }).join('\n');
+          return `:::table\n${headings}${rows}\n:::\n\n`;
+        }
+
+        if (node.classList && node.classList.contains('editor-custom-code-block')) {
+          const html = node.querySelector('[data-code-pane="html"] textarea')?.value || '';
+          const css = node.querySelector('[data-code-pane="css"] textarea')?.value || '';
+          const js = node.querySelector('[data-code-pane="js"] textarea')?.value || '';
+          return `:::custom-code\n---html\n${html.trim()}\n---css\n${css.trim()}\n---js\n${js.trim()}\n:::\n\n`;
+        }
+
+        if (node.classList && node.classList.contains('editor-slot-demo-block')) {
+          const demoUrl = (node.querySelector('.editor-slot-demo-frame iframe')?.getAttribute('src') || '/playnow').trim();
+          const title = (node.querySelector('.editor-slot-demo-title')?.textContent || '').replace(/\s+Demo\s*$/i, '').trim();
+          const slug = (node.dataset.gameSlug || '').trim();
+          return `:::slot-demo\n${title && title !== 'Select a game for this demo' ? `title: ${title}\n` : ''}${slug ? `slug: ${slug}\n` : ''}url: ${demoUrl}\n:::\n\n`;
         }
 
         if (tag === 'strong' || tag === 'b') return `**${children}**`;
@@ -2243,20 +2883,59 @@ $websiteTitle = blog_website_title();
         updateWordCounter();
       }
 
+      function ensureTrailingEditableParagraphAfterBlock(block) {
+        if (!block || !wysiwygEditor || !wysiwygEditor.contains(block)) return null;
+        const next = block.nextSibling;
+        if (next && next.nodeType === Node.ELEMENT_NODE && next.tagName && /^p$/i.test(next.tagName) && isVisiblyEmptyElement(next)) {
+          return next;
+        }
+
+        const paragraph = document.createElement('p');
+        paragraph.innerHTML = '<br>';
+        paragraph.classList.add('editor-paragraph-block');
+        block.parentNode.insertBefore(paragraph, next || null);
+        return paragraph;
+      }
+
+      function focusEditorAfterBlock(block) {
+        if (!block || !wysiwygEditor || !wysiwygEditor.contains(block)) return;
+        const paragraph = ensureTrailingEditableParagraphAfterBlock(block);
+        const target = paragraph || block;
+        const range = document.createRange();
+        if (target && target.nodeType === Node.ELEMENT_NODE && /^p$/i.test(target.tagName)) {
+          range.selectNodeContents(target);
+          range.collapse(true);
+        } else {
+          range.selectNodeContents(block);
+          range.collapse(false);
+        }
+        const selection = window.getSelection();
+        if (!selection) return;
+        selection.removeAllRanges();
+        selection.addRange(range);
+        savedEditorRange = range.cloneRange();
+        target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+
       function prepareEditorBlocks() {
         if (!wysiwygEditor) return;
         wysiwygEditor.querySelectorAll('.editor-heading-block,.editor-paragraph-block,.editor-list-block,.editor-code-block').forEach((block) => {
-          if (block.classList.contains('editor-image-block') || block.classList.contains('editor-quote-block') || block.classList.contains('editor-faq-block')) return;
+          if (block.classList.contains('editor-image-block') || block.classList.contains('editor-quote-block') || block.classList.contains('editor-faq-block') || block.classList.contains('editor-button-block') || block.classList.contains('editor-table-block') || block.classList.contains('editor-custom-code-block') || block.classList.contains('editor-slot-demo-block')) return;
           block.classList.remove('editor-block', 'editor-heading-block', 'editor-paragraph-block', 'editor-list-block', 'editor-code-block', 'is-dragging');
           block.removeAttribute('draggable');
           delete block.dataset.blockType;
         });
-        wysiwygEditor.querySelectorAll('blockquote,section.editor-faq-block').forEach((block) => {
-          if (block.closest('.editor-faq-block') && !block.classList.contains('editor-faq-block')) return;
+        wysiwygEditor.querySelectorAll('blockquote,section.editor-faq-block,section.editor-button-block,section.editor-table-block,section.editor-custom-code-block,section.editor-slot-demo-block').forEach((block) => {
+          if ((block.closest('.editor-faq-block') && !block.classList.contains('editor-faq-block')) || (block.closest('.editor-button-block') && !block.classList.contains('editor-button-block')) || (block.closest('.editor-table-block') && !block.classList.contains('editor-table-block')) || (block.closest('.editor-custom-code-block') && !block.classList.contains('editor-custom-code-block')) || (block.closest('.editor-slot-demo-block') && !block.classList.contains('editor-slot-demo-block'))) return;
           block.classList.add('editor-block');
           block.setAttribute('draggable', 'true');
           if (block.matches('blockquote')) block.classList.add('editor-quote-block');
           if (block.matches('section.editor-faq-block')) block.dataset.blockType = 'faq';
+          if (block.matches('section.editor-button-block')) block.dataset.blockType = 'button';
+          if (block.matches('section.editor-table-block')) block.dataset.blockType = 'table';
+          if (block.matches('section.editor-custom-code-block')) block.dataset.blockType = 'custom-code';
+          if (block.matches('section.editor-slot-demo-block')) block.dataset.blockType = 'slot-demo';
+          ensureTrailingEditableParagraphAfterBlock(block);
         });
         wysiwygEditor.querySelectorAll('img').forEach((image) => {
           image.draggable = true;
@@ -2271,7 +2950,7 @@ $websiteTitle = blog_website_title();
         if (!element) return true;
         const text = (element.textContent || '').replace(/\u00a0/g, ' ').trim();
         if (text) return false;
-        return !element.querySelector('img,iframe,video,audio,section.editor-faq-block');
+        return !element.querySelector('img,iframe,video,audio,section.editor-faq-block,section.editor-button-block,section.editor-table-block,section.editor-custom-code-block,section.editor-slot-demo-block');
       }
 
       function normalizeEmptyEditorHeadings() {
@@ -2407,6 +3086,7 @@ $websiteTitle = blog_website_title();
           blogContent.focus();
         }
         closeLinkToolbox();
+        closeTablePicker();
         scheduleFloatingEditorTabs();
       }
 
@@ -2862,7 +3542,8 @@ $websiteTitle = blog_website_title();
           wysiwygEditor.insertBefore(block, topLevelNode ? topLevelNode.nextSibling : null);
         }
         prepareEditorBlocks();
-        focusEditorBlock(block);
+        ensureTrailingEditableParagraphAfterBlock(block);
+        focusEditorAfterBlock(block);
         syncMarkdownFromEditor();
         scheduleEditorHistory(true);
         analyzeSeo();
@@ -2908,6 +3589,53 @@ $websiteTitle = blog_website_title();
         return insertEditorBlock(block);
       }
 
+      function inlineMarkdownFromPasteNode(node) {
+        if (!node) return '';
+        if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
+        if (node.nodeType !== Node.ELEMENT_NODE) return '';
+
+        const tag = node.tagName.toLowerCase();
+        const children = Array.from(node.childNodes).map((child) => inlineMarkdownFromPasteNode(child)).join('');
+        if (tag === 'br') return '\n';
+        if (tag === 'strong' || tag === 'b') return `**${children}**`;
+        if (tag === 'em' || tag === 'i') return `*${children}*`;
+        if (tag === 'a') {
+          const href = normalizeLinkUrl(node.getAttribute('href') || '');
+          if (!href) return children;
+          return `[${children || href}](${href})`;
+        }
+        if (tag === 'span' || tag === 'font' || tag === 'u') return children;
+        return children;
+      }
+
+      function tableBlockFromPasteNode(tableNode) {
+        if (!tableNode || tableNode.tagName.toLowerCase() !== 'table') return null;
+        const rows = Array.from(tableNode.querySelectorAll('tr')).map((row) => {
+          const cells = Array.from(row.children).map((cellNode) => {
+            const value = inlineMarkdownFromPasteNode(cellNode).replace(/\s+/g, ' ').trim();
+            return value || '';
+          });
+          return cells.length ? cells : [''];
+        });
+        if (!rows.length) return null;
+
+        const hasHeadings = tableNode.querySelector('th') || tableNode.querySelector('thead') || (
+          rows.length > 0 && Array.from(tableNode.querySelectorAll('tr'))[0]?.querySelector('th')
+        );
+        const maxCols = Math.max(1, ...rows.map((row) => row.length));
+        const normalizedRows = rows.map((row) => Array.from({ length: maxCols }, (_, index) => row[index] || ''));
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = renderTableBlock({ rows: normalizedRows, headings: Boolean(hasHeadings) });
+        const block = wrapper.firstElementChild;
+        if (block && block.classList && block.classList.contains('editor-table-block')) {
+          block.dataset.blockType = 'table';
+          block.dataset.tableHeadings = Boolean(hasHeadings) ? 'true' : 'false';
+          block.setAttribute('draggable', 'true');
+          return block;
+        }
+        return null;
+      }
+
       function convertedChildrenFromPaste(node) {
         const fragment = document.createDocumentFragment();
         Array.from(node.childNodes).forEach((child) => {
@@ -2949,10 +3677,13 @@ $websiteTitle = blog_website_title();
         }
 
         const tag = node.tagName.toLowerCase();
-        if (['script', 'style', 'meta', 'link', 'title', 'svg', 'canvas', 'iframe', 'object', 'embed'].includes(tag)) {
+        if (['script', 'style', 'meta', 'link', 'title', 'svg', 'canvas', 'iframe', 'object', 'embed', 'form', 'button', 'input', 'textarea', 'select'].includes(tag)) {
           return null;
         }
 
+        if (tag === 'table') {
+          return tableBlockFromPasteNode(node);
+        }
         if (tag === 'br') return document.createElement('br');
         if (/^h[1-6]$/.test(tag)) {
           const heading = document.createElement(['h1', 'h2', 'h3'].includes(tag) ? tag : 'h3');
@@ -3027,6 +3758,15 @@ $websiteTitle = blog_website_title();
       function sanitizePastedDocumentHtml(html) {
         const template = document.createElement('template');
         template.innerHTML = String(html || '');
+        template.content.querySelectorAll('script,style,iframe,svg,canvas,object,embed,form,button,input,textarea,select').forEach((node) => node.remove());
+        template.content.querySelectorAll('*').forEach((node) => {
+          ['class', 'style', 'id', 'role', 'dir', 'tabindex'].forEach((attrName) => node.removeAttribute(attrName));
+          Array.from(node.attributes).forEach((attribute) => {
+            if (/^data-|^aria-/i.test(attribute.name)) {
+              node.removeAttribute(attribute.name);
+            }
+          });
+        });
         const fragment = convertedChildrenFromPaste(template.content);
         const container = document.createElement('div');
         container.appendChild(fragment);
@@ -3044,7 +3784,7 @@ $websiteTitle = blog_website_title();
         const template = document.createElement('template');
         template.innerHTML = sanitized;
         const insertedNodes = Array.from(template.content.childNodes);
-        const containsBlockNodes = insertedNodes.some((node) => node.nodeType === Node.ELEMENT_NODE && /^(blockquote|h[1-6]|ol|p|pre|ul)$/i.test(node.tagName));
+        const containsBlockNodes = insertedNodes.some((node) => node.nodeType === Node.ELEMENT_NODE && /^(blockquote|h[1-6]|ol|p|pre|table|ul)$/i.test(node.tagName));
         if (containsBlockNodes) {
           const topLevelNode = topLevelEditorNodeFromRange(range);
           wysiwygEditor.insertBefore(template.content, topLevelNode ? topLevelNode.nextSibling : null);
@@ -3077,27 +3817,191 @@ $websiteTitle = blog_website_title();
         return (template.content.textContent || '').replace(/\s+\n/g, '\n').replace(/\n\s+/g, '\n').trim();
       }
 
+      function eventTargetInFaqField(event) {
+        const field = event.target && event.target.closest ? event.target.closest('.editor-faq-question,.editor-faq-answer') : null;
+        return Boolean(field && wysiwygEditor.contains(field));
+      }
+
+      function eventTargetInTableCell(event) {
+        const field = event.target && event.target.closest ? event.target.closest('.editor-table textarea') : null;
+        return Boolean(field && wysiwygEditor.contains(field));
+      }
+
+      function eventTargetInStructuredField(event) {
+        const field = event.target && event.target.closest ? event.target.closest('.editor-faq-question,.editor-faq-answer,.editor-table textarea,.editor-button-url,.editor-button-nofollow,.editor-custom-code-pane textarea,.editor-slot-demo-query') : null;
+        return Boolean(field && wysiwygEditor.contains(field));
+      }
+
+      function eventTargetInFormBlockField(event) {
+        return eventTargetInStructuredField(event);
+      }
+
+      function syncStructuredBlockChange(immediate = true) {
+        syncMarkdownFromEditor();
+        scheduleEditorHistory(immediate);
+        analyzeSeo();
+      }
+
+      function tableColumnCount(tableBlock) {
+        const firstRow = tableBlock ? tableBlock.querySelector('tbody tr') : null;
+        return firstRow ? firstRow.children.length : 0;
+      }
+
+      function createEditorTableCell(tag = 'td') {
+        const cell = document.createElement(tag === 'th' ? 'th' : 'td');
+        const textarea = document.createElement('textarea');
+        textarea.rows = 2;
+        textarea.setAttribute('aria-label', 'Table cell');
+        textarea.setAttribute('draggable', 'false');
+        cell.appendChild(textarea);
+        return cell;
+      }
+
+      function addTableRow(tableBlock) {
+        const tbody = tableBlock ? tableBlock.querySelector('tbody') : null;
+        if (!tbody) return;
+        const cols = Math.max(1, tableColumnCount(tableBlock));
+        const row = document.createElement('tr');
+        for (let i = 0; i < cols; i++) row.appendChild(createEditorTableCell());
+        tbody.appendChild(row);
+        syncStructuredBlockChange(true);
+      }
+
+      function removeTableRow(tableBlock) {
+        const rows = tableBlock ? Array.from(tableBlock.querySelectorAll('tbody tr')) : [];
+        if (rows.length <= 1) return;
+        rows[rows.length - 1].remove();
+        syncStructuredBlockChange(true);
+      }
+
+      function addTableColumn(tableBlock) {
+        const rows = tableBlock ? Array.from(tableBlock.querySelectorAll('tbody tr')) : [];
+        rows.forEach((row, index) => row.appendChild(createEditorTableCell(tableBlock?.dataset.tableHeadings === 'true' && index === 0 ? 'th' : 'td')));
+        syncStructuredBlockChange(true);
+      }
+
+      function removeTableColumn(tableBlock) {
+        const rows = tableBlock ? Array.from(tableBlock.querySelectorAll('tbody tr')) : [];
+        if (tableColumnCount(tableBlock) <= 1) return;
+        rows.forEach((row) => {
+          if (row.lastElementChild) row.lastElementChild.remove();
+        });
+        syncStructuredBlockChange(true);
+      }
+
+      function setTableHeadings(tableBlock, enabled) {
+        const tbody = tableBlock ? tableBlock.querySelector('tbody') : null;
+        if (!tableBlock || !tbody) return;
+        tableBlock.dataset.tableHeadings = enabled ? 'true' : 'false';
+        const toggle = tableBlock.querySelector('[data-table-toggle-headings]');
+        if (toggle) toggle.classList.toggle('is-active', enabled);
+        const firstRow = tbody.querySelector('tr');
+        if (firstRow) {
+          Array.from(firstRow.children).forEach((cell) => {
+            const desiredTag = enabled ? 'th' : 'td';
+            if (cell.tagName.toLowerCase() === desiredTag) return;
+            const replacement = document.createElement(desiredTag);
+            while (cell.firstChild) replacement.appendChild(cell.firstChild);
+            cell.replaceWith(replacement);
+          });
+        }
+        syncStructuredBlockChange(true);
+      }
+
+      function updateButtonPreview(buttonBlock) {
+        const url = buttonBlock?.querySelector('.editor-button-url')?.value || '/playnow';
+        const nofollow = buttonBlock?.querySelector('.editor-button-nofollow')?.checked;
+        const preview = buttonBlock?.querySelector('.editor-button-preview');
+        if (!preview) return;
+        preview.href = url || '/playnow';
+        preview.rel = 'noopener noreferrer' + (nofollow ? ' nofollow' : '');
+      }
+
+      function setCustomCodeTab(block, tab) {
+        if (!block) return;
+        block.querySelectorAll('.editor-custom-code-tab').forEach((button) => {
+          button.classList.toggle('is-active', button.dataset.codeTab === tab);
+        });
+        block.querySelectorAll('.editor-custom-code-pane').forEach((pane) => {
+          pane.classList.toggle('is-active', pane.dataset.codePane === tab);
+        });
+      }
+
+      function updateSlotDemoFrame(block, url, name) {
+        const cleanUrl = String(url || '').trim() || '/playnow';
+        const iframe = block?.querySelector('.editor-slot-demo-frame iframe');
+        const title = block?.querySelector('.editor-slot-demo-title');
+        if (iframe) iframe.src = cleanUrl;
+        if (title && name) {
+          title.textContent = `${name} Demo`;
+          if (iframe) iframe.title = `${name} Demo`;
+        }
+        syncStructuredBlockChange(true);
+      }
+
+      async function searchSlotDemoGames(block, query) {
+        const results = block?.querySelector('.editor-slot-demo-results');
+        if (!results) return;
+        const cleanQuery = String(query || '').trim();
+        if (cleanQuery.length < 2) {
+          results.innerHTML = '';
+          return;
+        }
+        results.innerHTML = '<div class="editor-slot-demo-status">Searching...</div>';
+        try {
+          const request = new URL('/api/slot-list.php', window.location.origin);
+          request.searchParams.set('search', cleanQuery);
+          request.searchParams.set('count', '5');
+          request.searchParams.set('published', '1');
+          const response = await fetch(request.toString(), {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'fetch' },
+          });
+          const payload = await parseJsonResponse(response);
+          const slots = Array.isArray(payload.slots) ? payload.slots : [];
+          const matches = slots.slice(0, 5);
+          results.innerHTML = matches.length ? matches.map((slot) => `<button type="button" class="editor-slot-demo-result" data-demo-url="${escapeHtml(slot.iframeUrl || slot.gameUrl || '')}" data-demo-name="${escapeHtml(slot.name || slot.slug || 'Game')}" data-demo-slug="${escapeHtml(slot.slug || '')}"><span>${escapeHtml(slot.name || slot.slug || 'Game')}</span><small>${escapeHtml(slot.provider?.name || '')}</small></button>`).join('') : '<div class="editor-slot-demo-status">No games found.</div>';
+        } catch (error) {
+          results.innerHTML = `<div class="editor-slot-demo-status">${escapeHtml(error.message || 'Search failed.')}</div>`;
+        }
+      }
+
       function pasteIntoFaqField(event) {
         const field = event.target && event.target.closest ? event.target.closest('.editor-faq-question,.editor-faq-answer') : null;
         if (!field || !wysiwygEditor.contains(field)) return false;
-        const text = clipboardReadableText(event);
-        if (!text) return false;
-        event.preventDefault();
-        const range = currentEditorSelectionRange() || document.createRange();
-        if (!field.contains(range.commonAncestorContainer)) {
-          range.selectNodeContents(field);
-          range.collapse(false);
+        window.setTimeout(() => {
+          syncStructuredBlockChange(true);
+        }, 0);
+        return true;
+      }
+
+      function pasteIntoTableCell(event) {
+        if (!eventTargetInTableCell(event)) return false;
+        window.setTimeout(() => {
+          syncStructuredBlockChange(true);
+        }, 0);
+        return true;
+      }
+
+      function applyInlineFormattingToTextarea(textarea, prefix, suffix = prefix) {
+        if (!textarea || typeof textarea.selectionStart !== 'number' || typeof textarea.selectionEnd !== 'number') {
+          return false;
         }
-        range.deleteContents();
-        range.insertNode(document.createTextNode(text));
-        range.collapse(false);
-        const selection = window.getSelection();
-        selection.removeAllRanges();
-        selection.addRange(range);
-        savedEditorRange = range.cloneRange();
-        syncMarkdownFromEditor();
-        scheduleEditorHistory(true);
-        analyzeSeo();
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        if (start === end) {
+          return false;
+        }
+        const selected = textarea.value.slice(start, end);
+        const toggled = selected.startsWith(prefix) && selected.endsWith(suffix) && selected.length >= prefix.length + suffix.length
+          ? selected.slice(prefix.length, -suffix.length)
+          : prefix + selected + suffix;
+        textarea.setRangeText(toggled, start, end, 'end');
+        const cursor = start + toggled.length;
+        textarea.setSelectionRange(cursor, cursor);
+        const tableBlock = textarea.closest('.editor-table-block');
+        if (tableBlock) {
+          syncStructuredBlockChange(true);
+        }
         return true;
       }
 
@@ -3114,23 +4018,44 @@ $websiteTitle = blog_website_title();
         if (!field || !wysiwygEditor.contains(field)) return false;
         event.preventDefault();
         event.stopPropagation();
-        const range = document.createRange();
-        range.selectNodeContents(field);
-        const selection = window.getSelection();
-        selection.removeAllRanges();
-        selection.addRange(range);
-        savedEditorRange = range.cloneRange();
+        if (typeof field.select === 'function') {
+          field.select();
+        }
         return true;
       }
 
       function handleEditorShortcut(event) {
-        if (editorShell.classList.contains('editor-mode-write') && (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && (event.key || '').toLowerCase() === 'a') {
+        const key = (event.key || '').toLowerCase();
+        const isModifierShortcut = (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey;
+
+        if (editorShell.classList.contains('editor-mode-write') && isModifierShortcut && key === 'a') {
           if (selectFaqFieldText(event)) return;
         }
 
+        if (editorShell.classList.contains('editor-mode-write') && isModifierShortcut && (key === 'b' || key === 'i')) {
+          const tableField = event.target && event.target.closest ? event.target.closest('.editor-table textarea') : null;
+          if (tableField && wysiwygEditor.contains(tableField)) {
+            event.preventDefault();
+            applyInlineFormattingToTextarea(tableField, key === 'b' ? '**' : '*');
+            return;
+          }
+          if (!eventTargetInStructuredField(event) && !eventTargetInTableCell(event)) {
+            event.preventDefault();
+            document.execCommand(key === 'b' ? 'bold' : 'italic');
+            return;
+          }
+        }
+
+        if (eventTargetInStructuredField(event)) return;
+
         if (editorShell.classList.contains('editor-mode-write') && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && (event.key === 'Delete' || event.key === 'Backspace')) {
+          const selectedBlock = currentEditorBlockFromSelection();
+          if (selectedBlock && selectedBlock.classList.contains('editor-faq-block')) {
+            event.preventDefault();
+            return;
+          }
           const faqField = event.target && event.target.closest ? event.target.closest('.editor-faq-question,.editor-faq-answer') : null;
-          if (!faqField && deleteCurrentEditorBlock()) {
+          if (!faqField && !eventTargetInTableCell(event) && deleteCurrentEditorBlock()) {
             event.preventDefault();
           }
           return;
@@ -3427,7 +4352,7 @@ $websiteTitle = blog_website_title();
 
         if (command === 'faq') {
           if (editorShell.classList.contains('editor-mode-markdown') || editorShell.classList.contains('editor-mode-split')) {
-            const markdown = ':::faq\nQ: FAQ question\nA: FAQ answer\n\nQ: Another FAQ question\nA: Another FAQ answer\n:::';
+            const markdown = ':::faq\nQ: \nA: \n\nQ: \nA: \n:::';
             const start = blogContent.selectionStart || 0;
             const end = blogContent.selectionEnd || start;
             const before = blogContent.value.slice(0, start);
@@ -3449,11 +4374,106 @@ $websiteTitle = blog_website_title();
           focusEditor();
           const wrapper = document.createElement('div');
           wrapper.innerHTML = renderFaqBlock([
-            { question: 'FAQ question', answer: 'FAQ answer' },
-            { question: 'Another FAQ question', answer: 'Another FAQ answer' },
+            { question: '', answer: '' },
+            { question: '', answer: '' },
           ]);
           const faqBlock = wrapper.firstElementChild;
           insertEditorBlock(faqBlock);
+          return;
+        }
+
+        if (command === 'table') {
+          if (editorShell.classList.contains('editor-mode-write')) {
+            saveEditorSelection();
+          } else if (blogContent) {
+            savedMarkdownSelection = {
+              start: blogContent.selectionStart || 0,
+              end: blogContent.selectionEnd || blogContent.selectionStart || 0,
+            };
+          }
+          const button = editorToolbar ? editorToolbar.querySelector('[data-command="table"]') : null;
+          openTablePicker(button);
+          return;
+        }
+
+        if (command === 'button') {
+          if (editorShell.classList.contains('editor-mode-markdown') || editorShell.classList.contains('editor-mode-split')) {
+            const markdown = ':::button\nurl: /playnow\nnofollow: false\n:::';
+            const start = blogContent.selectionStart || 0;
+            const end = blogContent.selectionEnd || start;
+            const before = blogContent.value.slice(0, start);
+            const after = blogContent.value.slice(end);
+            const prefix = before && !before.endsWith('\n\n') ? '\n\n' : '';
+            const suffix = after && !after.startsWith('\n\n') ? '\n\n' : '';
+            blogContent.value = before + prefix + markdown + suffix + after;
+            const cursor = (before + prefix + markdown).length;
+            blogContent.focus();
+            blogContent.setSelectionRange(cursor, cursor);
+            syncEditorFromMarkdown();
+            if (editorShell.classList.contains('editor-mode-split')) renderMarkdownPreview();
+            scheduleEditorHistory(true);
+            return;
+          }
+
+          focusEditor();
+          const wrapper = document.createElement('div');
+          wrapper.innerHTML = renderButtonBlock();
+          insertEditorBlock(wrapper.firstElementChild);
+          return;
+        }
+
+        if (command === 'custom-code') {
+          if (editorShell.classList.contains('editor-mode-markdown') || editorShell.classList.contains('editor-mode-split')) {
+            const markdown = ':::custom-code\n---html\n\n---css\n\n---js\n\n:::';
+            const start = blogContent.selectionStart || 0;
+            const end = blogContent.selectionEnd || start;
+            const before = blogContent.value.slice(0, start);
+            const after = blogContent.value.slice(end);
+            const prefix = before && !before.endsWith('\n\n') ? '\n\n' : '';
+            const suffix = after && !after.startsWith('\n\n') ? '\n\n' : '';
+            blogContent.value = before + prefix + markdown + suffix + after;
+            const cursor = (before + prefix + markdown).length;
+            blogContent.focus();
+            blogContent.setSelectionRange(cursor, cursor);
+            syncEditorFromMarkdown();
+            if (editorShell.classList.contains('editor-mode-split')) renderMarkdownPreview();
+            scheduleEditorHistory(true);
+            return;
+          }
+
+          focusEditor();
+          const wrapper = document.createElement('div');
+          wrapper.innerHTML = renderCustomCodeBlock();
+          insertEditorBlock(wrapper.firstElementChild);
+          return;
+        }
+
+        if (command === 'slot-demo') {
+          if (editorShell.classList.contains('editor-mode-markdown') || editorShell.classList.contains('editor-mode-split')) {
+            const markdown = ':::slot-demo\nurl: /playnow\n:::';
+            const start = blogContent.selectionStart || 0;
+            const end = blogContent.selectionEnd || start;
+            const before = blogContent.value.slice(0, start);
+            const after = blogContent.value.slice(end);
+            const prefix = before && !before.endsWith('\n\n') ? '\n\n' : '';
+            const suffix = after && !after.startsWith('\n\n') ? '\n\n' : '';
+            blogContent.value = before + prefix + markdown + suffix + after;
+            const cursor = (before + prefix + markdown).length;
+            blogContent.focus();
+            blogContent.setSelectionRange(cursor, cursor);
+            syncEditorFromMarkdown();
+            if (editorShell.classList.contains('editor-mode-split')) {
+              renderMarkdownPreview();
+            }
+            scheduleEditorHistory(true);
+            return;
+          }
+
+          focusEditor();
+          const wrapper = document.createElement('div');
+          wrapper.innerHTML = renderSlotDemoBlock();
+          const slotDemoBlock = wrapper.firstElementChild;
+          insertEditorBlock(slotDemoBlock);
           return;
         }
 
@@ -3615,12 +4635,18 @@ $websiteTitle = blog_website_title();
         shortcutHelperToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
       });
       on(document, 'click', (event) => {
-        if (!shortcutHelper || !shortcutHelperToggle) return;
-        if (shortcutHelper.contains(event.target) || shortcutHelperToggle.contains(event.target)) return;
-        closeShortcutHelper();
+        if (shortcutHelper && shortcutHelperToggle && !shortcutHelper.contains(event.target) && !shortcutHelperToggle.contains(event.target)) {
+          closeShortcutHelper();
+        }
+        if (tablePicker && !tablePicker.contains(event.target) && !(editorToolbar && editorToolbar.contains(event.target))) {
+          closeTablePicker();
+        }
       });
       on(document, 'keydown', (event) => {
-        if (event.key === 'Escape') closeShortcutHelper();
+        if (event.key === 'Escape') {
+          closeShortcutHelper();
+          closeTablePicker();
+        }
       });
       on(window, 'scroll', scheduleFloatingEditorTabs);
       on(window, 'resize', scheduleFloatingEditorTabs);
@@ -3635,7 +4661,11 @@ $websiteTitle = blog_website_title();
         }
         scheduleEditorHistory(false);
       });
-      on(wysiwygEditor, 'input', () => {
+      on(wysiwygEditor, 'input', (event) => {
+        const slotQuery = event.target && event.target.closest ? event.target.closest('.editor-slot-demo-query') : null;
+        if (slotQuery && wysiwygEditor.contains(slotQuery)) {
+          searchSlotDemoGames(slotQuery.closest('.editor-slot-demo-block'), slotQuery.value);
+        }
         normalizeEmptyEditorHeadings();
         prepareEditorBlocks();
         syncMarkdownFromEditor();
@@ -3650,6 +4680,10 @@ $websiteTitle = blog_website_title();
       on(wysiwygEditor, 'focus', saveEditorSelection);
       if (wysiwygEditor) {
         wysiwygEditor.addEventListener('keydown', (event) => {
+          if (eventTargetInStructuredField(event) && !((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && (event.key || '').toLowerCase() === 'a')) {
+            event.stopPropagation();
+            return;
+          }
           if (editorShell.classList.contains('editor-mode-write') && (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && (event.key || '').toLowerCase() === 'a') {
             selectFaqFieldText(event);
           }
@@ -3658,13 +4692,36 @@ $websiteTitle = blog_website_title();
       on(wysiwygEditor, 'keydown', handleEditorShortcut);
       on(blogContent, 'keydown', handleEditorShortcut);
       on(wysiwygEditor, 'click', (event) => {
+        const removeBlockButton = event.target.closest ? event.target.closest('[data-remove-block]') : null;
+        if (removeBlockButton && wysiwygEditor.contains(removeBlockButton)) {
+          event.preventDefault();
+          const block = removeBlockButton.closest('.editor-block');
+          if (block) {
+            block.remove();
+            syncStructuredBlockChange(true);
+          }
+          return;
+        }
+
+        const removeFaqBlockButton = event.target.closest ? event.target.closest('[data-faq-remove-block]') : null;
+        if (removeFaqBlockButton && wysiwygEditor.contains(removeFaqBlockButton)) {
+          event.preventDefault();
+          const faqBlock = removeFaqBlockButton.closest('.editor-faq-block');
+          if (faqBlock) {
+            faqBlock.remove();
+            syncStructuredBlockChange(true);
+            showNotice('FAQ block removed.', 'ok');
+          }
+          return;
+        }
+
         const addFaqButton = event.target.closest ? event.target.closest('[data-faq-add]') : null;
         if (addFaqButton && wysiwygEditor.contains(addFaqButton)) {
           event.preventDefault();
           const faqBlock = addFaqButton.closest('.editor-faq-block');
           const faqItems = faqBlock?.querySelector('.editor-faq-items');
           if (faqItems) {
-            faqItems.insertAdjacentHTML('beforeend', renderFaqItem('FAQ question', 'FAQ answer'));
+            faqItems.insertAdjacentHTML('beforeend', renderFaqItem('', ''));
             prepareEditorBlocks();
             syncMarkdownFromEditor();
             scheduleEditorHistory(true);
@@ -3684,13 +4741,44 @@ $websiteTitle = blog_website_title();
           } else if (faqItem) {
             const question = faqItem.querySelector('.editor-faq-question');
             const answer = faqItem.querySelector('.editor-faq-answer');
-            if (question) question.textContent = 'FAQ question';
-            if (answer) answer.textContent = 'FAQ answer';
+            if (question) question.value = '';
+            if (answer) answer.value = '';
           }
           prepareEditorBlocks();
           syncMarkdownFromEditor();
           scheduleEditorHistory(true);
           analyzeSeo();
+          return;
+        }
+
+        const tableButton = event.target.closest ? event.target.closest('[data-table-add-row],[data-table-remove-row],[data-table-add-col],[data-table-remove-col],[data-table-toggle-headings]') : null;
+        if (tableButton && wysiwygEditor.contains(tableButton)) {
+          event.preventDefault();
+          const tableBlock = tableButton.closest('.editor-table-block');
+          if (tableButton.hasAttribute('data-table-add-row')) addTableRow(tableBlock);
+          if (tableButton.hasAttribute('data-table-remove-row')) removeTableRow(tableBlock);
+          if (tableButton.hasAttribute('data-table-add-col')) addTableColumn(tableBlock);
+          if (tableButton.hasAttribute('data-table-remove-col')) removeTableColumn(tableBlock);
+          if (tableButton.hasAttribute('data-table-toggle-headings')) setTableHeadings(tableBlock, tableBlock?.dataset.tableHeadings !== 'true');
+          return;
+        }
+
+        const codeTab = event.target.closest ? event.target.closest('[data-code-tab]') : null;
+        if (codeTab && wysiwygEditor.contains(codeTab)) {
+          event.preventDefault();
+          setCustomCodeTab(codeTab.closest('.editor-custom-code-block'), codeTab.dataset.codeTab || 'html');
+          return;
+        }
+
+        const demoResult = event.target.closest ? event.target.closest('.editor-slot-demo-result') : null;
+        if (demoResult && wysiwygEditor.contains(demoResult)) {
+          event.preventDefault();
+          const demoUrl = demoResult.dataset.demoUrl || '';
+          if (demoUrl) {
+            const block = demoResult.closest('.editor-slot-demo-block');
+            if (block) block.dataset.gameSlug = demoResult.dataset.demoSlug || '';
+            updateSlotDemoFrame(block, demoUrl, demoResult.dataset.demoName || 'Game');
+          }
           return;
         }
 
@@ -3710,6 +4798,10 @@ $websiteTitle = blog_website_title();
         }
       });
       on(wysiwygEditor, 'dragstart', (event) => {
+        if (eventTargetInFormBlockField(event)) {
+          event.preventDefault();
+          return;
+        }
         const block = getEditorBlockFromEvent(event);
         if (!block) return;
         draggedEditorBlock = block;
@@ -3753,12 +4845,21 @@ $websiteTitle = blog_website_title();
         uploadArticleImage(event.dataTransfer.files[0]);
       });
       on(wysiwygEditor, 'copy', (event) => {
+        if (eventTargetInFormBlockField(event)) return;
         copyCurrentEditorBlock(event, false);
       });
       on(wysiwygEditor, 'cut', (event) => {
+        if (eventTargetInFormBlockField(event)) return;
+        const block = currentEditorBlockFromSelection();
+        if (block && block.classList.contains('editor-faq-block')) {
+          event.preventDefault();
+          return;
+        }
         copyCurrentEditorBlock(event, true);
       });
       on(wysiwygEditor, 'paste', (event) => {
+        if (pasteIntoFaqField(event)) return;
+        if (pasteIntoTableCell(event)) return;
         const items = event.clipboardData ? Array.from(event.clipboardData.items) : [];
         const imageItem = items.find((item) => item.kind === 'file' && item.type.startsWith('image/'));
         if (imageItem) {
@@ -3767,7 +4868,6 @@ $websiteTitle = blog_website_title();
           uploadArticleImage(imageItem.getAsFile());
           return;
         }
-        if (pasteIntoFaqField(event)) return;
         if (pasteCopiedEditorBlock(event)) return;
         pasteFormattedDocumentHtml(event);
       });
@@ -3780,6 +4880,43 @@ $websiteTitle = blog_website_title();
         if (event.target.closest('[data-command]')) {
           event.preventDefault();
         }
+      });
+      if (tablePickerGrid) {
+        for (let row = 1; row <= 6; row++) {
+          for (let col = 1; col <= 6; col++) {
+            const cell = document.createElement('button');
+            cell.type = 'button';
+            cell.className = 'editor-table-picker-cell';
+            cell.dataset.row = String(row);
+            cell.dataset.col = String(col);
+            cell.setAttribute('aria-label', `${row} by ${col} table`);
+            tablePickerGrid.appendChild(cell);
+          }
+        }
+        setTablePickerSize(1, 1);
+      }
+      on(tablePicker, 'mousedown', (event) => {
+        const cell = event.target.closest ? event.target.closest('.editor-table-picker-cell') : null;
+        if (!cell) return;
+        event.preventDefault();
+        isChoosingTableSize = true;
+        setTablePickerSize(Number(cell.dataset.row || 1), Number(cell.dataset.col || 1));
+      });
+      on(tablePicker, 'mouseover', (event) => {
+        if (!isChoosingTableSize) return;
+        const cell = event.target.closest ? event.target.closest('.editor-table-picker-cell') : null;
+        if (!cell) return;
+        setTablePickerSize(Number(cell.dataset.row || 1), Number(cell.dataset.col || 1));
+      });
+      on(tablePicker, 'click', (event) => {
+        const cell = event.target.closest ? event.target.closest('.editor-table-picker-cell') : null;
+        if (!cell) return;
+        event.preventDefault();
+      });
+      on(document, 'mouseup', () => {
+        if (!isChoosingTableSize) return;
+        insertTableBlock(tablePickerRows, tablePickerCols);
+        closeTablePicker();
       });
       if (hasLinkToolbox) {
         on(applyLinkBtn, 'click', applyLinkFromToolbox);
@@ -3900,6 +5037,8 @@ $websiteTitle = blog_website_title();
         setUploadStatus('');
         setArticleImageStatus('');
         if (blogStatus) blogStatus.value = 'published';
+        if (publishedAtField) publishedAtField.value = currentDateTimeInput();
+        if (scheduledAtField) scheduledAtField.value = '';
         if (focusKeyphrase) focusKeyphrase.value = '';
         if (keyphraseSynonyms) keyphraseSynonyms.value = '';
         updateSaveState(blogStatus ? blogStatus.value : 'published');
@@ -3924,6 +5063,8 @@ $websiteTitle = blog_website_title();
           setUploadStatus('');
           setArticleImageStatus('');
           if (blogStatus) blogStatus.value = 'published';
+          if (publishedAtField) publishedAtField.value = currentDateTimeInput();
+          if (scheduledAtField) scheduledAtField.value = '';
           if (focusKeyphrase) focusKeyphrase.value = '';
           if (keyphraseSynonyms) keyphraseSynonyms.value = '';
           updateSaveState(blogStatus ? blogStatus.value : 'published');
@@ -3946,13 +5087,17 @@ $websiteTitle = blog_website_title();
         updateWordCounter();
         const saveButton = event.submitter && event.submitter.dataset ? event.submitter : null;
         const requestedStatus = saveButton && saveButton.dataset.saveStatus ? saveButton.dataset.saveStatus : ((blogStatus ? blogStatus.value : '') || 'published');
-        if (blogStatus) blogStatus.value = requestedStatus === 'draft' ? 'draft' : 'published';
-        const currentStatus = blogStatus ? blogStatus.value : (requestedStatus === 'draft' ? 'draft' : 'published');
+        const normalizedStatus = ['draft', 'published', 'scheduled'].includes(requestedStatus) ? requestedStatus : 'published';
+        if (blogStatus) blogStatus.value = normalizedStatus;
+        const currentStatus = blogStatus ? blogStatus.value : normalizedStatus;
+        if (currentStatus !== 'draft') ensurePublishDateValue();
         updateSaveState(currentStatus);
         const data = new FormData(form);
         data.set('slug', slugify(data.get('slug') || data.get('title') || ''));
         data.set('seo_title', data.get('seo_title') || '');
         data.set('status', currentStatus);
+        data.set('published_at', publishedAtField ? publishedAtField.value : '');
+        data.set('scheduled_at', currentStatus === 'scheduled' && publishedAtField ? publishedAtField.value : '');
         data.set('focus_keyphrase', focusKeyphrase ? focusKeyphrase.value.trim() : '');
         data.set('csrf_token', csrfToken);
         const savedSlug = String(data.get('slug') || '').trim();
@@ -3976,7 +5121,7 @@ $websiteTitle = blog_website_title();
           }
           pendingSaveStatus = '';
           updateViewPageButton();
-          showNotice(currentStatus === 'draft' ? 'Draft saved.' : 'Post published.', 'ok');
+          showNotice(currentStatus === 'draft' ? 'Draft saved.' : (currentStatus === 'scheduled' ? 'Post scheduled.' : 'Post published.'), 'ok');
           if (publicWindow && publicUrl) {
             publicWindow.location.href = publicUrl;
           } else if (shouldOpenPublicPage && publicUrl) {
@@ -4011,6 +5156,8 @@ $websiteTitle = blog_website_title();
         setText(slugPreview, slug && slug.value ? slug.value : 'blog-article');
         if (categoryField) categoryField.value = blog.category || 'Guides';
         if (blogStatus) blogStatus.value = blog.status || 'published';
+        if (publishedAtField) publishedAtField.value = blog.scheduledAtInput || blog.publishedAtInput || currentDateTimeInput();
+        if (scheduledAtField) scheduledAtField.value = blog.scheduledAtInput || '';
         if (focusKeyphrase) focusKeyphrase.value = blog.focusKeyphrase || '';
         updateSaveState(blogStatus ? blogStatus.value : (blog.status || 'published'));
         if (authorField) authorField.value = blog.author || ' Editorial Team';

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/blog-storage.php';
+require_once __DIR__ . '/../includes/admin-date.php';
 
 require_auth();
 
@@ -64,6 +65,7 @@ $provider = admin_slots_get_string('provider');
 $type = admin_slots_get_string('type');
 $published = admin_slots_get_string('published', 16);
 $featured = admin_slots_get_string('featured', 16);
+$updatedDate = admin_slots_get_string('updated_date', 10);
 $page = admin_slots_get_int('page', 1, 1, 1000000);
 $perPage = admin_slots_get_int('count', 25, 5, 100);
 $offset = ($page - 1) * $perPage;
@@ -89,6 +91,15 @@ if ($published === '1' || $published === '0') {
 if ($featured === '1' || $featured === '0') {
     $where[] = 'featured = :featured';
     $params[':featured'] = (int) $featured;
+}
+if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $updatedDate) === 1) {
+  $date = DateTimeImmutable::createFromFormat('!Y-m-d', $updatedDate, admin_display_timezone());
+  $dateErrors = DateTimeImmutable::getLastErrors();
+  if ($date !== false && ($dateErrors === false || ($dateErrors['warning_count'] === 0 && $dateErrors['error_count'] === 0))) {
+    $where[] = 'updated_at >= :updated_from AND updated_at < :updated_to';
+    $params[':updated_from'] = $date->getTimestamp();
+    $params[':updated_to'] = $date->modify('+1 day')->getTimestamp();
+  }
 }
 $whereSql = $where === [] ? '' : 'WHERE ' . implode(' AND ', $where);
 
@@ -134,7 +145,7 @@ $featuredCount = (int) $pdo->query('SELECT COUNT(*) FROM games WHERE featured = 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Slots | Admin</title>
   <link rel="preload" href="/admin/style.css" as="style"><link rel="stylesheet" href="/admin/style.css">
-  <link rel="icon" href="/assets/icons/favicon.ico">
+  <link rel="icon" href="/assets/favicon.svg">
   <style>
     body {
       background: #f6f7f9;
@@ -183,7 +194,7 @@ $featuredCount = (int) $pdo->query('SELECT COUNT(*) FROM games WHERE featured = 
     }
     .slot-filters {
       display: grid;
-      grid-template-columns: minmax(180px, 1fr) 180px 160px 140px 140px auto;
+      grid-template-columns: minmax(180px, 1fr) 180px 160px 140px 140px 150px auto;
       gap: 8px;
       align-items: center;
       margin-bottom: 16px;
@@ -373,6 +384,7 @@ $featuredCount = (int) $pdo->query('SELECT COUNT(*) FROM games WHERE featured = 
             <option value="1" <?= $featured === '1' ? 'selected' : '' ?>>Featured</option>
             <option value="0" <?= $featured === '0' ? 'selected' : '' ?>>Not featured</option>
           </select>
+          <input class="slot-input" type="date" name="updated_date" value="<?= h($updatedDate) ?>" aria-label="Updated At">
           <button class="btn btn-primary btn-sm" type="submit">Filter</button>
         </form>
 
@@ -402,6 +414,7 @@ $featuredCount = (int) $pdo->query('SELECT COUNT(*) FROM games WHERE featured = 
                   <?php if ($slot['volatility'] !== ''): ?><span>Volatility: <?= h($slot['volatility']) ?></span><?php endif; ?>
                   <?php if ($slot['paylines'] !== ''): ?><span>Paylines: <?= h($slot['paylines']) ?></span><?php endif; ?>
                   <?php if ($slot['release'] !== ''): ?><span>Release: <?= h($slot['release']) ?></span><?php endif; ?>
+                  <span>Updated At: <time datetime="<?= h((string) $slot['updated_at']) ?>"><?= h(admin_format_date($slot['updated_at'])) ?></time></span>
                 </div>
                 <?php if ($themes !== []): ?>
                   <div class="slot-meta" style="margin-top:8px;">

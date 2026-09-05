@@ -75,7 +75,8 @@ function seo_v2_pages(int $maxPages, bool $includeGames): array
         $pdo = blogs_pdo();
         $blogLimit = max(0, $maxPages - count($pages));
         if ($blogLimit > 0) {
-            $stmt = $pdo->prepare('SELECT slug FROM blog_posts WHERE status = "published" AND slug <> "" ORDER BY updated_at DESC LIMIT :limit');
+            $stmt = $pdo->prepare('SELECT slug FROM blog_posts WHERE ' . blog_public_visibility_sql() . ' AND slug <> "" ORDER BY updated_at DESC LIMIT :limit');
+            $stmt->bindValue(':visibility_now', time(), PDO::PARAM_INT);
             $stmt->bindValue(':limit', min($blogLimit, 500), PDO::PARAM_INT);
             $stmt->execute();
             foreach ($stmt->fetchAll() as $row) {
@@ -171,8 +172,8 @@ function seo_v2_link_status(string $urlPath): array
 
     if (preg_match('#^/(blogs?|blog)/([a-z0-9-]+)/$#', $path, $match)) {
         try {
-            $stmt = blogs_pdo()->prepare('SELECT COUNT(*) FROM blog_posts WHERE slug = :slug AND status = "published"');
-            $stmt->execute([':slug' => $match[2]]);
+            $stmt = blogs_pdo()->prepare('SELECT COUNT(*) FROM blog_posts WHERE slug = :slug AND ' . blog_public_visibility_sql());
+            $stmt->execute([':slug' => $match[2], ':visibility_now' => time()]);
             return $cache[$path] = ((int) $stmt->fetchColumn()) > 0
                 ? ['status' => 200, 'message' => '200 dynamic blog route']
                 : ['status' => 404, 'message' => '404 blog slug not found'];
@@ -401,7 +402,7 @@ if ($action !== '') {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Website SEO Checker V2 | Admin</title>
   <link rel="preload" href="/admin/style.css" as="style"><link rel="stylesheet" href="/admin/style.css">
-  <link rel="icon" href="/assets/icons/favicon.ico">
+  <link rel="icon" href="/assets/favicon.svg">
   <style>
     body { background: #f6f7f9; }
     .seo-shell { max-width: 1280px; margin: 24px auto; padding: 20px; }

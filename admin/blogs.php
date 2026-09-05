@@ -5,6 +5,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/blog-storage.php';
 
 require_auth();
+$blogCategoryOptions = blog_categories_all();
 ?>
 <!DOCTYPE html>
 <html lang="en-PH">
@@ -14,101 +15,129 @@ require_auth();
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Blogs | Admin</title>
   <link rel="preload" href="/admin/style.css" as="style"><link rel="stylesheet" href="/admin/style.css">
-  <link rel="icon" href="/assets/icons/favicon.ico">
+  <link rel="icon" href="/assets/favicon.svg">
   <style>
     .admin-container {
-      max-width: 980px;
-      margin: 40px auto;
-      padding: 24px;
+      width: 100%;
+      margin: 0;
+      padding: 18px 20px;
       background: var(--surface);
-      border: 1px solid var(--border-strong);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow);
     }
     .admin-header {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
       gap: 16px;
-      margin-bottom: 24px;
-      padding-bottom: 16px;
-      border-bottom: 2px solid var(--border);
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
     }
-    .blog-item-row {
-      display: flex;
-      gap: 16px;
-      align-items: center;
-      padding: 16px;
-      background: var(--surface-soft);
+    .blog-table-wrap {
+      width: 100%;
+      overflow-x: auto;
       border: 1px solid var(--border);
       border-radius: 8px;
-      margin-bottom: 12px;
+      background: var(--surface);
     }
-    .blog-item-row img {
-      width: 112px;
-      height: 72px;
-      object-fit: cover;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      flex-shrink: 0;
-      background: var(--surface-warm);
+    .blog-table {
+      width: 100%;
+      min-width: 1080px;
+      border-collapse: collapse;
+      font-size: 0.86rem;
+    }
+    .blog-table th,
+    .blog-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: middle;
+    }
+    .blog-table th {
+      background: var(--surface-soft);
+      color: var(--brand-dark);
+      font-size: 0.74rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .blog-table tbody tr:last-child td {
+      border-bottom: 0;
+    }
+    .blog-title-cell strong {
+      display: block;
+      color: var(--brand-dark);
+      font-size: 0.92rem;
+      line-height: 1.3;
+    }
+    .blog-title-cell small,
+    .blog-date-cell small {
+      display: block;
+      margin-top: 3px;
+      color: var(--text-muted);
+      line-height: 1.35;
+    }
+    .blog-number-cell {
+      text-align: right;
+      white-space: nowrap;
+    }
+    .seo-rating-label {
+      display: block;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+    .seo-rating-score,
+    .seo-rating-details {
+      display: block;
+      margin-top: 3px;
+      color: var(--text-muted);
+      font-size: 0.72rem;
+    }
+    .quick-edit-row td {
+      background: var(--surface-soft);
+      padding: 14px;
+    }
+    .quick-edit-form {
+      display: grid;
+      grid-template-columns: minmax(180px, 1.4fr) minmax(160px, 1fr) minmax(150px, 0.9fr) minmax(130px, 0.7fr) minmax(170px, 0.9fr) minmax(170px, 0.9fr) auto;
+      gap: 10px;
+      align-items: end;
+    }
+    .quick-edit-form label {
+      display: grid;
+      gap: 4px;
+      color: var(--brand-dark);
+      font-size: 0.72rem;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+    .quick-edit-form input,
+    .quick-edit-form select {
+      min-width: 0;
+      padding: 8px 9px;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-sm);
+      font: inherit;
+      font-size: 0.84rem;
+      text-transform: none;
+      color: var(--text);
+      background: #fff;
+    }
+    .quick-edit-actions {
+      display: flex;
+      gap: 8px;
+      white-space: nowrap;
     }
     .admin-actions {
       display: flex;
       gap: 8px;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       justify-content: flex-end;
-    }
-    .seo-rating {
-      min-width: 112px;
-      padding: 10px;
-      border: 1px solid #dcdcde;
-      border-radius: 8px;
-      background: #fff;
-      text-align: center;
-      flex-shrink: 0;
-    }
-    .seo-rating-score {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 64px;
-      height: 30px;
-      border-radius: 4px;
-      background: #fff1f1;
-      border: 1px solid #e5aaaa;
-      color: var(--danger);
-      font-weight: 900;
-      font-size: 0.9rem;
-    }
-    .seo-rating-score.ok {
-      background: #e9f8ef;
-      border-color: #9bd5af;
-      color: #008a20;
-    }
-    .seo-rating-score.warn {
-      background: #fff8e5;
-      border-color: #f0b849;
-      color: #996800;
-    }
-    .seo-rating-label {
-      display: block;
-      margin-top: 6px;
-      color: var(--text-muted);
-      font-size: 0.74rem;
-      font-weight: 800;
-    }
-    .seo-rating-details {
-      margin-top: 8px;
-      color: var(--text-muted);
-      font-size: 0.72rem;
-      line-height: 1.35;
+      white-space: nowrap;
     }
     .blog-status-badge {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      margin-top: 6px;
       padding: 3px 8px;
       border-radius: 999px;
       background: #e9f8ef;
@@ -118,7 +147,8 @@ require_auth();
       font-weight: 900;
       text-transform: uppercase;
     }
-    .blog-status-badge.draft {
+    .blog-status-badge.draft,
+    .blog-status-badge.scheduled {
       background: #fff8e5;
       color: #996800;
       border-color: #f0b849;
@@ -127,7 +157,6 @@ require_auth();
       display: flex;
       flex-wrap: wrap;
       gap: 6px;
-      margin-top: 8px;
     }
     .blog-stat {
       display: inline-flex;
@@ -145,11 +174,7 @@ require_auth();
       display: flex;
       gap: 8px;
       align-items: center;
-      margin-bottom: 14px;
-      padding: 12px;
-      background: var(--surface-soft);
-      border: 1px solid var(--border);
-      border-radius: 8px;
+      margin-bottom: 12px;
     }
     .blog-search-input {
       flex: 1;
@@ -175,13 +200,21 @@ require_auth();
     .notice.ok { display: block; background: #e9f8ef; color: #0d6630; border: 1px solid #9bd5af; }
     .notice.error { display: block; background: #fff1f1; color: var(--danger); border: 1px solid #e5aaaa; }
     @media (max-width: 760px) {
-      .admin-header,
-      .blog-item-row {
+      .admin-header {
         align-items: flex-start;
         flex-direction: column;
       }
+      .admin-container {
+        padding: 14px 10px;
+      }
       .admin-actions {
         justify-content: flex-start;
+      }
+      .quick-edit-form {
+        grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr);
+      }
+      .quick-edit-actions {
+        grid-column: 1 / -1;
       }
       .blog-list-tools {
         align-items: stretch;
@@ -209,7 +242,12 @@ require_auth();
         </div>
 
         <input type="hidden" id="csrf-token" value="<?= h(csrf_token()) ?>">
+        <input type="file" id="blog-import-file" accept=".zip,application/zip" hidden>
         <div id="notice" class="notice" role="status"></div>
+        <div class="admin-actions" style="justify-content:flex-start; margin-bottom:12px;">
+          <a href="/admin/blog-export.php" class="btn btn-secondary btn-sm">Download Blogs</a>
+          <button type="button" id="blog-import-btn" class="btn btn-secondary btn-sm">Import Blogs</button>
+        </div>
         <div class="blog-list-tools">
           <input type="search" id="blog-search" class="blog-search-input" placeholder="Search blogs..." autocomplete="off">
           <button type="button" id="blog-search-clear" class="btn btn-secondary btn-sm">Clear</button>
@@ -239,6 +277,8 @@ require_auth();
       const searchInput = document.getElementById('blog-search');
       const clearSearchBtn = document.getElementById('blog-search-clear');
       const searchStatus = document.getElementById('blog-search-status');
+      const importButton = document.getElementById('blog-import-btn');
+      const importFile = document.getElementById('blog-import-file');
       const params = new URLSearchParams(window.location.search);
       let blogs = [];
       let currentPage = Math.max(1, Number.parseInt(params.get('page') || '1', 10) || 1);
@@ -248,6 +288,10 @@ require_auth();
       let searchTimer = 0;
       let yoastLoaderPromise = null;
       let yoastAnalysisRun = 0;
+      const yoastRatingCache = new Map();
+      let quickEditId = '';
+      const defaultCategory = <?= json_encode(blog_default_category(), JSON_UNESCAPED_SLASHES) ?>;
+      const categoryOptions = <?= json_encode(array_values(array_map(static fn (array $category): string => $category['name'], $blogCategoryOptions)), JSON_UNESCAPED_SLASHES) ?>;
       const yoastModuleUrl = '/assets/vendor/yoastseo/yoastseo.bundle.js?v=3.6.0';
       const yoastResearcherUrl = '/assets/vendor/yoastseo/researcher.bundle.js?v=3.6.0';
 
@@ -311,6 +355,60 @@ require_auth();
         return String(value || '').replace(/["\\]/g, '\\$&');
       }
 
+      function slugify(value) {
+        return String(value || '')
+          .toLowerCase()
+          .trim()
+          .replace(/[^a-z0-9-]+/g, '-')
+          .replace(/-+/g, '-')
+          .replace(/^-|-$/g, '')
+          .slice(0, 96);
+      }
+
+      function optionList(options, current) {
+        const values = options.includes(current) ? options : [current, ...options].filter(Boolean);
+        return values.map((option) => `<option value="${escapeHtml(option)}" ${option === current ? 'selected' : ''}>${escapeHtml(option)}</option>`).join('');
+      }
+
+      function quickEditRow(blog, id, status, category) {
+        const publishedAt = blog.publishedAtInput || '';
+        const scheduledAt = blog.scheduledAtInput || '';
+        return `
+          <tr class="quick-edit-row" data-quick-edit-row="${escapeHtml(id)}">
+            <td colspan="8">
+              <form class="quick-edit-form" data-quick-edit-form="${escapeHtml(id)}">
+                <label>Title
+                  <input type="text" name="title" value="${escapeHtml(blog.title || '')}" maxlength="160" required>
+                </label>
+                <label>Slug
+                  <input type="text" name="slug" value="${escapeHtml(blog.slug || id)}" maxlength="96" pattern="[a-z0-9-]+" required>
+                </label>
+                <label>Category
+                  <select name="category" required>${optionList(categoryOptions, category)}</select>
+                </label>
+                <label>Status
+                  <select name="status" required>
+                    <option value="draft" ${status === 'draft' ? 'selected' : ''}>Draft</option>
+                    <option value="published" ${status === 'published' ? 'selected' : ''}>Publish now</option>
+                    <option value="scheduled" ${status === 'scheduled' ? 'selected' : ''}>Schedule</option>
+                  </select>
+                </label>
+                <label>Publish date/time
+                  <input type="datetime-local" name="published_at" value="${escapeHtml(publishedAt)}">
+                </label>
+                <label>Scheduled date/time
+                  <input type="datetime-local" name="scheduled_at" value="${escapeHtml(scheduledAt)}">
+                </label>
+                <div class="quick-edit-actions">
+                  <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                  <button type="button" class="btn btn-secondary btn-sm" data-quick-cancel="true">Cancel</button>
+                </div>
+              </form>
+            </td>
+          </tr>
+        `;
+      }
+
       function plainTextFromMarkdown(value) {
         return String(value || '')
           .replace(/```[\s\S]*?```/g, ' ')
@@ -365,58 +463,7 @@ require_auth();
       }
 
       function deriveFocusKeyphrase(blog) {
-        const savedKeyphrase = normalizeText(blog.focusKeyphrase || '');
-        if (savedKeyphrase) return savedKeyphrase;
-        const titleWords = normalizeText(blog.title || '')
-          .split(/\s+/)
-          .filter((word) => word.length > 2 && !['the', 'and', 'for', 'with', 'your', 'guide', 'how'].includes(word));
-        return titleWords.slice(0, 3).join(' ') || normalizeText(blog.category || '');
-      }
-
-      function scoreState(score) {
-        if (score >= 80) return { label: 'Good', className: 'ok' };
-        if (score >= 55) return { label: 'OK', className: 'warn' };
-        return { label: 'Needs work', className: '' };
-      }
-
-      function analyzeBlogSeo(blog) {
-        const keyphrase = deriveFocusKeyphrase(blog);
-        const titleText = blog.seoTitle || blog.title || '';
-        const slugText = blog.slug || blog.id || '';
-        const excerptText = blog.excerpt || '';
-        const markdown = blog.content || '';
-        const plainText = plainTextFromMarkdown(markdown);
-        const wordCount = countWords(markdown);
-        const paragraphs = markdown.split(/\n\s*\n/).map((item) => plainTextFromMarkdown(item)).filter(Boolean);
-        const firstParagraph = paragraphs[0] || '';
-        const headings = (markdown.match(/^#{2,3}\s+/gm) || []).length;
-        const images = markdown.match(/!\[[^\]]*\]\([^)]+\)/g) || [];
-        const links = markdown.match(/\[[^\]]+\]\((https?:\/\/|\/)[^)]+\)/g) || [];
-        const density = wordCount > 0 && keyphrase ? (countPhrase(plainText, keyphrase) / wordCount) * 100 : 0;
-
-        const checks = [
-          { ok: Boolean(keyphrase), points: 12 },
-          { ok: keyphrase && countPhrase(titleText, keyphrase), points: 12 },
-          { ok: keyphrase && countPhrase(slugText.replace(/-/g, ' '), keyphrase), points: 10 },
-          { ok: keyphrase && countPhrase(excerptText, keyphrase), points: 10 },
-          { ok: keyphrase && countPhrase(firstParagraph, keyphrase), points: 10 },
-          { ok: wordCount >= 300, points: 12 },
-          { ok: density >= 0.5 && density <= 3, points: 10 },
-          { ok: headings > 0, points: 8 },
-          { ok: images.length > 0 || (blog.featuredImage && !blog.featuredImage.includes('default-featured')), points: 6 },
-          { ok: links.length > 0, points: 10 },
-        ];
-        const score = checks.reduce((total, check) => total + (check.ok ? check.points : 0), 0);
-        const state = scoreState(score);
-        return {
-          score,
-          label: state.label,
-          className: state.className,
-          keyphrase,
-          wordCount,
-          passed: checks.filter((check) => check.ok).length,
-          total: checks.length,
-        };
+        return normalizeText(blog.focusKeyphrase || '');
       }
 
       function normalizeYoastScore(score) {
@@ -475,7 +522,7 @@ require_auth();
         }
 
         const keyphrase = deriveFocusKeyphrase(blog);
-        const titleText = String(blog.title || '').trim();
+        const titleText = String(blog.seoTitle || blog.title || '').trim();
         const slugText = String(blog.slug || blog.id || '').trim();
         const excerptText = String(blog.excerpt || '').trim();
         const html = parseMarkdown(blog.content || '');
@@ -501,7 +548,7 @@ require_auth();
         const readabilityResults = getYoastAssessorResults(contentAssessor);
         const seoScore = getYoastOverallScore(seoAssessor);
         const readabilityScore = getYoastOverallScore(contentAssessor);
-        const state = scoreState(seoScore);
+        const state = seoScore >= 80 ? { label: 'Good', className: 'ok' } : (seoScore >= 55 ? { label: 'OK', className: 'warn' } : { label: 'Needs Improvement', className: '' });
         return {
           score: seoScore,
           readabilityScore,
@@ -536,14 +583,15 @@ require_auth();
         blogs.forEach((blog) => {
           const id = blog.id || blog.slug;
           if (!id) return;
+          const cacheKey = JSON.stringify([blog.id, blog.slug, blog.updatedAt, blog.title, blog.seoTitle, blog.excerpt, blog.content, blog.focusKeyphrase]);
+          if (yoastRatingCache.has(cacheKey)) {
+            updateSeoRating(id, yoastRatingCache.get(cacheKey), 'YoastSEO.js local · cached');
+            return;
+          }
           analyzeBlogWithYoast(blog).then((seo) => {
+            yoastRatingCache.set(cacheKey, seo);
             if (runId === yoastAnalysisRun) updateSeoRating(id, seo, 'YoastSEO.js local');
-          }).catch(() => {
-            if (runId === yoastAnalysisRun) {
-              const fallback = analyzeBlogSeo(blog);
-              updateSeoRating(id, fallback, 'Estimated fallback');
-            }
-          });
+          }).catch(() => {});
         });
       }
 
@@ -597,45 +645,68 @@ require_auth();
         updateSearchStatus();
         if (!blogs.length) {
           const message = currentSearchTerm() ? 'No blogs match your search.' : 'No custom blogs added yet.';
-          list.innerHTML = `<p style="color:var(--text-muted); font-size:0.9rem; padding:16px; background:var(--surface-soft); border-radius:8px;">${escapeHtml(message)}</p>`;
+          list.innerHTML = `<p style="color:var(--text-muted); font-size:0.9rem; padding:16px;">${escapeHtml(message)}</p>`;
           pagination.style.display = 'none';
           return;
         }
 
-        list.innerHTML = blogs.map((blog) => {
+        const rows = blogs.map((blog) => {
           const id = blog.id || blog.slug;
           const slug = blog.slug || id;
-          const status = blog.status === 'draft' ? 'draft' : 'published';
-          const seo = analyzeBlogSeo(blog);
+          const status = blog.status === 'scheduled' ? 'scheduled' : (blog.status === 'draft' ? 'draft' : 'published');
+          const isPublic = Boolean(blog.isPublic || status === 'published');
+          const category = blog.category || 'Uncategorized';
+          const quickEditCategory = blog.category || defaultCategory;
+          const internalLinkTitles = Array.isArray(blog.internalLinkTitles) ? blog.internalLinkTitles.join(', ') : '';
+          const linkedFromTitles = Array.isArray(blog.linkedFromTitles) ? blog.linkedFromTitles.join(', ') : '';
+          const publishedDate = blog.publishedAtInput ? blog.publishedAtInput.replace('T', ' ') : (blog.date || '');
+          const editRow = quickEditId === id ? quickEditRow(blog, id, status, quickEditCategory) : '';
           return `
-            <div class="blog-item-row">
-              <img src="${escapeHtml(blog.featuredImage || '/uploads/blogs/default-featured.svg')}" alt="${escapeHtml(blog.title)}">
-              <div style="flex:1; min-width:220px;">
-                <strong style="font-size:1rem; color:var(--brand-dark); display:block;">${escapeHtml(blog.title)}</strong>
-                <span style="font-size:0.8rem; color:var(--text-muted); display:block; margin-top:2px;">
-                  ${escapeHtml(blog.category)} | Slug: <code style="color:var(--brand);">${escapeHtml(slug)}</code> | ${escapeHtml(blog.date || '')} | By ${escapeHtml(blog.author || '')}
-                </span>
-                <span class="blog-status-badge ${status}">${escapeHtml(status)}</span>
-                <div class="blog-stats" aria-label="Blog engagement">
-                  <span class="blog-stat">${Number(blog.views || 0).toLocaleString()} views</span>
-                  <span class="blog-stat">${Number(blog.likes || 0).toLocaleString()} likes</span>
-                  <span class="blog-stat">${Number(blog.dislikes || 0).toLocaleString()} dislikes</span>
+            <tr>
+              <td class="blog-title-cell">
+                <strong>${escapeHtml(blog.title)}</strong>
+                <small>Slug: <code style="color:var(--brand);">${escapeHtml(slug)}</code><br>${escapeHtml(blog.excerpt || '')}</small>
+              </td>
+              <td>${escapeHtml(category)}</td>
+              <td><span class="blog-status-badge ${status}">${escapeHtml(status)}</span></td>
+              <td class="blog-date-cell">
+                ${escapeHtml(publishedDate)}
+                <small>Updated: ${escapeHtml(blog.updatedAt ? new Date(Number(blog.updatedAt) * 1000).toLocaleDateString() : '')}</small>
+              </td>
+              <td class="blog-number-cell" title="${escapeHtml(internalLinkTitles || 'No internal blog links')}">${Number(blog.internalLinks || 0).toLocaleString()}</td>
+              <td class="blog-number-cell" title="${escapeHtml(linkedFromTitles || 'No inbound blog links')}">${Number(blog.linkedFrom || 0).toLocaleString()}</td>
+              <td data-seo-id="${escapeHtml(id)}"><span class="seo-rating-label">Checking...</span><span class="seo-rating-score"></span><small class="seo-rating-details"></small></td>
+              <td>
+                <div class="admin-actions">
+                  ${isPublic ? `<a href="/blog/${encodeURIComponent(slug)}/" target="_blank" class="btn btn-primary btn-sm" style="text-decoration:none;">View</a>` : `<span class="btn btn-secondary btn-sm" style="opacity:0.55; cursor:not-allowed;">${status === 'scheduled' ? 'Scheduled' : 'Draft'}</span>`}
+                  <button type="button" class="btn btn-secondary btn-sm" data-quick-edit="${escapeHtml(id)}">Quick Edit</button>
+                  <a href="/admin/blog-publish.php?id=${encodeURIComponent(id)}" class="btn btn-secondary btn-sm" style="text-decoration:none;">Edit</a>
+                  <button type="button" class="btn btn-secondary btn-sm" data-delete="${escapeHtml(id)}" style="color:var(--danger); border-color:var(--danger);">Delete</button>
                 </div>
-                <p style="font-size:0.85rem; color:var(--text); margin-top:4px;">${escapeHtml(blog.excerpt || '')}</p>
-              </div>
-              <div class="seo-rating" data-seo-id="${escapeHtml(id)}" title="YoastSEO.js SEO rating">
-                <span class="seo-rating-score ${seo.className}">${seo.score}/100</span>
-                <span class="seo-rating-label">${escapeHtml(seo.label)}</span>
-                <div class="seo-rating-details">${escapeHtml(seo.passed + '/' + seo.total)} estimated checks · ${escapeHtml(String(seo.wordCount))} words<br>Keyphrase: ${escapeHtml(seo.keyphrase || 'none')}<br>Loading YoastSEO.js</div>
-              </div>
-              <div class="admin-actions">
-                ${status === 'published' ? `<a href="/blog/${encodeURIComponent(slug)}/" target="_blank" class="btn btn-primary btn-sm" style="text-decoration:none;">View</a>` : '<span class="btn btn-secondary btn-sm" style="opacity:0.55; cursor:not-allowed;">Draft</span>'}
-                <a href="/admin/blog-publish.php?id=${encodeURIComponent(id)}" class="btn btn-secondary btn-sm" style="text-decoration:none;">Edit</a>
-                <button type="button" class="btn btn-secondary btn-sm" data-delete="${escapeHtml(id)}" style="color:var(--danger); border-color:var(--danger);">Delete</button>
-              </div>
-            </div>
+              </td>
+            </tr>
+            ${editRow}
           `;
         }).join('');
+        list.innerHTML = `
+          <div class="blog-table-wrap">
+            <table class="blog-table">
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Category</th>
+                  <th>Status</th>
+                  <th>Publish/Updated</th>
+                  <th>Internal Links</th>
+                  <th>Linked From</th>
+                  <th>Yoast SEO</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        `;
 
         pagination.style.display = totalPages > 1 ? 'flex' : 'none';
         pageStatus.textContent = `Page ${currentPage} of ${totalPages}`;
@@ -661,6 +732,40 @@ require_auth();
         searchInput.focus();
       });
 
+      importButton.addEventListener('click', () => importFile.click());
+      importFile.addEventListener('change', async () => {
+        const file = importFile.files && importFile.files[0];
+        if (!file) return;
+        if (!file.name.toLowerCase().endsWith('.zip') || file.size <= 0 || file.size > 100 * 1024 * 1024) {
+          showNotice('Select a valid blog export ZIP file up to 100 MB.', 'error');
+          importFile.value = '';
+          return;
+        }
+        const data = new FormData();
+        data.append('csrf_token', csrfToken);
+        data.append('import_file', file);
+        importButton.disabled = true;
+        showNotice('Importing blogs...', 'ok');
+        try {
+          const response = await fetch('/admin/blog-import.php', {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'fetch' },
+            body: data
+          });
+          const result = await parseJsonResponse(response);
+          updateCsrf(result.csrfToken);
+          if (!response.ok || !result.ok) throw new Error(result.error || 'Blog import failed.');
+          const counts = result.counts || {};
+          showNotice(`Imported: ${Number(counts.imported || 0)} · Updated: ${Number(counts.updated || 0)} · Skipped: ${Number(counts.skipped || 0)} · Images restored: ${Number(counts.imagesRestored || 0)} · Failed: ${Number(counts.failed || 0)}`, 'ok');
+          await loadBlogs();
+        } catch (error) {
+          showNotice(error.message || 'Blog import failed.', 'error');
+        } finally {
+          importButton.disabled = false;
+          importFile.value = '';
+        }
+      });
+
       prevPageBtn.addEventListener('click', async () => {
         if (currentPage <= 1) return;
         currentPage -= 1;
@@ -674,6 +779,20 @@ require_auth();
       });
 
       list.addEventListener('click', async (event) => {
+        const quickEditButton = event.target.closest('[data-quick-edit]');
+        if (quickEditButton) {
+          quickEditId = quickEditButton.dataset.quickEdit || '';
+          renderList();
+          return;
+        }
+
+        const quickCancelButton = event.target.closest('[data-quick-cancel]');
+        if (quickCancelButton) {
+          quickEditId = '';
+          renderList();
+          return;
+        }
+
         const deleteButton = event.target.closest('[data-delete]');
         if (!deleteButton || !confirm('Delete this custom blog post?')) return;
 
@@ -693,6 +812,55 @@ require_auth();
         }
         showNotice('Blog post deleted.', 'ok');
         await loadBlogs().catch((error) => showNotice(error.message || 'Blog list could not be loaded.', 'error'));
+      });
+
+      list.addEventListener('submit', async (event) => {
+        const form = event.target.closest('[data-quick-edit-form]');
+        if (!form) return;
+        event.preventDefault();
+
+        const id = form.dataset.quickEditForm || '';
+        const blog = blogs.find((item) => (item.id || item.slug) === id);
+        if (!blog) {
+          showNotice('Blog post could not be found in the current list.', 'error');
+          return;
+        }
+
+        const data = new FormData(form);
+        const status = String(data.get('status') || 'published');
+        const publishedAt = String(data.get('published_at') || '');
+        const scheduledAt = String(data.get('scheduled_at') || '');
+        const cleanSlug = slugify(data.get('slug') || data.get('title') || '');
+
+        data.set('csrf_token', csrfToken);
+        data.set('id', blog.id || blog.slug || id);
+        data.set('slug', cleanSlug);
+        data.set('seo_title', blog.seoTitle || blog.title || '');
+        data.set('author', blog.author || 'Editorial Team');
+        data.set('excerpt', blog.excerpt || '');
+        data.set('content', blog.content || '');
+        data.set('featured_image', blog.featuredImage || '/uploads/blogs/default-featured.svg');
+        data.set('focus_keyphrase', blog.focusKeyphrase || '');
+        data.set('published_at', publishedAt);
+        data.set('scheduled_at', status === 'scheduled' ? (scheduledAt || publishedAt) : '');
+
+        try {
+          const response = await fetch('/admin/blog-save.php', {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'fetch' },
+            body: data
+          });
+          const result = await parseJsonResponse(response);
+          updateCsrf(result.csrfToken);
+          if (!response.ok || !result.ok) {
+            throw new Error((result.errors || [result.error || 'Blog post could not be saved.']).join(' '));
+          }
+          quickEditId = '';
+          showNotice('Blog post updated.', 'ok');
+          await loadBlogs();
+        } catch (error) {
+          showNotice(error.message || 'Blog post could not be saved.', 'error');
+        }
       });
 
       loadBlogs().catch((error) => showNotice(error.message || 'Blog list could not be loaded.', 'error'));

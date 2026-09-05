@@ -89,13 +89,156 @@ function blog_parse_faq_items(string $content): array
   );
 }
 
+function blog_parse_block_options(string $content): array
+{
+  $options = [];
+  foreach (preg_split('/\n/', str_replace(["\r\n", "\r"], "\n", trim($content))) ?: [] as $line) {
+    if (preg_match('/^\s*([a-z][a-z0-9_-]*)\s*:\s*(.*?)\s*$/i', $line, $matches) === 1) {
+      $options[strtolower($matches[1])] = trim($matches[2]);
+    }
+  }
+
+  return $options;
+}
+
+function blog_safe_block_url(?string $url, string $fallback = '/playnow'): string
+{
+  $url = trim((string) $url);
+  if ($url === '') {
+    return $fallback;
+  }
+
+  if (preg_match('/^https?:\/\/[^\s<>"\']+$/i', $url) === 1 || preg_match('#^/[^\s<>"\']*$#', $url) === 1) {
+    return $url;
+  }
+
+  return $fallback;
+}
+
+function blog_parse_custom_code_sections(string $content): array
+{
+  $sections = ['html' => '', 'css' => '', 'js' => ''];
+  $source = str_replace(["\r\n", "\r"], "\n", $content);
+  if (preg_match_all('/^---(html|css|js)\s*$/im', $source, $matches, PREG_OFFSET_CAPTURE) === false || $matches[0] === []) {
+    $sections['html'] = trim($source);
+    return $sections;
+  }
+
+  $count = count($matches[0]);
+  for ($index = 0; $index < $count; $index++) {
+    $name = strtolower($matches[1][$index][0]);
+    $start = $matches[0][$index][1] + strlen($matches[0][$index][0]);
+    $end = $index + 1 < $count ? $matches[0][$index + 1][1] : strlen($source);
+    $sections[$name] = trim(substr($source, $start, $end - $start));
+  }
+
+  return $sections;
+}
+
+function blog_render_custom_code_block(string $content, int $index): string
+{
+  $sections = blog_parse_custom_code_sections($content);
+  $id = 'blog-custom-code-' . $index;
+  $html = trim($sections['html']);
+  $css = trim((string) $sections['css']);
+  $js = trim((string) $sections['js']);
+  $output = '<section id="' . blog_h($id) . '" class="blog-custom-code-block">' . $html . '</section>';
+  if ($css !== '') {
+    $output .= '<style>' . $css . '</style>';
+  }
+  if ($js !== '') {
+    $output .= '<script>(function(root){' . $js . "\n})(document.getElementById(" . json_encode($id) . '));</script>';
+  }
+
+  return $output;
+}
+
+function blog_render_button_block(string $content): string
+{
+  $options = blog_parse_block_options($content);
+  $url = blog_safe_block_url($options['url'] ?? '', '/playnow');
+  $label = trim((string) ($options['label'] ?? 'Open Link')) ?: 'Open Link';
+  $nofollow = isset($options['nofollow']) && preg_match('/^(1|true|yes|on)$/i', $options['nofollow']) === 1;
+  $rel = 'noopener noreferrer' . ($nofollow ? ' nofollow' : '');
+
+  return '<p class="blog-button-block"><a class="blog-button-link" href="' . blog_h($url) . '" target="_blank" rel="' . blog_h($rel) . '">' . blog_h($label) . '</a></p>';
+}
+
+function blog_render_slot_demo_block(string $content): string
+{
+  $options = blog_parse_block_options($content);
+  $url = blog_safe_block_url($options['url'] ?? '', '/playnow');
+  $title = trim((string) ($options['title'] ?? ''));
+  $label = $title !== '' ? $title . ' Demo' : 'Selected Game Demo';
+  $gameSlug = normalize_slug((string) ($options['slug'] ?? ''));
+  $gamePageUrl = '';
+  if ($gameSlug !== '') {
+    $stmt = blogs_pdo()->prepare('SELECT slug FROM games WHERE slug = :slug AND published = 1 AND done_processing = 1 LIMIT 1');
+    $stmt->execute([':slug' => $gameSlug]);
+    $gameSlug = (string) ($stmt->fetchColumn() ?: '');
+    if ($gameSlug !== '') {
+      $gamePageUrl = '/game/' . rawurlencode($gameSlug) . '/';
+    }
+  }
+
+  return '<section class="blog-slot-demo-block"><div class="blog-slot-demo-header"><h2>' . blog_h($label) . '</h2><div class="blog-slot-demo-actions">'
+    . ($gamePageUrl !== '' ? '<a class="blog-slot-demo-link" href="' . blog_h($gamePageUrl) . '">View Game</a>' : '')
+    . '<a class="blog-slot-demo-link blog-slot-demo-real" href="/playnow">Play for Real</a></div></div>'
+    . '<div class="blog-slot-demo-frame"><iframe src="' . blog_h($url) . '" title="' . blog_h($label) . '" loading="lazy" allowfullscreen></iframe></div></section>';
+}
+
+function blog_render_table_block(string $content): string
+{
+  $rows = [];
+  foreach (preg_split('/\n/', str_replace(["\r\n", "\r"], "\n", trim($content))) ?: [] as $line) {
+    $line = trim($line);
+    if ($line === '' || preg_match('/^\s*(headings|header|header_row)\s*:/i', $line) === 1 || preg_match('/^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/', $line) === 1) {
+      continue;
+    }
+    if (str_contains($line, '|')) {
+      $line = trim($line, '| ');
+      $rows[] = array_map(static fn(string $cell): string => trim(str_replace('\\|', '|', $cell)), preg_split('/(?<!\\\\)\|/', $line) ?: []);
+    }
+  }
+  if ($rows === []) {
+    return '';
+  }
+
+  $body = array_map(static fn(array $row): string => '<tr>' . implode('', array_map(static fn(string $cell): string => '<td>' . blog_render_inline_markdown(blog_h($cell)) . '</td>', $row)) . '</tr>', $rows);
+  return '<div class="blog-table-block"><table>' . implode('', $body) . '</table></div>';
+}
+
 function blog_render_markdown(string $markdown): string
 {
   $markdown = str_replace(["\r\n", "\r"], "\n", $markdown);
   $faqBlocks = [];
+  $buttonBlocks = [];
+  $tableBlocks = [];
+  $customCodeBlocks = [];
+  $slotDemoBlocks = [];
   $markdown = preg_replace_callback('/:::faq\s*\n?([\s\S]*?)\n?:::/', static function (array $matches) use (&$faqBlocks): string {
     $token = '@@FAQ_BLOCK_' . count($faqBlocks) . '@@';
     $faqBlocks[] = $matches[1];
+    return "\n\n" . $token . "\n\n";
+  }, $markdown) ?? $markdown;
+  $markdown = preg_replace_callback('/:::button\s*\n?([\s\S]*?)\n?:::/', static function (array $matches) use (&$buttonBlocks): string {
+    $token = '@@BUTTON_BLOCK_' . count($buttonBlocks) . '@@';
+    $buttonBlocks[] = $matches[1];
+    return "\n\n" . $token . "\n\n";
+  }, $markdown) ?? $markdown;
+  $markdown = preg_replace_callback('/:::table\s*\n?([\s\S]*?)\n?:::/', static function (array $matches) use (&$tableBlocks): string {
+    $token = '@@TABLE_BLOCK_' . count($tableBlocks) . '@@';
+    $tableBlocks[] = $matches[1];
+    return "\n\n" . $token . "\n\n";
+  }, $markdown) ?? $markdown;
+  $markdown = preg_replace_callback('/:::custom-code\s*\n?([\s\S]*?)\n?:::/', static function (array $matches) use (&$customCodeBlocks): string {
+    $token = '@@CUSTOM_CODE_BLOCK_' . count($customCodeBlocks) . '@@';
+    $customCodeBlocks[] = $matches[1];
+    return "\n\n" . $token . "\n\n";
+  }, $markdown) ?? $markdown;
+  $markdown = preg_replace_callback('/:::slot-demo\s*\n?([\s\S]*?)\n?:::/', static function (array $matches) use (&$slotDemoBlocks): string {
+    $token = '@@SLOT_DEMO_BLOCK_' . count($slotDemoBlocks) . '@@';
+    $slotDemoBlocks[] = $matches[1];
     return "\n\n" . $token . "\n\n";
   }, $markdown) ?? $markdown;
   $escaped = blog_h($markdown);
@@ -121,6 +264,23 @@ function blog_render_markdown(string $markdown): string
         $faqHtml[] = '<div class="blog-faq-item"><h3>' . blog_render_inline_markdown(blog_h($item['question'])) . '</h3><p>' . blog_render_inline_markdown(blog_h($item['answer'])) . '</p></div>';
       }
       $html[] = '<section class="blog-faq-block">' . implode('', $faqHtml) . '</section>';
+      continue;
+    }
+
+    if (preg_match('/^@@BUTTON_BLOCK_(\d+)@@$/', $block, $matches) === 1) {
+      $html[] = blog_render_button_block($buttonBlocks[(int) $matches[1]] ?? '');
+      continue;
+    }
+    if (preg_match('/^@@TABLE_BLOCK_(\d+)@@$/', $block, $matches) === 1) {
+      $html[] = blog_render_table_block($tableBlocks[(int) $matches[1]] ?? '');
+      continue;
+    }
+    if (preg_match('/^@@CUSTOM_CODE_BLOCK_(\d+)@@$/', $block, $matches) === 1) {
+      $html[] = blog_render_custom_code_block($customCodeBlocks[(int) $matches[1]] ?? '', (int) $matches[1]);
+      continue;
+    }
+    if (preg_match('/^@@SLOT_DEMO_BLOCK_(\d+)@@$/', $block, $matches) === 1) {
+      $html[] = blog_render_slot_demo_block($slotDemoBlocks[(int) $matches[1]] ?? '');
       continue;
     }
 
@@ -166,12 +326,7 @@ function blog_render_markdown(string $markdown): string
 
 function blog_base_url(): string
 {
-  $siteBaseUrl = env_value('SITE_BASE_URL');
-  if (!is_string($siteBaseUrl) || trim($siteBaseUrl) === '') {
-    $siteBaseUrl = 'http://localhost';
-  }
-
-  return rtrim($siteBaseUrl, '/');
+  return site_base_url();
 }
 
 function blog_absolute_url(string $url, string $baseUrl): string
@@ -183,11 +338,8 @@ function blog_absolute_url(string $url, string $baseUrl): string
   if (preg_match('/^https?:\/\//i', $url) === 1) {
     return str_replace(' ', '%20', $url);
   }
-  if ($url[0] !== '/') {
-    $url = '/' . $url;
-  }
 
-  return $baseUrl . str_replace(' ', '%20', $url);
+  return str_replace(' ', '%20', public_url($url, $baseUrl));
 }
 
 function blog_meta_text(string $text, int $maxLength): string
@@ -281,6 +433,16 @@ $fbAppId = env_value('FACEBOOK_APP_ID');
 $viewResult = blog_record_engagement((string) $post['id'], 'view');
 $engagementCounts = is_array($viewResult['counts'] ?? null) ? $viewResult['counts'] : blog_engagement_counts((string) $post['id']);
 $readMinutes = blog_read_minutes((string) ($post['content'] ?? ''));
+$recommendedQuery = blogs_pdo()->prepare(
+  'SELECT slug, title, excerpt, featured_image, category
+   FROM blog_posts
+   WHERE status = "published" AND slug <> :slug
+   ORDER BY RANDOM()
+   LIMIT 3'
+);
+$recommendedQuery->execute([':slug' => (string) $post['slug']]);
+$recommendedPosts = $recommendedQuery->fetchAll();
+ob_start(static fn(string $html): string => public_html_absolute_urls($html, $siteBaseUrl));
 $jsonLd = [
   '@context' => 'https://schema.org',
   '@graph' => [
@@ -390,14 +552,16 @@ if ($faqEntities !== []) {
   <meta name="author" content="Tabitha Cruz">
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
   <meta name="theme-color" content="#0e0a07">
-  <link rel="icon" type="image/svg+xml" href="/assets/icons/favicon-club.svg">
-  <link rel="alternate icon" href="/assets/icons/favicon.ico">
-  <link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+  <link rel="alternate icon" href="/assets/favicon.ico">
+  <link rel="apple-touch-icon" href="/assets/favicon.svg">
   <link rel="canonical" href="<?= blog_h($canonical) ?>">
+  <script defer src="/assets/absolute-urls.min.js"></script>
+  <script defer src="/assets/playnow-click-tracker.min.js"></script>
 
   <!-- Open Graph / Facebook / Social Sharing Meta -->
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://freeonlinegames.info/blogs/dev-sample-blog">
+  <meta property="og:url" content="<?= blog_h($canonical) ?>">
   <meta property="og:title" content="<?= blog_h($pageTitle) ?>">
   <meta property="og:description" content="<?= blog_h($excerpt) ?>">
   <meta property="og:image" content="<?= blog_h($absoluteImage) ?>">
@@ -5110,6 +5274,10 @@ if ($faqEntities !== []) {
         padding-left: calc(var(--spacing) * 10);
       }
 
+      .pl-20 {
+        padding-left: calc(var(--spacing) * 20);
+      }
+
       .text-center {
         text-align: center;
       }
@@ -6767,6 +6935,12 @@ if ($faqEntities !== []) {
         }
       }
 
+      @media screen and (max-width: 350px) {
+        .blog-info{
+          flex-wrap: balance;
+        }
+      }
+
       @media (width >=420px) {
         .min-\[420px\]\:max-w-\[140px\] {
           max-width: 140px;
@@ -6775,6 +6949,7 @@ if ($faqEntities !== []) {
         .min-\[420px\]\:grid-cols-3 {
           grid-template-columns: repeat(3, minmax(0, 1fr));
         }
+        
       }
 
       @media (width >=40rem) {
@@ -8271,111 +8446,271 @@ if ($faqEntities !== []) {
           --tw-ease: initial;
         }
       }
+    }
+
+    .blog-article-content {
+      color: #e7ded0;
+      max-width: none;
+      min-width: 0;
+    }
+
+    .blog-article-content>*+* {
+      margin-top: 1rem;
+    }
+
+    .blog-article-content h1,
+    .blog-article-content h2,
+    .blog-article-content h3 {
+      color: #fff7ed;
+      font-weight: 900;
+      line-height: 1.18;
+      letter-spacing: 0;
+    }
+
+    .blog-article-content h1 {
+      font-size: clamp(1.55rem, 1.3rem + 1vw, 2.25rem);
+      padding-bottom: 0.65rem;
+      border-bottom: 1px solid rgba(245, 158, 11, 0.35);
+    }
+
+    .blog-article-content h2 {
+      margin-top: 1.65rem;
+      font-size: clamp(1.35rem, 1.15rem + 0.7vw, 1.85rem);
+      color: #fcd34d;
+    }
+
+    .blog-article-content h3 {
+      margin-top: 1.35rem;
+      font-size: clamp(1.1rem, 1rem + 0.4vw, 1.35rem);
+      color: #fed7aa;
+    }
+
+    .blog-article-content p {
+      color: #e7ded0;
+      line-height: 1.8;
+    }
+
+    .blog-article-content blockquote {
+      margin: 1.25rem 0;
+      border-left: 4px solid #f59e0b;
+      background: rgba(245, 158, 11, 0.1);
+      color: #fff7ed;
+      padding: 1rem 1.15rem;
+      border-radius: 0 0.5rem 0.5rem 0;
+      font-weight: 700;
+      line-height: 1.7;
+    }
+
+    .blog-article-content ul,
+    .blog-article-content ol {
+      padding-left: 1.35rem;
+      display: grid;
+      gap: 0.55rem;
+    }
+
+    .blog-article-content li {
+      line-height: 1.75;
+    }
+
+    .blog-article-content a {
+      color: #fbbf24;
+      font-weight: 800;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    .blog-article-content img {
+      width: 100%;
+      height: auto;
+      border-radius: 0.75rem;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .blog-article-content code {
+      color: #fde68a;
+      background: rgba(0, 0, 0, 0.28);
+      border: 1px solid rgba(245, 158, 11, 0.22);
+      border-radius: 0.25rem;
+      padding: 0.12rem 0.3rem;
+    }
+
+    .blog-article-content pre {
+      overflow-x: auto;
+      background: rgba(0, 0, 0, 0.34);
+      border: 1px solid rgba(245, 158, 11, 0.22);
+      border-radius: 0.5rem;
+      padding: 1rem;
+    }
+
+    .blog-article-content .blog-custom-code-block,
+    .blog-article-content .blog-slot-demo-block,
+    .blog-article-content .blog-button-block,
+    .blog-article-content .blog-table-block {
+      width: 100%;
+      max-width: none;
+      min-width: 0;
+    }
+
+    .blog-slot-demo-block {
+      margin: 1.5rem 0;
+      overflow: hidden;
+    }
+
+    .blog-slot-demo-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .blog-slot-demo-header h2 {
+      margin: 0;
+    }
+
+    .blog-slot-demo-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .blog-slot-demo-link,
+    .blog-button-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 0.75rem;
+      background: linear-gradient(90deg, #ea580c, #f59e0b);
+      color: #1c1208 !important;
+      font-weight: 900;
+      padding: 0.7rem 1rem;
+      text-decoration: none !important;
+    }
+
+    .blog-slot-demo-real {
+      background: #f5f5f4;
+    }
+
+    .blog-slot-demo-frame {
+      width: 100%;
+      max-width: none;
+      aspect-ratio: 16 / 9;
+      min-height: 320px;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      border-radius: 0.85rem;
+      overflow: hidden;
+      background: #080502;
+    }
+
+    .blog-slot-demo-frame iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+    }
+
+    .blog-table-block {
+      overflow-x: auto;
+    }
+
+    .blog-table-block table {
+      width: 100%;
+      min-width: 560px;
+    }
+
+    .blog-provider-marquee {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .blog-provider-marquee-track {
+      display: flex;
+      width: max-content;
+      animation: marquee 38s linear infinite;
+    }
+
+    .blog-provider-marquee:hover .blog-provider-marquee-track {
+      animation-play-state: paused;
+    }
+
+    .blog-provider-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      min-width: 150px;
+      margin-right: 0.75rem;
+      padding: 0.65rem 0.8rem;
+      border: 1px solid rgba(245, 158, 11, 0.24);
+      border-radius: 0.75rem;
+      background: #160d07;
+      color: #f5e8d0;
+      text-decoration: none;
+    }
+
+    .blog-provider-item img {
+      width: 2.5rem;
+      height: 1.5rem;
+      object-fit: contain;
+      flex: 0 0 auto;
+    }
+
+    .blog-provider-item span {
+      max-width: 8rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 0.75rem;
+      font-weight: 900;
+    }
+
+    @media (max-width: 640px) {
+      .blog-slot-demo-frame {
+        aspect-ratio: auto;
+        min-height: 260px;
+        height: 62vh;
       }
-      .blog-article-content {
-        color: #e7ded0;
-      }
-      .blog-article-content > * + * {
-        margin-top: 1rem;
-      }
-      .blog-article-content h1,
-      .blog-article-content h2,
-      .blog-article-content h3 {
-        color: #fff7ed;
-        font-weight: 900;
-        line-height: 1.18;
-        letter-spacing: 0;
-      }
-      .blog-article-content h1 {
-        font-size: clamp(1.55rem, 1.3rem + 1vw, 2.25rem);
-        padding-bottom: 0.65rem;
-        border-bottom: 1px solid rgba(245, 158, 11, 0.35);
-      }
-      .blog-article-content h2 {
-        margin-top: 1.65rem;
-        font-size: clamp(1.35rem, 1.15rem + 0.7vw, 1.85rem);
-        color: #fcd34d;
-      }
-      .blog-article-content h3 {
-        margin-top: 1.35rem;
-        font-size: clamp(1.1rem, 1rem + 0.4vw, 1.35rem);
-        color: #fed7aa;
-      }
-      .blog-article-content p {
-        color: #e7ded0;
-        line-height: 1.8;
-      }
-      .blog-article-content blockquote {
-        margin: 1.25rem 0;
-        border-left: 4px solid #f59e0b;
-        background: rgba(245, 158, 11, 0.1);
-        color: #fff7ed;
-        padding: 1rem 1.15rem;
-        border-radius: 0 0.5rem 0.5rem 0;
-        font-weight: 700;
-        line-height: 1.7;
-      }
-      .blog-article-content ul,
-      .blog-article-content ol {
-        padding-left: 1.35rem;
-        display: grid;
-        gap: 0.55rem;
-      }
-      .blog-article-content li {
-        line-height: 1.75;
-      }
-      .blog-article-content a {
-        color: #fbbf24;
-        font-weight: 800;
-        text-decoration: underline;
-        text-underline-offset: 3px;
-      }
-      .blog-article-content img {
+
+      .blog-slot-demo-actions,
+      .blog-slot-demo-link,
+      .blog-button-link {
         width: 100%;
-        height: auto;
-        border-radius: 0.75rem;
-        border: 1px solid rgba(245, 158, 11, 0.3);
       }
-      .blog-article-content code {
-        color: #fde68a;
-        background: rgba(0, 0, 0, 0.28);
-        border: 1px solid rgba(245, 158, 11, 0.22);
-        border-radius: 0.25rem;
-        padding: 0.12rem 0.3rem;
+
+      .blog-provider-item {
+        min-width: 132px;
       }
-      .blog-article-content pre {
-        overflow-x: auto;
-        background: rgba(0, 0, 0, 0.34);
-        border: 1px solid rgba(245, 158, 11, 0.22);
-        border-radius: 0.5rem;
-        padding: 1rem;
-      }
-      .blog-faq-block {
-        display: grid;
-        gap: 0.85rem;
-        margin: 1.5rem 0;
-        padding: 1rem;
-        border: 1px solid rgba(245, 158, 11, 0.35);
-        border-radius: 0.75rem;
-        background: rgba(20, 8, 3, 0.72);
-      }
-      .blog-faq-item {
-        padding: 1rem;
-        border: 1px solid rgba(120, 53, 15, 0.8);
-        border-radius: 0.5rem;
-        background: rgba(42, 22, 11, 0.72);
-      }
-      .blog-faq-item h3 {
-        margin: 0 0 0.45rem;
-        color: #fcd34d;
-        font-size: 1rem;
-      }
-      .blog-faq-item p {
-        margin: 0;
-        color: #e7ded0;
-        font-size: 0.95rem;
-      }
-    </style>
+    }
+
+    .blog-faq-block {
+      display: grid;
+      gap: 0.85rem;
+      margin: 1.5rem 0;
+      padding: 1rem;
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      border-radius: 0.75rem;
+      background: rgba(20, 8, 3, 0.72);
+    }
+
+    .blog-faq-item {
+      padding: 1rem;
+      border: 1px solid rgba(120, 53, 15, 0.8);
+      border-radius: 0.5rem;
+      background: rgba(42, 22, 11, 0.72);
+    }
+
+    .blog-faq-item h3 {
+      margin: 0 0 0.45rem;
+      color: #fcd34d;
+      font-size: 1rem;
+    }
+
+    .blog-faq-item p {
+      margin: 0;
+      color: #e7ded0;
+      font-size: 0.95rem;
+    }
+
+  </style>
 
 </head>
 
@@ -8398,10 +8733,11 @@ if ($faqEntities !== []) {
             <a href="/" class="flex items-center gap-2 cursor-pointer group select-none shrink-0" id="brand-logo"><img
                 alt="Free Online Games"
                 class="h-8 sm:h-11 w-auto max-w-[112px] min-[420px]:max-w-[140px] sm:max-w-none object-contain rounded-md transition-transform group-hover:scale-105 drop-shadow-[0_2px_8px_rgba(255,180,0,0.4)]"
-                referrerpolicy="no-referrer" src="/src/assets/images/free-online-games-logo.webp"></a>
+                width="180" height="44" loading="eager" decoding="async" fetchpriority="high"
+                referrerpolicy="no-referrer" src="/assets/free-online-games-logo-C1EG2Cuk.webp"></a>
           </div>
           <div class="order-3 w-full md:order-none md:flex-1 md:max-w-lg md:mx-4">
-            <div
+            <form action="/search/" method="get"
               class="relative flex items-center w-full bg-[#110904] border border-[#3e2719] focus-within:border-orange-500 rounded-lg px-2.5 py-1.5 transition-all shadow-inner">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -8410,8 +8746,8 @@ if ($faqEntities !== []) {
                 <circle cx="11" cy="11" r="8"></circle>
               </svg><input placeholder="Maghanap ng laro..."
                 class="w-full bg-transparent text-xs text-stone-100 placeholder-stone-500 focus:outline-none"
-                id="header-realtime-search-input" type="text" value="">
-            </div>
+                id="header-realtime-search-input" name="q" type="search" value="">
+            </form>
           </div>
           <div class="flex items-center gap-1.5 sm:gap-2 shrink-0"><button
               class="h-9 px-2.5 sm:px-2.5 text-[11px] sm:text-xs font-bold rounded-lg bg-[#27180e] hover:bg-[#382315] text-amber-200 border border-[#3e2719] flex items-center justify-center gap-1 transition-colors cursor-pointer"
@@ -8450,14 +8786,14 @@ if ($faqEntities !== []) {
           class="fixed sm:sticky top-[101px] sm:top-[57px] bottom-0 left-0 z-50 sm:z-30 w-72 max-w-[82vw] sm:w-60 bg-[#170e08] border-r border-[#2c1b10] flex flex-col justify-between h-[calc(100vh-101px)] sm:h-[calc(100vh-57px)] shrink-0 select-none overflow-y-auto shadow-2xl sm:shadow-none">
           <div class="py-2 px-2 space-y-1">
             <div class="sm:hidden flex items-center justify-between px-2 py-2 border-b border-[#2c1b10] mb-2"><span
-                class="text-xs font-black uppercase tracking-wider text-amber-300">Menu</span><button
+                class="text-sm font-black uppercase tracking-wider text-amber-300">Menu</span><button
                 class="p-1.5 rounded-md text-stone-300 hover:text-white hover:bg-[#28180e] transition-colors cursor-pointer"
                 title="Close Menu"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
                   fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                   class="lucide lucide-x w-4 h-4" aria-hidden="true">
                   <path d="M18 6 6 18"></path>
                   <path d="m6 6 12 12"></path>
-                </svg></button></div><button
+                </svg></button></div><a href="/"
               class="w-full text-left px-3 py-2.5 rounded-lg flex items-center justify-between transition-all group text-stone-300 hover:text-white hover:bg-[#28180e]"
               id="nav-item-home">
               <div class="flex items-center gap-3"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
@@ -8469,9 +8805,9 @@ if ($faqEntities !== []) {
                   <path
                     d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z">
                   </path>
-                </svg><span class="text-xs font-medium">Home</span></div>
+                </svg><span class="text-sm font-medium">Home</span></div>
               <div class="flex items-center gap-1"></div>
-            </button><button
+            </a><a href="/slots"
               class="w-full text-left px-3 py-2.5 rounded-lg flex items-center justify-between transition-all group text-stone-300 hover:text-white hover:bg-[#28180e]"
               id="nav-item-slots">
               <div class="flex items-center gap-3"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
@@ -8482,7 +8818,7 @@ if ($faqEntities !== []) {
                   <circle cx="12" cy="12" r="10"></circle>
                   <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path>
                   <path d="M12 18V6"></path>
-                </svg><span class="text-xs font-medium">Slots Games</span></div>
+                </svg><span class="text-sm font-medium">Slots Games</span></div>
               <div class="flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
                   viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                   stroke-linejoin="round"
@@ -8490,7 +8826,7 @@ if ($faqEntities !== []) {
                   aria-hidden="true">
                   <path d="m9 18 6-6-6-6"></path>
                 </svg></div>
-            </button><button
+            </a><a href="/arcade"
               class="w-full text-left px-3 py-2.5 rounded-lg flex items-center justify-between transition-all group text-stone-300 hover:text-white hover:bg-[#28180e]"
               id="nav-item-arcade">
               <div class="flex items-center gap-3"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
@@ -8505,7 +8841,7 @@ if ($faqEntities !== []) {
                   <path
                     d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z">
                   </path>
-                </svg><span class="text-xs font-medium">Arcade</span></div>
+                </svg><span class="text-sm font-medium">Arcade</span></div>
               <div class="flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
                   viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                   stroke-linejoin="round"
@@ -8513,7 +8849,7 @@ if ($faqEntities !== []) {
                   aria-hidden="true">
                   <path d="m9 18 6-6-6-6"></path>
                 </svg></div>
-            </button><button
+            </a><a href="/perya-games"
               class="w-full text-left px-3 py-2.5 rounded-lg flex items-center justify-between transition-all group text-stone-300 hover:text-white hover:bg-[#28180e]"
               id="nav-item-perya">
               <div class="flex items-center gap-3"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
@@ -8534,7 +8870,7 @@ if ($faqEntities !== []) {
                   <path
                     d="M11 13c1.93 1.93 2.83 4.17 2 5-.83.83-3.07-.07-5-2-1.93-1.93-2.83-4.17-2-5 .83-.83 3.07.07 5 2Z">
                   </path>
-                </svg><span class="text-xs font-medium">Perya Games</span></div>
+                </svg><span class="text-sm font-medium">Perya Games</span></div>
               <div class="flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
                   viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                   stroke-linejoin="round"
@@ -8542,7 +8878,7 @@ if ($faqEntities !== []) {
                   aria-hidden="true">
                   <path d="m9 18 6-6-6-6"></path>
                 </svg></div>
-            </button><button
+            </a><a href="/live-casino"
               class="w-full text-left px-3 py-2.5 rounded-lg flex items-center justify-between transition-all group text-stone-300 hover:text-white hover:bg-[#28180e]"
               id="nav-item-live">
               <div class="flex items-center gap-3"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
@@ -8556,7 +8892,7 @@ if ($faqEntities !== []) {
                   <path d="M10 14h.01"></path>
                   <path d="M15 6h.01"></path>
                   <path d="M18 9h.01"></path>
-                </svg><span class="text-xs font-medium">Live Casino</span></div>
+                </svg><span class="text-sm font-medium">Live Casino</span></div>
               <div class="flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
                   viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                   stroke-linejoin="round"
@@ -8564,7 +8900,7 @@ if ($faqEntities !== []) {
                   aria-hidden="true">
                   <path d="m9 18 6-6-6-6"></path>
                 </svg></div>
-            </button><button
+            </a><a href="/card-games"
               class="w-full text-left px-3 py-2.5 rounded-lg flex items-center justify-between transition-all group text-stone-300 hover:text-white hover:bg-[#28180e]"
               id="nav-item-cards">
               <div class="flex items-center gap-3"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
@@ -8574,7 +8910,7 @@ if ($faqEntities !== []) {
                   aria-hidden="true">
                   <path d="M17.28 9.05a5.5 5.5 0 1 0-10.56 0A5.5 5.5 0 1 0 12 17.66a5.5 5.5 0 1 0 5.28-8.6Z"></path>
                   <path d="M12 17.66L12 22"></path>
-                </svg><span class="text-xs font-medium">Card Games</span></div>
+                </svg><span class="text-sm font-medium">Card Games</span></div>
               <div class="flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
                   viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                   stroke-linejoin="round"
@@ -8582,32 +8918,7 @@ if ($faqEntities !== []) {
                   aria-hidden="true">
                   <path d="m9 18 6-6-6-6"></path>
                 </svg></div>
-            </button><button
-              class="w-full text-left px-3 py-2.5 rounded-lg flex items-center justify-between transition-all group text-stone-300 hover:text-white hover:bg-[#28180e]"
-              id="nav-item-fish">
-              <div class="flex items-center gap-3"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
-                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                  stroke-linejoin="round"
-                  class="lucide lucide-fish w-4 h-4 transition-transform group-hover:scale-110 text-orange-400"
-                  aria-hidden="true">
-                  <path d="M6.5 12c.94-3.46 4.94-6 8.5-6 3.56 0 6.06 2.54 7 6-.94 3.47-3.44 6-7 6s-7.56-2.53-8.5-6Z">
-                  </path>
-                  <path d="M18 12v.5"></path>
-                  <path d="M16 17.93a9.77 9.77 0 0 1 0-11.86"></path>
-                  <path
-                    d="M7 10.67C7 8 5.58 5.97 2.73 5.5c-1 1.5-1 5 .23 6.5-1.24 1.5-1.24 5-.23 6.5C5.58 18.03 7 16 7 13.33">
-                  </path>
-                  <path d="M10.46 7.26C10.2 5.88 9.17 4.24 8 3h5.8a2 2 0 0 1 1.98 1.67l.23 1.4"></path>
-                  <path d="m16.01 17.93-.23 1.4A2 2 0 0 1 13.8 21H9.5a5.96 5.96 0 0 0 1.49-3.98"></path>
-                </svg><span class="text-xs font-medium">Fishing Games</span></div>
-              <div class="flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
-                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                  stroke-linejoin="round"
-                  class="lucide lucide-chevron-right w-3.5 h-3.5 transition-transform text-stone-500 group-hover:text-stone-300"
-                  aria-hidden="true">
-                  <path d="m9 18 6-6-6-6"></path>
-                </svg></div>
-            </button><button
+            </a><a href="/sports-betting"
               class="w-full text-left px-3 py-2.5 rounded-lg flex items-center justify-between transition-all group text-stone-300 hover:text-white hover:bg-[#28180e]"
               id="nav-item-sports">
               <div class="flex items-center gap-3"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
@@ -8621,7 +8932,7 @@ if ($faqEntities !== []) {
                   <path d="M4 22h16"></path>
                   <path d="M6 9a6 6 0 0 0 12 0V3a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1z"></path>
                   <path d="M6 9H4.5a1 1 0 0 1 0-5H6"></path>
-                </svg><span class="text-xs font-medium">Sports Betting</span></div>
+                </svg><span class="text-sm font-medium">Sports Betting</span></div>
               <div class="flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
                   viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                   stroke-linejoin="round"
@@ -8629,47 +8940,98 @@ if ($faqEntities !== []) {
                   aria-hidden="true">
                   <path d="m9 18 6-6-6-6"></path>
                 </svg></div>
-            </button><button
-              class="w-full text-left px-3 py-2.5 rounded-lg flex items-center justify-between transition-all group text-stone-300 hover:text-white hover:bg-[#28180e]"
-              id="nav-item-invite">
-              <div class="flex items-center gap-3"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
-                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                  stroke-linejoin="round"
-                  class="lucide lucide-gift w-4 h-4 transition-transform group-hover:scale-110 text-amber-400"
+            </a>
+            <div id="nav-item-sponsors" class="space-y-1"><button type="button" aria-expanded="false"
+                aria-controls="nav-group-sponsors"
+                class="w-full text-left px-3 py-2.5 rounded-lg flex items-center justify-between transition-all cursor-pointer text-stone-300 bg-[#1d120b] hover:text-white hover:bg-[#28180e]">
+                <div class="flex items-center gap-3"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round" class="lucide lucide-handshake w-4 h-4 text-amber-400" aria-hidden="true">
+                    <path d="m11 17 2 2a1 1 0 1 0 3-3"></path>
+                    <path
+                      d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4">
+                    </path>
+                    <path d="m21 3 1 11h-2"></path>
+                    <path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3"></path>
+                    <path d="M3 4h8"></path>
+                  </svg><span class="text-sm font-bold">Sponsors</span></div><svg xmlns="http://www.w3.org/2000/svg"
+                  width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round"
+                  class="lucide lucide-chevron-right w-3.5 h-3.5 text-stone-500 transition-transform rotate-90"
                   aria-hidden="true">
-                  <rect x="3" y="8" width="18" height="4" rx="1"></rect>
-                  <path d="M12 8v13"></path>
-                  <path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"></path>
-                  <path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"></path>
-                </svg><span class="text-xs font-medium">Invite &amp; Earn</span></div>
-              <div class="flex items-center gap-1"></div>
-            </button><button
-              class="w-full text-left px-3 py-2.5 rounded-lg flex items-center justify-between transition-all group text-stone-300 hover:text-white hover:bg-[#28180e]"
-              id="nav-item-vip">
-              <div class="flex items-center gap-3"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
-                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                  stroke-linejoin="round"
-                  class="lucide lucide-crown w-4 h-4 transition-transform group-hover:scale-110 text-amber-400"
-                  aria-hidden="true">
-                  <path
-                    d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z">
-                  </path>
-                  <path d="M5 21h14"></path>
-                </svg><span class="text-xs font-medium">VIP Club</span></div>
-              <div class="flex items-center gap-1"></div>
-            </button><button
-              class="w-full text-left px-3 py-2.5 rounded-lg flex items-center justify-between transition-all group text-stone-300 hover:text-white hover:bg-[#28180e]"
-              id="nav-item-payments">
-              <div class="flex items-center gap-3"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
-                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                  stroke-linejoin="round"
-                  class="lucide lucide-credit-card w-4 h-4 transition-transform group-hover:scale-110 text-amber-400"
-                  aria-hidden="true">
-                  <rect width="20" height="14" x="2" y="5" rx="2"></rect>
-                  <line x1="2" x2="22" y1="10" y2="10"></line>
-                </svg><span class="text-xs font-medium">Payments Help</span></div>
-              <div class="flex items-center gap-1"></div>
-            </button><button
+                  <path d="m9 18 6-6-6-6"></path>
+                </svg>
+              </button>
+              <div id="nav-group-sponsors" class="ml-4 border-l border-amber-600/25 pl-2 space-y-1" hidden>
+                <div class="space-y-1"><button type="button" aria-expanded="true" aria-controls="nav-group-bybet"
+                    class="w-full text-left pr-3 pl-10  py-2 rounded-lg flex items-center justify-between transition-all cursor-pointer text-stone-300 hover:text-white hover:bg-[#28180e]">
+                    <div class="flex items-center gap-2.5"><svg xmlns="http://www.w3.org/2000/svg" width="24"
+                        height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round"
+                        class="lucide lucide-building2 lucide-building-2 w-3.5 h-3.5 text-orange-400"
+                        aria-hidden="true">
+                        <path d="M10 12h4"></path>
+                        <path d="M10 8h4"></path>
+                        <path d="M14 21v-3a2 2 0 0 0-4 0v3"></path>
+                        <path d="M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2"></path>
+                        <path d="M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"></path>
+                      </svg><span class="text-sm font-semibold"> BYBET</span></div><svg
+                      xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                      class="lucide lucide-chevron-right w-3 h-3 text-stone-500 transition-transform rotate-90"
+                      aria-hidden="true">
+                      <path d="m9 18 6-6-6-6"></path>
+                    </svg>
+                  </button>
+                  <div id="nav-group-bybet" class="ml-4 border-l border-amber-600/20 pl-2 space-y-1"><a href="/invite"
+                      class="w-full text-left pr-3 pl-20 py-2 rounded-lg flex items-center gap-2.5 transition-all group text-stone-300 hover:text-white hover:bg-[#28180e]"
+                      id="nav-item-invite"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
+                        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="lucide lucide-gift w-3.5 h-3.5 transition-transform group-hover:scale-110 text-amber-400"
+                        aria-hidden="true">
+                        <rect x="3" y="8" width="18" height="4" rx="1"></rect>
+                        <path d="M12 8v13"></path>
+                        <path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"></path>
+                        <path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"></path>
+                      </svg><span class="text-sm font-medium">Invite</span></a><a href="/vip"
+                      class="w-full text-left pr-3 pl-20 py-2 rounded-lg flex items-center gap-2.5 transition-all group text-stone-300 hover:text-white hover:bg-[#28180e]"
+                      id="nav-item-vip"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
+                        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="lucide lucide-crown w-3.5 h-3.5 transition-transform group-hover:scale-110 text-amber-400"
+                        aria-hidden="true">
+                        <path
+                          d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z">
+                        </path>
+                        <path d="M5 21h14"></path>
+                      </svg><span class="text-sm font-medium">VIP</span></a><a href="/payments"
+                      class="w-full text-left pr-3 pl-20 py-2 rounded-lg flex items-center gap-2.5 transition-all group text-stone-300 hover:text-white hover:bg-[#28180e]"
+                      id="nav-item-payments"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
+                        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="lucide lucide-credit-card w-3.5 h-3.5 transition-transform group-hover:scale-110 text-amber-400"
+                        aria-hidden="true">
+                        <rect width="20" height="14" x="2" y="5" rx="2"></rect>
+                        <line x1="2" x2="22" y1="10" y2="10"></line>
+                      </svg><span class="text-sm font-medium">Payments</span></a></div>
+                </div><a href="/become-a-partner"
+                  class="w-full text-left pr-3 pl-10 py-2 rounded-lg flex items-center gap-2.5 transition-all group text-stone-300 hover:text-white hover:bg-[#28180e]"
+                  id="nav-item-partner"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="lucide lucide-handshake w-3.5 h-3.5 transition-transform group-hover:scale-110 text-amber-400"
+                    aria-hidden="true">
+                    <path d="m11 17 2 2a1 1 0 1 0 3-3"></path>
+                    <path
+                      d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4">
+                    </path>
+                    <path d="m21 3 1 11h-2"></path>
+                    <path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3"></path>
+                    <path d="M3 4h8"></path>
+                  </svg><span class="text-sm font-medium">Become a Partner</span></a>
+              </div>
+            </div><a href="/blog"
               class="w-full text-left px-3 py-2.5 rounded-lg flex items-center justify-between transition-all group bg-gradient-to-r from-orange-600 via-orange-500 to-amber-600 text-white font-bold shadow-md shadow-orange-950/60 translate-x-1"
               id="nav-item-blogs">
               <div class="flex items-center gap-3"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
@@ -8681,13 +9043,12 @@ if ($faqEntities !== []) {
                   <path
                     d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z">
                   </path>
-                </svg><span class="text-xs font-medium">Blogs &amp; Strategy</span></div>
+                </svg><span class="text-sm font-medium">Blogs &amp; Strategy</span></div>
               <div class="flex items-center gap-1"></div>
-            </button>
+            </a>
           </div>
-          <div class="p-2 border-t border-[#291a10] bg-[#120a05]/60 space-y-2">
-            <div
-              class="relative overflow-hidden rounded-xl bg-gradient-to-br from-[#3b200c] via-[#2a1608] to-[#1a0e05] p-2.5 border border-amber-600/30 hover:border-orange-500 transition-all cursor-pointer group shadow-lg">
+          <div class="p-2 border-t border-[#291a10] bg-[#120a05]/60 space-y-2 mb-5"><a href="/promos"
+              class="block relative overflow-hidden rounded-xl bg-gradient-to-br from-[#3b200c] via-[#2a1608] to-[#1a0e05] p-2.5 border border-amber-600/30 hover:border-orange-500 transition-all cursor-pointer group shadow-lg">
               <div class="flex items-center gap-2">
                 <div
                   class="w-9 h-9 rounded-full bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
@@ -8700,7 +9061,7 @@ if ($faqEntities !== []) {
                   </svg></div>
                 <div class="flex flex-col"><span
                     class="text-[10px] uppercase font-black text-amber-400 tracking-wider">Promotions</span><span
-                    class="text-xs font-bold text-white leading-tight">Super Bonus 240M</span></div>
+                    class="text-sm font-bold text-white leading-tight">Super Bonus 240M</span></div>
               </div>
               <div
                 class="mt-1.5 flex items-center justify-between text-[10px] text-amber-200/80 font-semibold bg-[#120a05]/80 px-2 py-0.5 rounded">
@@ -8710,7 +9071,7 @@ if ($faqEntities !== []) {
                   aria-hidden="true">
                   <path d="m9 18 6-6-6-6"></path>
                 </svg></div>
-            </div>
+            </a>
             <div class="grid grid-cols-2 gap-1.5"><a href="https://t.me/+fRv-0z-NBJowY2Fl" target="_blank"
                 rel="noopener noreferrer"
                 class="flex items-center justify-center gap-1.5 py-1.5 px-2 bg-[#1d2d3a] hover:bg-[#273c4e] border border-sky-600/30 rounded-lg text-sky-400 text-[11px] font-semibold transition-colors"><svg
@@ -8721,47 +9082,48 @@ if ($faqEntities !== []) {
                     d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z">
                   </path>
                   <path d="m21.854 2.147-10.94 10.939"></path>
-                </svg><span>Telegram</span></a><button
+                </svg><span>Telegram</span></a><a href="/app"
                 class="flex items-center justify-center gap-1.5 py-1.5 px-2 border rounded-lg text-[11px] font-semibold transition-colors cursor-pointer bg-[#2d1e12] hover:bg-[#3d2a1b] border-amber-600/30 text-amber-300"><svg
                   xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
                   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                   class="lucide lucide-smartphone w-3.5 h-3.5 text-orange-400" aria-hidden="true">
                   <rect width="14" height="20" x="5" y="2" rx="2" ry="2"></rect>
                   <path d="M12 18h.01"></path>
-                </svg><span>App</span></button></div><button
-              class="w-full flex items-center justify-center gap-2 py-2 border rounded-lg text-xs font-medium transition-colors cursor-pointer bg-stone-900/80 hover:bg-stone-800 border-stone-800 text-stone-300"><svg
+                </svg><span>App</span></a></div><a href="/contact"
+              class="w-full flex items-center justify-center gap-2 py-2 border rounded-lg text-sm font-medium transition-colors cursor-pointer bg-stone-900/80 hover:bg-stone-800 border-stone-800 text-stone-300"><svg
                 xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                 class="lucide lucide-message-square w-3.5 h-3.5 text-emerald-400" aria-hidden="true">
                 <path
                   d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z">
                 </path>
-              </svg><span>24/7 Live Support</span></button>
+              </svg><span>24/7 Live Support</span></a>
           </div>
-        </aside><button class="fixed inset-0 top-[101px] z-40 bg-black/60 backdrop-blur-sm sm:hidden"
-          aria-label="Close menu"></button>
+        </aside>
         <main class="flex-1 min-w-0 p-3 sm:p-5 md:p-6 space-y-6 sm:space-y-8 pb-20 sm:pb-8 overflow-x-hidden">
           <div class="space-y-6 w-full pb-12 animate-fadeIn">
             <div
               class="flex flex-wrap items-center justify-between gap-3 bg-[#180e07] border border-amber-500/40 p-4 rounded-2xl">
-              <button
+              <a href="/blog/"
                 class="inline-flex items-center gap-2 text-xs font-black text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 px-3.5 py-2 rounded-xl transition-all cursor-pointer"><svg
                   xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
                   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                   class="lucide lucide-arrow-left w-4 h-4" aria-hidden="true">
                   <path d="m12 19-7-7 7-7"></path>
                   <path d="M19 12H5"></path>
-                </svg><span>BACK TO ALL ARTICLES</span></button>
-              <div id="breadcrumbs" class="flex items-center gap-2 text-xs text-stone-400"><span
-                  class="hover:text-amber-300 cursor-pointer font-semibold">Blogs</span><svg
+                </svg><span>BACK TO ALL ARTICLES</span></a>
+              <div id="breadcrumbs" class="flex items-center gap-2 text-xs text-stone-400"><a href="/blog/"
+                  class="hover:text-amber-300 cursor-pointer font-semibold">Blogs</a><svg
                   xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
                   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                   class="lucide lucide-chevron-right w-3.5 h-3.5 text-stone-500 hidden sm:inline" aria-hidden="true">
                   <path d="m9 18 6-6-6-6"></path>
-                </svg><span class="text-stone-300 truncate max-w-[180px] sm:max-w-xs hidden sm:inline"><?= blog_h($pageTitle) ?></span></div>
+                </svg><span
+                  class="text-stone-300 truncate max-w-[180px] sm:max-w-xs hidden sm:inline"><?= blog_h($pageTitle) ?></span>
+              </div>
             </div>
             <div
-              class="bg-gradient-to-b from-[#1f1007] via-[#160b05] to-[#0d0603] border-2 border-amber-500/50 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl">
+              class="bg-gradient-to-b from-[#1f1007] via-[#160b05] to-[#0d0603] border-2 border-amber-500/50 rounded-3xl p-3 sm:p-2 space-y-6 shadow-2xl">
               <div class="space-y-3">
                 <div class="flex items-center gap-3"><span
                     class="bg-gradient-to-r from-amber-500 to-orange-600 text-stone-950 font-black text-xs px-3.5 py-1 rounded-full uppercase shadow"><?= $post['category'] ?></span><span
@@ -8772,7 +9134,8 @@ if ($faqEntities !== []) {
                       <path d="M12 6v6l4 2"></path>
                       <circle cx="12" cy="12" r="10"></circle>
                     </svg><?= (int) $readMinutes ?> min read</span></div>
-                <h1 class="text-2xl sm:text-4xl font-black text-white leading-tight tracking-tight"><?= blog_h($pageTitle) ?></h1>
+                <h1 class="text-2xl sm:text-4xl font-black text-white leading-tight tracking-tight">
+                  <?= blog_h($pageTitle) ?></h1>
                 <div
                   class="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-[#2e180c] text-xs text-stone-400">
                   <div class="flex items-center gap-3">
@@ -8783,13 +9146,14 @@ if ($faqEntities !== []) {
                         class="lucide lucide-user w-4 h-4" aria-hidden="true">
                         <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
                         <circle cx="12" cy="7" r="4"></circle>
-                      </svg></div>
+                      </svg>
+                    </div>
                     <div>
                       <p class="font-bold text-white text-xs">Tabitha Cruz</p>
                       <p class="text-[11px] text-stone-400"><?= $post['date'] ?></p>
                     </div>
                   </div>
-                  <div class="flex items-center gap-3"><span id="blog-view-count"
+                  <div class="flex items-center gap-3 blog-info"><span id="blog-view-count"
                       class="text-emerald-400 font-bold bg-emerald-950/80 border border-emerald-500/40 px-3 py-1 rounded-full"><?= (int) ($engagementCounts['views'] ?? 0) ?>
                       views</span><button type="button" data-blog-reaction="like"
                       class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border transition-all cursor-pointer bg-[#241308] text-stone-300 border-amber-500/30 hover:text-white hover:border-amber-400"><svg
@@ -8800,7 +9164,9 @@ if ($faqEntities !== []) {
                         <path
                           d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z">
                         </path>
-                      </svg><span>Like</span><span id="blog-like-count"><?= (int) ($engagementCounts['likes'] ?? 0) ?></span></button><button type="button" data-blog-reaction="dislike"
+                      </svg><span>Like</span><span
+                        id="blog-like-count"><?= (int) ($engagementCounts['likes'] ?? 0) ?></span></button><button
+                      type="button" data-blog-reaction="dislike"
                       class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border transition-all cursor-pointer bg-[#241308] text-stone-300 border-red-500/30 hover:text-white hover:border-red-400"><svg
                         xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -8809,13 +9175,13 @@ if ($faqEntities !== []) {
                         <path
                           d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z">
                         </path>
-                      </svg><span>Dislike</span><span id="blog-dislike-count"><?= (int) ($engagementCounts['dislikes'] ?? 0) ?></span></button></div>
+                      </svg><span>Dislike</span><span
+                        id="blog-dislike-count"><?= (int) ($engagementCounts['dislikes'] ?? 0) ?></span></button></div>
                 </div>
               </div>
-              <div
-                class="relative h-64 sm:h-96 w-full rounded-2xl overflow-hidden border border-amber-500/30 shadow-2xl">
-                <img alt="<?= blog_h($pageTitle) ?>" class="w-full h-full object-cover"
-                  src="<?= blog_h($image) ?>">
+              <div class="relative aspect-video w-full rounded-2xl overflow-hidden border border-amber-500/30 shadow-2xl">
+                <img alt="<?= blog_h($pageTitle) ?>" class="w-full h-full object-cover" src="<?= blog_h($image) ?>"
+                  width="1200" height="675" loading="eager" decoding="async" fetchpriority="high">
                 <div class="absolute inset-0 bg-gradient-to-t from-[#0d0603]/80 via-transparent to-transparent"></div>
               </div>
               <div class="space-y-4 text-sm sm:text-base text-stone-200 leading-relaxed">
@@ -8824,8 +9190,9 @@ if ($faqEntities !== []) {
                 </div>
               </div>
               <div id="article" class="space-y-4 text-sm sm:text-base text-stone-200 leading-relaxed">
-                <div class="blog-article-content bg-[#170c06] border border-[#2b170c] p-4 sm:p-5 rounded-2xl leading-relaxed">
-                   <?= blog_render_markdown($post['content']) ?>
+                <div
+                  class="blog-article-content bg-[#170c06] border border-[#2b170c] p-4 sm:p-5 rounded-2xl leading-relaxed">
+                  <?= blog_render_markdown($post['content']) ?>
                 </div>
               </div>
               <div
@@ -8841,7 +9208,8 @@ if ($faqEntities !== []) {
                     <path d="M20 2v4"></path>
                     <path d="M22 4h-4"></path>
                     <circle cx="4" cy="20" r="2"></circle>
-                  </svg><span>Disclaimer</span></h2>
+                  </svg><span>Disclaimer</span>
+                </h2>
                 <p class="space-y-3 text-xs sm:text-sm text-stone-200">Must be 21 years of age or older to enter the
                   casino. Individuals who are prohibited from attending Ontario gaming sites are not permitted to enter
                   the properties or participate in contests or promotions.</p>
@@ -8858,7 +9226,8 @@ if ($faqEntities !== []) {
                       <circle cx="18" cy="19" r="3"></circle>
                       <line x1="8.59" x2="15.42" y1="13.51" y2="17.49"></line>
                       <line x1="15.41" x2="8.59" y1="6.51" y2="10.49"></line>
-                    </svg><span>Share This Article on Social Media</span></h2>
+                    </svg><span>Share This Article on Social Media</span>
+                  </h2>
                 </div>
                 <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-1"><button
                     class="bg-[#1877F2]/20 hover:bg-[#1877F2]/30 border border-[#1877F2]/50 text-[#1877F2] hover:text-blue-300 font-bold text-xs py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer"><svg
@@ -8914,7 +9283,8 @@ if ($faqEntities !== []) {
                         d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526">
                       </path>
                       <circle cx="12" cy="8" r="6"></circle>
-                    </svg><span>About the Author</span></h2><span
+                    </svg><span>About the Author</span>
+                  </h2><span
                     class="bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-[10px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1"><svg
                       xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
                       stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -8929,8 +9299,10 @@ if ($faqEntities !== []) {
                   <div class="relative shrink-0">
                     <div
                       class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl p-0.5 bg-gradient-to-tr from-amber-400 via-orange-500 to-amber-200 shadow-lg overflow-hidden">
-                      <img alt="Tabitha Cruz" class="w-full h-full object-cover rounded-[14px]"
-                        src="/assets/images/Tabitha Cruz.webp"></div>
+                      <img alt="Tabitha Cruz" class="w-full h-full object-cover rounded-[14px]" width="80" height="80"
+                        loading="lazy" decoding="async"
+                        src="/assets/images/Tabitha Cruz.webp">
+                    </div>
                     <div class="absolute -bottom-1 -right-1 bg-amber-400 text-stone-950 p-1 rounded-full shadow"><svg
                         xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -8950,7 +9322,8 @@ if ($faqEntities !== []) {
                       </div>
                       <div
                         class="flex items-center gap-2 bg-[#120703] border border-amber-500/30 px-3 py-1 rounded-xl text-xs">
-                        <span class="text-amber-300 font-black">4.9 ★</span></div>
+                        <span class="text-amber-300 font-black">4.9 ★</span>
+                      </div>
                     </div>
                     <p class="text-xs text-stone-300 leading-relaxed">Tabitha Cruz is a seasoned iGaming and writer with
                       extensive experience across iGaming, casino, and travel niches. Her expertise has given her a
@@ -8966,7 +9339,8 @@ if ($faqEntities !== []) {
                           stroke-linejoin="round" class="lucide lucide-arrow-right w-3.5 h-3.5" aria-hidden="true">
                           <path d="M5 12h14"></path>
                           <path d="m12 5 7 7-7 7"></path>
-                        </svg></button></div>
+                        </svg></button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -8984,7 +9358,8 @@ if ($faqEntities !== []) {
                         <path d="M4.925 19.067a10 10 0 0 1 0-14.134"></path>
                         <path d="M7.753 16.239a6 6 0 0 1 0-8.478"></path>
                         <circle cx="12" cy="12" r="2"></circle>
-                      </svg><span>Follow Us on Official Channels</span></h2>
+                      </svg><span>Follow Us on Official Channels</span>
+                    </h2>
                     <p class="text-[11px] text-stone-400 font-medium">Get daily Ang Pao codes, promo announcements, and
                       VIP tips!</p>
                   </div><span
@@ -9009,7 +9384,8 @@ if ($faqEntities !== []) {
                           d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z">
                         </path>
                         <path d="m21.854 2.147-10.94 10.939"></path>
-                      </svg></div>
+                      </svg>
+                    </div>
                     <div class="min-w-0 flex-1">
                       <p class="font-black text-xs text-white group-hover:text-amber-300 transition-colors truncate">
                         Telegram Official</p>
@@ -9031,7 +9407,8 @@ if ($faqEntities !== []) {
                         <circle cx="12" cy="12" r="10"></circle>
                         <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path>
                         <path d="M2 12h20"></path>
-                      </svg></div>
+                      </svg>
+                    </div>
                     <div class="min-w-0 flex-1">
                       <p class="font-black text-xs text-white group-hover:text-amber-300 transition-colors truncate">
                         Facebook Community</p>
@@ -9054,7 +9431,8 @@ if ($faqEntities !== []) {
                         <path d="M16 3.128a4 4 0 0 1 0 7.744"></path>
                         <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
                         <circle cx="9" cy="7" r="4"></circle>
-                      </svg></div>
+                      </svg>
+                    </div>
                     <div class="min-w-0 flex-1">
                       <p class="font-black text-xs text-white group-hover:text-amber-300 transition-colors truncate">VIP
                         High Roller Group</p>
@@ -9100,113 +9478,52 @@ if ($faqEntities !== []) {
                   <path d="M16 7h6v6"></path>
                   <path d="m22 7-8.5 8.5-5-5L2 17"></path>
                 </svg><span>Other Recommended Articles</span></h2>
-              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                <?php foreach ($recommendedPosts as $recommended): ?>
+                  <a href="/blog/<?= blog_h(rawurlencode((string) $recommended['slug'])) ?>/"
+                    class="group bg-[#180e07] border border-amber-500/30 rounded-xl overflow-hidden shadow-lg hover:border-amber-400 transition-all">
+                    <img src="<?= blog_h((string) ($recommended['featured_image'] ?: BLOG_DEFAULT_IMAGE)) ?>"
+                      alt="<?= blog_h((string) $recommended['title']) ?>" class="w-full h-36 object-cover" loading="lazy"
+                      decoding="async" width="1200" height="675">
+                    <div class="p-4 space-y-2">
+                      <span
+                        class="text-[10px] font-black uppercase tracking-wider text-amber-400"><?= blog_h((string) ($recommended['category'] ?? 'Guides')) ?></span>
+                      <h3 class="font-black text-white group-hover:text-amber-300 transition-colors">
+                        <?= blog_h((string) $recommended['title']) ?></h3>
+                      <p class="text-xs text-stone-400 line-clamp-2">
+                        <?= blog_h((string) ($recommended['excerpt'] ?? '')) ?></p>
+                    </div>
+                  </a>
+                <?php endforeach; ?>
+              </div>
             </div>
-            <div class="pt-4 text-center"><button
+            <div class="pt-4 text-center"><a href="/blog/"
                 class="inline-flex items-center gap-2 text-xs font-black text-amber-300 hover:text-amber-200 bg-[#180e07] border border-amber-500/40 hover:border-amber-400 px-6 py-3 rounded-xl transition-all cursor-pointer shadow-lg"><svg
                   xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
                   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                   class="lucide lucide-arrow-left w-4 h-4" aria-hidden="true">
                   <path d="m12 19-7-7 7-7"></path>
                   <path d="M19 12H5"></path>
-                </svg><span>BACK TO BLOGS</span></button></div>
+                </svg><span>BACK TO BLOGS</span></a></div>
           </div>
         </main>
       </div>
       <footer
-        class="bg-[#0b0704] border-t border-[#23140a] text-stone-400 text-xs lg:mt-12 pt-10 pb-20 sm:pb-12 px-4 sm:px-8 space-y-10">
-        <div class="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 border-b border-[#24150b] pb-10">
-          <div class="space-y-3">
-            <h2 class="text-sm font-extrabold text-white tracking-wider">About Free Online Games</h2>
-            <p class="text-[11px] text-stone-400 leading-relaxed"><span class="text-amber-400 font-bold">The most
-                impressive gaming platform:</span> The best online gaming destination in 2023–2026 providing Slots, Live
-              Dealer, Fish Games, Cards, and Sports, ensuring players enjoy international standards of fair play.</p>
-            <div class="flex items-center gap-3 pt-1"><img alt="Free Online Games"
-                class="h-8 w-auto object-contain rounded drop-shadow-[0_2px_6px_rgba(255,180,0,0.4)]"
-                referrerpolicy="no-referrer" src="/src/assets/images/free-online-games-logo.webp"></div>
-          </div>
-          <div class="space-y-3">
-            <p class="text-sm font-extrabold text-white tracking-wider">Affiliates</p>
-            <p class="text-[11px] text-stone-400 leading-relaxed"><span class="text-amber-400 font-bold">WHY
-                AFFILIATES:</span> At Free Online Games Affiliates, we recognise that our affiliate partners are our
-              biggest asset. We pride ourselves on our friendly and professional team, who are ready to assist you at
-              every step.</p><button
-              class="bg-[#24160d] hover:bg-orange-600 hover:text-white text-amber-400 border border-amber-600/40 text-xs font-bold px-5 py-1.5 rounded-lg transition-all shadow-md">Simulan</button>
-          </div>
-          <div class="space-y-3">
-            <p class="text-sm font-extrabold text-white tracking-wider">Payment Method</p>
-            <div class="grid grid-cols-3 gap-2">
-              <div
-                class="bg-[#1b1008] border border-blue-500/40 hover:border-blue-400 rounded-xl p-2 text-center flex flex-col items-center justify-center gap-1 transition-all hover:scale-105">
-                <span class="w-14 h-7 inline-flex items-center justify-center"><img alt="GCash logo"
-                    class="max-h-full max-w-full object-contain" loading="lazy"
-                    src="/payment-logos/gcash.svg"></span><span
-                  class="font-black text-blue-400 text-[11px] tracking-tight">GCash</span><span
-                  class="text-[9px] text-stone-500 font-medium">Instant 🇵🇭</span>
-              </div>
-              <div
-                class="bg-[#1b1008] border border-emerald-500/40 hover:border-emerald-400 rounded-xl p-2 text-center flex flex-col items-center justify-center gap-1 transition-all hover:scale-105">
-                <span class="w-14 h-7 inline-flex items-center justify-center"><img alt="Maya logo"
-                    class="max-h-full max-w-full object-contain" loading="lazy"
-                    src="/payment-logos/maya.svg"></span><span
-                  class="font-black text-emerald-400 text-[11px] tracking-tight">PayMaya</span><span
-                  class="text-[9px] text-stone-500 font-medium">Instant 🇵🇭</span>
-              </div>
-              <div
-                class="bg-[#1b1008] border border-green-500/40 hover:border-green-400 rounded-xl p-2 text-center flex flex-col items-center justify-center gap-1 transition-all hover:scale-105">
-                <span class="w-14 h-7 inline-flex items-center justify-center"><img alt="Grab logo"
-                    class="max-h-full max-w-full object-contain" loading="lazy"
-                    src="/payment-logos/grab.svg"></span><span
-                  class="font-black text-green-400 text-[11px] tracking-tight">GrabPay</span><span
-                  class="text-[9px] text-stone-500 font-medium">Secure</span>
-              </div>
-              <div
-                class="bg-[#1b1008] border border-amber-500/40 hover:border-amber-400 rounded-xl p-2 text-center flex flex-col items-center justify-center gap-1 transition-all hover:scale-105">
-                <svg class="w-6 h-6" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <rect width="100" height="100" rx="22" fill="url(#bank-grad)"></rect>
-                  <path d="M50 22L18 38V44H82V38L50 22Z" fill="#FFF8E7"></path>
-                  <rect x="24" y="48" width="8" height="24" rx="2" fill="#FFF8E7"></rect>
-                  <rect x="40" y="48" width="8" height="24" rx="2" fill="#FFF8E7"></rect>
-                  <rect x="56" y="48" width="8" height="24" rx="2" fill="#FFF8E7"></rect>
-                  <rect x="72" y="48" width="8" height="24" rx="2" fill="#FFF8E7"></rect>
-                  <rect x="18" y="74" width="64" height="6" rx="2" fill="#FFF8E7"></rect>
-                  <defs>
-                    <linearGradient id="bank-grad" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
-                      <stop stop-color="#D97706"></stop>
-                      <stop offset="1" stop-color="#B45309"></stop>
-                    </linearGradient>
-                  </defs>
-                </svg><span class="font-black text-amber-400 text-[11px] tracking-tight">Bank</span><span
-                  class="text-[9px] text-stone-500 font-medium">BDO/BPI/UB</span>
-              </div>
-              <div
-                class="bg-[#1b1008] border border-teal-500/40 hover:border-teal-400 rounded-xl p-2 text-center flex flex-col items-center justify-center gap-1 transition-all hover:scale-105">
-                <span class="w-8 h-8 inline-flex items-center justify-center"><img alt="Tether USDT logo"
-                    class="max-h-full max-w-full object-contain" loading="lazy"
-                    src="/payment-logos/usdt.svg"></span><span
-                  class="font-black text-teal-400 text-[11px] tracking-tight">USDT</span><span
-                  class="text-[9px] text-stone-500 font-medium">Crypto TRC20</span>
-              </div>
-              <div
-                class="bg-[#1b1008] border border-purple-500/40 hover:border-purple-400 rounded-xl p-2 text-center flex flex-col items-center justify-center gap-1 transition-all hover:scale-105">
-                <span class="w-14 h-7 inline-flex items-center justify-center"><img alt="QR Ph logo"
-                    class="max-h-full max-w-full object-contain" loading="lazy"
-                    src="/payment-logos/qrph.svg"></span><span
-                  class="font-black text-purple-400 text-[11px] tracking-tight">QRPH</span><span
-                  class="text-[9px] text-stone-500 font-medium">Scan to Pay</span>
-              </div>
-            </div>
-          </div>
-          <div class="space-y-3">
-            <div class="flex items-center gap-2">
-              <p class="text-sm font-extrabold text-white tracking-wider">Responsibility</p><span
-                class="bg-red-600 text-white font-black text-xs px-1.5 py-0.5 rounded">21+</span>
-            </div>
-            <p class="text-[11px] text-stone-400 leading-relaxed">This website offers gaming with risk experience. To be
-              a user of our website you must be over 18 years old. We are not responsible for the violation of your
-              local laws.</p>
+        class="bg-[#0b0704] border-t border-[#23140a] text-stone-400 text-sm pt-10 pb-20 sm:pb-12 px-4 sm:px-8 space-y-10">
+        <div class="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-8 border-b border-[#24150b] pb-10">
+          <div class="space-y-3 lg:col-span-2">
+            <div class="flex items-center gap-3"><a href="/" class="inline-block m-auto"><img
+                  src="/assets/free-online-games-logo-C1EG2Cuk.webp" alt="Free Online Games" width="160" height="36"
+                  class="w-auto max-w-[180px] m-auto object-contain rounded drop-shadow-[0_2px_6px_rgba(255,180,0,0.4)]"
+                  loading="lazy" decoding="async" referrerpolicy="no-referrer"></a></div>
+            <p class="text-[11px] text-stone-400 leading-relaxed"><span class="text-amber-400 font-bold">The premier
+                free online gaming portal in the Philippines:</span> Experience verified free-to-play demo slots,
+              high-adrenaline crash arcade titles, authentic Pinoy peryahan, live dealer baccarat, and competitive card
+              tables with zero financial risk. <a href="/responsible-gaming"
+                class="font-semibold text-amber-300 hover:text-amber-400 transition-colors">PAGCOR Responsible Gaming
+                Information</a></p>
             <div
-              class="flex items-center gap-2 text-[10px] text-emerald-400 bg-[#121c14] border border-emerald-600/30 p-2 rounded-lg">
+              class="flex items-center gap-2 text-[10px] text-emerald-400 bg-[#121c14] border border-emerald-600/30 p-2.5 rounded-lg">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                 class="lucide lucide-shield-alert w-4 h-4 shrink-0 text-emerald-400" aria-hidden="true">
@@ -9215,24 +9532,85 @@ if ($faqEntities !== []) {
                 </path>
                 <path d="M12 8v4"></path>
                 <path d="M12 16h.01"></path>
-              </svg><span>SSL Encrypted &amp; RNG Certified Fair Gaming</span>
-            </div>
+              </svg><span>SSL 256-Bit Encrypted &amp; RNG Certified Fair Play Standards</span></div>
+          </div>
+          <div class="space-y-3"><span class="text-sm font-extrabold text-white tracking-wider block">Game
+              Categories</span>
+            <ul class="space-y-2 text-[11px]">
+              <li><a href="/slots" class="text-stone-400 hover:text-amber-300 transition-colors">Online Slot Games</a>
+              </li>
+              <li><a href="/arcade" class="text-stone-400 hover:text-amber-300 transition-colors">Arcade &amp; Crash
+                  Games</a></li>
+              <li><a href="/perya-games" class="text-stone-400 hover:text-amber-300 transition-colors">Pinoy Perya
+                  Carnival</a></li>
+              <li><a href="/live-casino" class="text-stone-400 hover:text-amber-300 transition-colors">Live Casino &amp;
+                  Baccarat</a></li>
+              <li><a href="/card-games" class="text-stone-400 hover:text-amber-300 transition-colors">Classic Card
+                  Games</a></li>
+              <li><a href="/sports-betting" class="text-stone-400 hover:text-amber-300 transition-colors">Sports Betting
+                  Simulation</a></li>
+            </ul>
+          </div>
+          <div class="space-y-3"><span class="text-sm font-extrabold text-white tracking-wider block">Player
+              Features</span>
+            <ul class="space-y-2 text-[11px]">
+              <li><a href="/promos" class="text-stone-400 hover:text-amber-300 transition-colors">Promotions &amp;
+                  Bonuses</a></li>
+              <li><a href="/vip" class="text-stone-400 hover:text-amber-300 transition-colors">VIP Rewards Lounge</a>
+              </li>
+              <li><a href="/invite" class="text-stone-400 hover:text-amber-300 transition-colors">Invite &amp; Earn
+                  Program</a></li>
+              <li><a href="/payments" class="text-stone-400 hover:text-amber-300 transition-colors">Payment Options
+                  &amp; GCash</a></li>
+              <li><a href="/become-a-partner" class="text-stone-400 hover:text-amber-300 transition-colors">Become a
+                  Partner</a></li>
+              <li><a href="/app" class="text-stone-400 hover:text-amber-300 transition-colors">Official Mobile App</a>
+              </li>
+              <li><a href="/blog" class="text-stone-400 hover:text-amber-300 transition-colors">Strategy Guides &amp;
+                  News</a></li>
+              <li><a href="/contact" class="text-stone-400 hover:text-amber-300 transition-colors">24/7 Customer
+                  Support</a></li>
+            </ul>
+          </div>
+          <div class="space-y-3"><span class="text-sm font-extrabold text-white tracking-wider block"> Our
+              Partners</span><a href="/playnow" class="block  transition-colors"><img
+                src="/assets/images/bybet-logo.webp" alt="ByBet" width="180" height="72"
+                class="h-12 w-full max-w-[180px] object-contain rounded-md" loading="lazy" decoding="async"></a></div>
+          <div class="space-y-3"><span class="text-sm font-extrabold text-white tracking-wider block">About Free Casino
+              Games</span>
+            <ul class="space-y-2 text-[11px]">
+              <li><a href="/about-us" class="text-stone-400 hover:text-amber-300 transition-colors">About Us</a></li>
+              <li><a href="/responsible-gaming"
+                  class="text-stone-400 hover:text-amber-300 transition-colors">Responsible Gaming</a></li>
+              <li><a href="/terms-and-conditions" class="text-stone-400 hover:text-amber-300 transition-colors">Terms
+                  &amp; Conditions</a></li>
+              <li><a href="/privacy-policy" class="text-stone-400 hover:text-amber-300 transition-colors">Privacy
+                  Policy</a></li>
+              <li><a href="/affiliate-sponsor-disclosure"
+                  class="text-stone-400 hover:text-amber-300 transition-colors">Affiliate / Sponsor Disclosure</a></li>
+              <li><a href="/disclaimer" class="text-stone-400 hover:text-amber-300 transition-colors">Disclaimer</a>
+              </li>
+            </ul>
           </div>
         </div>
         <div class="w-full space-y-3"><span
             class="text-[10px] font-black uppercase tracking-widest text-stone-500 block text-center">OFFICIAL GAME
             PROVIDERS &amp; GAMING PARTNERS</span>
-          <div
-            class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 hover:opacity-100 transition-opacity">
+          <div class="blog-provider-marquee" data-provider-marquee aria-label="Official game providers">
+            <div class="blog-provider-marquee-track" data-provider-marquee-track></div>
           </div>
         </div>
-        <div class="w-full text-center pt-6 border-t border-[#1d1108] text-[11px] text-stone-500">
-          <p>Copyright © All Rights Reserved By Free Online Games</p>
+        <div
+          class="w-full flex flex-col sm:flex-row items-center justify-between gap-3 pt-6 border-t border-[#1d1108] text-[11px] text-stone-500">
+          <p>Copyright © All Rights Reserved By Free Online Games Philippines</p>
+          <div class="flex items-center gap-4"><a href="/" class="hover:text-stone-300 transition-colors">Main
+              Lobby</a><a href="/contact" class="hover:text-stone-300 transition-colors">Contact Us</a><a href="/blog"
+              class="hover:text-stone-300 transition-colors">Blog Articles</a></div>
         </div>
       </footer>
       <div
         class="fixed bottom-0 left-0 right-0 z-40 bg-[#160d07] border-t border-[#311f13] py-1.5 px-3 flex items-center justify-around sm:hidden shadow-2xl backdrop-blur-md">
-        <button class="flex flex-col items-center gap-0.5 text-[10px] font-bold text-stone-400"><svg
+        <a href="/" class="flex flex-col items-center gap-0.5 text-[10px] font-bold text-stone-400"><svg
             xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
             class="lucide lucide-house w-5 h-5" aria-hidden="true">
@@ -9240,8 +9618,18 @@ if ($faqEntities !== []) {
             <path
               d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z">
             </path>
-          </svg><span>Tahanan</span></button><button
-          class="flex flex-col items-center gap-0.5 text-[10px] font-bold text-amber-400">
+          </svg><span>Home</span></a>
+        <a href="/promos/"
+          class="flex flex-col items-center gap-0.5 text-[10px] font-bold text-stone-400 hover:text-amber-300"><svg
+            xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            class="lucide lucide-gift w-5 h-5 text-orange-400" aria-hidden="true">
+            <rect x="3" y="8" width="18" height="4" rx="1"></rect>
+            <path d="M12 8v13"></path>
+            <path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"></path>
+            <path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"></path>
+          </svg><span>Promos</span></a>
+        <a href="/playnow" class="flex flex-col items-center gap-0.5 text-[10px] font-bold text-amber-400">
           <div
             class="p-1 rounded-full bg-gradient-to-tr from-amber-500 to-orange-600 text-stone-950 -mt-3 shadow-lg shadow-orange-950">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
@@ -9252,17 +9640,9 @@ if ($faqEntities !== []) {
               </path>
               <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"></path>
             </svg>
-          </div><span>Deposito</span>
-        </button><button
-          class="flex flex-col items-center gap-0.5 text-[10px] font-bold text-stone-400 hover:text-amber-300"><svg
-            xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            class="lucide lucide-gift w-5 h-5 text-orange-400" aria-hidden="true">
-            <rect x="3" y="8" width="18" height="4" rx="1"></rect>
-            <path d="M12 8v13"></path>
-            <path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"></path>
-            <path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"></path>
-          </svg><span>Promosyon</span></button><button
+          </div><span>Play Now!</span>
+        </a>
+        <a href="/contact/"
           class="flex flex-col items-center gap-0.5 text-[10px] font-bold text-stone-400 hover:text-amber-300"><svg
             xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -9270,7 +9650,7 @@ if ($faqEntities !== []) {
             <path
               d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z">
             </path>
-          </svg><span>Tulong</span></button><button
+          </svg><span>Support</span></a><a href="/become-a-partner/"
           class="flex flex-col items-center gap-0.5 text-[10px] font-bold text-stone-400 hover:text-amber-300"><svg
             xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -9279,7 +9659,7 @@ if ($faqEntities !== []) {
               d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z">
             </path>
             <path d="M5 21h14"></path>
-          </svg><span>VIP</span></button>
+          </svg><span>Sponsors</span></a>
       </div>
       <div class="fixed bottom-20 right-4 sm:right-6 z-40 flex flex-col items-end"><button
           class="group relative flex items-center gap-2.5 bg-gradient-to-r from-amber-500 via-orange-500 to-red-600 hover:from-amber-400 hover:to-orange-400 text-stone-950 p-3 sm:px-4 sm:py-3 rounded-full shadow-2xl shadow-orange-950/80 border-2 border-amber-300 transition-all hover:scale-110 active:scale-95 cursor-pointer"
@@ -9324,145 +9704,335 @@ if ($faqEntities !== []) {
           </div>
         </button></div>
     </div>
+  </div>
+  <div id="blog-scroll-promo-modal"
+    class="hidden fixed inset-0 z-50 items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fadeIn overflow-y-auto"
+    style="z-index: 9999;" role="dialog" aria-modal="true" aria-labelledby="blog-scroll-promo-title">
+    <div
+      class="relative w-full max-w-md max-h-[90vh] bg-gradient-to-b from-[#211208] via-[#1a0e06] to-[#0d0703] border-2 border-amber-500/60 rounded-2xl sm:rounded-3xl shadow-2xl shadow-orange-950/90 overflow-hidden flex flex-col transform transition-all"
+      data-blog-scroll-promo-panel>
+      <div class="absolute -top-12 -left-12 w-32 h-32 bg-amber-500/20 rounded-full blur-2xl pointer-events-none"></div>
+      <div class="absolute -bottom-12 -right-12 w-32 h-32 bg-orange-600/20 rounded-full blur-2xl pointer-events-none">
       </div>
-      <script>
-        (() => {
-          const playUrl = '/playnow';
-          const internalLinks = {
-            'nav-item-home': '/',
-            'nav-item-slots': '/slots/',
-            'nav-item-arcade': '/arcade/',
-            'nav-item-perya': '/perya-games/',
-            'nav-item-live': '/live-casino/',
-            'nav-item-cards': '/card-games/',
-            'nav-item-fish': '/fishing-games/',
-            'nav-item-sports': '/sports-betting/',
-            'nav-item-invite': '/invite/',
-            'nav-item-vip': '/vip/',
-            'nav-item-payments': '/payments/',
-            'nav-item-blogs': '/blog/'
-          };
+      <button type="button"
+        class="absolute top-2.5 right-2.5 sm:top-3.5 sm:right-3.5 w-10 h-10 flex items-center justify-center rounded-full bg-[#2a1b10]/90 hover:bg-[#3a2618] text-stone-300 hover:text-white transition-colors z-20 cursor-pointer border border-amber-500/30"
+        aria-label="Close modal" data-blog-scroll-promo-close>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+          class="lucide lucide-x w-5 h-5" aria-hidden="true">
+          <path d="M18 6 6 18"></path>
+          <path d="m6 6 12 12"></path>
+        </svg>
+      </button>
+      <div class="p-4 sm:p-6 pt-5 sm:pt-7 text-center space-y-3.5 sm:space-y-4 overflow-y-auto">
+        <div
+          class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-stone-950 font-black text-[11px] sm:text-sm uppercase tracking-wider shadow-lg shadow-orange-950/50">
+          <span>Bonus Unlocked</span>
+        </div>
+        <div class="relative mx-auto w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center">
+          <div
+            class="absolute inset-0 bg-gradient-to-tr from-amber-500 to-orange-500 rounded-2xl rotate-6 opacity-30 animate-pulse">
+          </div>
+          <div
+            class="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-b from-[#3a2010] to-[#201006] border-2 border-amber-400/80 flex items-center justify-center shadow-inner p-2.5">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              class="lucide lucide-gift w-8 h-8 sm:w-10 sm:h-10 text-amber-400" aria-hidden="true">
+              <rect x="3" y="8" width="18" height="4" rx="1"></rect>
+              <path d="M12 8v13"></path>
+              <path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"></path>
+              <path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"></path>
+            </svg>
+          </div>
+          <div
+            class="absolute -top-1.5 -right-1.5 bg-red-600 text-white font-black text-[9px] sm:text-[10px] px-2 py-0.5 rounded-full border border-amber-300 shadow">
+            FREE</div>
+        </div>
+        <div class="space-y-1 sm:space-y-1.5">
+          <h3 id="blog-scroll-promo-title"
+            class="text-xl sm:text-2xl font-black text-white tracking-tight leading-tight">Exclusive ₱500 Special Bonus!
+          </h3>
+          <p class="text-[11px] sm:text-sm text-amber-200/90 leading-relaxed max-w-xs mx-auto">Thank you for reading
+            this guide. Claim an instant ₱500 free Red Envelope bonus to start playing today.</p>
+        </div>
+        <div
+          class="bg-[#120a05] border border-amber-500/40 rounded-xl sm:rounded-2xl p-3 sm:p-3.5 flex items-center justify-between text-left shadow-inner gap-2">
+          <div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div
+              class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center text-amber-400 shrink-0">
+              ₱</div>
+            <div class="min-w-0">
+              <span class="text-[9px] sm:text-[10px] text-stone-400 font-medium block truncate">Welcome Red
+                Envelope</span>
+              <span class="text-sm sm:text-sm font-black text-amber-300 truncate block">₱500.00 Free Cash</span>
+            </div>
+          </div>
+          <div class="text-right shrink-0">
+            <span
+              class="inline-block px-2 py-0.5 sm:py-1 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 font-extrabold text-[9px] sm:text-[10px]">Instant</span>
+          </div>
+        </div>
+        <div class="space-y-2 pt-1">
+          <a href="/playnow"
+            class="primary-orange-button w-full font-black py-3 sm:py-3.5 px-3 rounded-xl sm:rounded-2xl shadow-xl shadow-orange-950/80 transition-all text-sm sm:text-sm flex items-center justify-center gap-2 transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer inline-flex"
+            data-blog-scroll-promo-claim>
+            <span>CLAIM ₱500 BONUS NOW</span>
+          </a>
+          <button type="button"
+            class="text-sm font-bold text-stone-400 hover:text-white transition-colors py-1 cursor-pointer"
+            data-blog-scroll-promo-close>Maybe Later</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    (() => {
+      const playUrl = <?= json_encode(public_url('/playnow', $siteBaseUrl), JSON_UNESCAPED_SLASHES) ?>;
+      const internalLinks = {
+        'nav-item-home': <?= json_encode(public_url('/', $siteBaseUrl), JSON_UNESCAPED_SLASHES) ?>,
+        'nav-item-slots': <?= json_encode(public_url('/slots/', $siteBaseUrl), JSON_UNESCAPED_SLASHES) ?>,
+        'nav-item-arcade': <?= json_encode(public_url('/arcade/', $siteBaseUrl), JSON_UNESCAPED_SLASHES) ?>,
+        'nav-item-perya': <?= json_encode(public_url('/perya-games/', $siteBaseUrl), JSON_UNESCAPED_SLASHES) ?>,
+        'nav-item-live': <?= json_encode(public_url('/live-casino/', $siteBaseUrl), JSON_UNESCAPED_SLASHES) ?>,
+        'nav-item-cards': <?= json_encode(public_url('/card-games/', $siteBaseUrl), JSON_UNESCAPED_SLASHES) ?>,
+        'nav-item-fish': <?= json_encode(public_url('/fishing-games/', $siteBaseUrl), JSON_UNESCAPED_SLASHES) ?>,
+        'nav-item-sports': <?= json_encode(public_url('/sports-betting/', $siteBaseUrl), JSON_UNESCAPED_SLASHES) ?>,
+        'nav-item-invite': <?= json_encode(public_url('/invite/', $siteBaseUrl), JSON_UNESCAPED_SLASHES) ?>,
+        'nav-item-vip': <?= json_encode(public_url('/vip/', $siteBaseUrl), JSON_UNESCAPED_SLASHES) ?>,
+        'nav-item-payments': <?= json_encode(public_url('/payments/', $siteBaseUrl), JSON_UNESCAPED_SLASHES) ?>,
+        'nav-item-partner': <?= json_encode(public_url('/become-a-partner/', $siteBaseUrl), JSON_UNESCAPED_SLASHES) ?>,
+        'nav-item-blogs': <?= json_encode(public_url('/blog/', $siteBaseUrl), JSON_UNESCAPED_SLASHES) ?>
+      };
 
-          function go(url) {
-            window.location.href = url;
-          }
+      Object.entries(internalLinks).forEach(([id, url]) => {
+        const button = document.getElementById(id);
+        if (!button || button.tagName.toLowerCase() !== 'button') return;
+        const link = document.createElement('a');
+        Array.from(button.attributes).forEach((attribute) => link.setAttribute(attribute.name, attribute.value));
+        link.href = url;
+        link.removeAttribute('type');
+        link.innerHTML = button.innerHTML;
+        button.replaceWith(link);
+      });
 
-          function wireById(id, url) {
-            const element = document.getElementById(id);
-            if (!element) return;
-            element.addEventListener('click', () => go(url));
-          }
+      const sidebar = document.querySelector('aside');
+      const menuToggle = document.getElementById('btn-toggle-sidebar');
+      const menuOverlay = document.querySelector('button[aria-label="Close menu"]');
+      const closeMenu = () => {
+        if (sidebar) sidebar.style.display = 'none';
+        if (menuOverlay) menuOverlay.style.display = 'none';
+      };
+      const openMenu = () => {
+        if (sidebar) sidebar.style.display = 'flex';
+        if (menuOverlay) menuOverlay.style.display = 'block';
+      };
+      menuToggle?.addEventListener('click', openMenu);
+      menuOverlay?.addEventListener('click', closeMenu);
+      document.querySelector('aside button[title="Close Menu"]')?.addEventListener('click', closeMenu);
+      const mobileSidebarQuery = window.matchMedia('(max-width: 639px)');
+      const syncSidebarForViewport = () => mobileSidebarQuery.matches ? closeMenu() : openMenu();
+      syncSidebarForViewport();
+      mobileSidebarQuery.addEventListener?.('change', syncSidebarForViewport);
+      document.querySelectorAll('aside button[aria-controls]').forEach((button) => {
+        const target = document.getElementById(button.getAttribute('aria-controls') || '');
+        if (!target) return;
+        const chevron = button.querySelector('.lucide-chevron-right');
+        button.addEventListener('click', () => {
+          const isExpanded = button.getAttribute('aria-expanded') === 'true';
+          button.setAttribute('aria-expanded', String(!isExpanded));
+          target.hidden = isExpanded;
+          chevron?.classList.toggle('rotate-90', !isExpanded);
+        });
+      });
 
-          Object.entries(internalLinks).forEach(([id, url]) => wireById(id, url));
+      function go(url) {
+        window.location.href = url;
+      }
 
-          const buttonLinks = [
-            { text: 'BACK TO ALL ARTICLES', url: '/blog/' },
-            { text: 'BACK TO BLOGS', url: '/blog/' },
-            { text: 'PLAY & CLAIM BONUS NOW', url: playUrl },
-            { text: 'Simulan', url: playUrl },
-            { text: 'App', url: playUrl },
-            { text: '24/7 Live Support', url: playUrl },
-            { text: 'Open CS Support Chatbot', url: playUrl, aria: true },
-            { text: 'Floating Lucky Slot Wheel', url: playUrl, aria: true },
-            { text: 'Deposito', url: playUrl },
-            { text: 'Promosyon', url: playUrl },
-            { text: 'Tulong', url: playUrl },
-            { text: 'VIP', url: playUrl }
-          ];
+      function wireById(id, url) {
+        const element = document.getElementById(id);
+        if (!element) return;
+        element.addEventListener('click', () => go(url));
+      }
 
-          document.querySelectorAll('button').forEach((button) => {
-            if (button.hasAttribute('data-blog-reaction') || internalLinks[button.id] || button.id === 'btn-toggle-sidebar' || button.getAttribute('aria-label') === 'Close menu') {
-              return;
+      Object.entries(internalLinks).forEach(([id, url]) => wireById(id, url));
+
+      const buttonLinks = [
+        { text: 'BACK TO ALL ARTICLES', url: <?= json_encode(public_url('/blog/', $siteBaseUrl), JSON_UNESCAPED_SLASHES) ?> },
+        { text: 'BACK TO BLOGS', url: <?= json_encode(public_url('/blog/', $siteBaseUrl), JSON_UNESCAPED_SLASHES) ?> },
+        { text: 'PLAY & CLAIM BONUS NOW', url: playUrl },
+        { text: 'Simulan', url: playUrl },
+        { text: 'App', url: playUrl },
+        { text: '24/7 Live Support', url: playUrl },
+        { text: 'Open CS Support Chatbot', url: playUrl, aria: true },
+        { text: 'Floating Lucky Slot Wheel', url: playUrl, aria: true },
+        { text: 'Deposito', url: playUrl },
+        { text: 'Promosyon', url: playUrl },
+        { text: 'Tulong', url: playUrl },
+        { text: 'VIP', url: playUrl }
+      ];
+
+      document.querySelectorAll('button').forEach((button) => {
+        if (button.hasAttribute('data-blog-reaction') || button.hasAttribute('aria-controls') || internalLinks[button.id] || button.id === 'btn-toggle-sidebar' || button.getAttribute('aria-label') === 'Close menu') {
+          return;
+        }
+        const label = (button.getAttribute('aria-label') || button.textContent || '').replace(/\s+/g, ' ').trim();
+        if (label.includes('Tahanan')) {
+          button.addEventListener('click', () => go('/'));
+          return;
+        }
+        const match = buttonLinks.find((item) => item.aria ? label === item.text : label.includes(item.text));
+        if (!match) return;
+        button.addEventListener('click', () => go(match.url));
+      });
+
+      document.querySelectorAll('.cursor-pointer').forEach((element) => {
+        const label = (element.textContent || '').replace(/\s+/g, ' ').trim();
+        if (label.includes('Claim Bonus') || label.includes('Follow Official Channel')) {
+          element.addEventListener('click', () => go(playUrl));
+        }
+      });
+
+      const scrollPromoModal = document.getElementById('blog-scroll-promo-modal');
+      let scrollPromoShown = false;
+      const closeScrollPromo = () => {
+        if (!scrollPromoModal) return;
+        scrollPromoModal.classList.add('hidden');
+        scrollPromoModal.classList.remove('flex');
+      };
+      const openScrollPromo = () => {
+        if (!scrollPromoModal || scrollPromoShown) return;
+        scrollPromoShown = true;
+        scrollPromoModal.classList.remove('hidden');
+        scrollPromoModal.classList.add('flex');
+      };
+      let scrollPromoTicking = false;
+      const checkScrollPromoPosition = () => {
+        scrollPromoTicking = false;
+        if (scrollPromoShown) return;
+        const documentElement = document.documentElement;
+        const scrollTop = window.scrollY || documentElement.scrollTop;
+        const documentHeight = documentElement.scrollHeight;
+        if (scrollTop + window.innerHeight < documentHeight - 64) return;
+        openScrollPromo();
+        window.removeEventListener('scroll', onScrollPromoScroll);
+      };
+      const onScrollPromoScroll = () => {
+        if (scrollPromoShown || scrollPromoTicking) return;
+        scrollPromoTicking = true;
+        window.requestAnimationFrame(checkScrollPromoPosition);
+      };
+      scrollPromoModal?.addEventListener('click', (event) => {
+        if (event.target === scrollPromoModal) closeScrollPromo();
+      });
+      scrollPromoModal?.querySelector('[data-blog-scroll-promo-panel]')?.addEventListener('click', (event) => event.stopPropagation());
+      scrollPromoModal?.querySelectorAll('[data-blog-scroll-promo-close], [data-blog-scroll-promo-claim]').forEach((element) => {
+        element.addEventListener('click', closeScrollPromo);
+      });
+      window.addEventListener('scroll', onScrollPromoScroll, { passive: true });
+
+      const providerTrack = document.querySelector('[data-provider-marquee-track]');
+      const renderProviders = (providers) => {
+        if (!providerTrack || !Array.isArray(providers) || providers.length === 0) return;
+        const items = providers
+          .filter((provider) => provider && provider.name)
+          .slice(0, 24);
+        if (!items.length) return;
+        const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g, (character) => ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#039;'
+        })[character]);
+        const providerMarkup = items.concat(items).map((provider) => {
+          const name = escapeHtml(provider.name);
+          const search = encodeURIComponent(provider.name);
+          const image = provider.thumbnail ? `<img src="${escapeHtml(provider.thumbnail)}" alt="${name}" width="160" height="64" loading="lazy" decoding="async">` : '';
+          return `<a class="blog-provider-item" href="<?= blog_h(public_url('/search', $siteBaseUrl)) ?>?q=${search}">${image}<span>${name}</span></a>`;
+        }).join('');
+        providerTrack.innerHTML = providerMarkup;
+      };
+      if (providerTrack) {
+        fetch('/api/provider-list.php?count=24', {
+          headers: { 'Accept': 'application/json', 'X-Requested-With': 'fetch' }
+        })
+          .then((response) => response.ok ? response.json() : null)
+          .then((payload) => renderProviders(payload?.providers || []))
+          .catch(() => { });
+      }
+
+      const shareUrl = encodeURIComponent(<?= json_encode($canonical, JSON_UNESCAPED_SLASHES) ?>);
+      const shareTitle = encodeURIComponent(<?= json_encode($articleTitle, JSON_UNESCAPED_SLASHES) ?>);
+      const shareLinks = {
+        Facebook: `https://www.facebook.com/sharer/sharer.php?u=${shareUrl}`,
+        Telegram: `https://t.me/share/url?url=${shareUrl}&text=${shareTitle}`,
+        'X (Twitter)': `https://twitter.com/intent/tweet?url=${shareUrl}&text=${shareTitle}`,
+        WhatsApp: `https://api.whatsapp.com/send?text=${shareTitle}%20${shareUrl}`
+      };
+
+      document.querySelectorAll('button').forEach((button) => {
+        const label = (button.textContent || '').replace(/\s+/g, ' ').trim();
+        if (shareLinks[label]) {
+          button.addEventListener('click', () => window.open(shareLinks[label], '_blank', 'noopener,noreferrer'));
+        }
+        if (label === 'Copy Link') {
+          button.addEventListener('click', async () => {
+            try {
+              await navigator.clipboard.writeText(<?= json_encode($canonical, JSON_UNESCAPED_SLASHES) ?>);
+              button.querySelector('span:last-child').textContent = 'Copied';
+            } catch (error) {
+              go(<?= json_encode($canonical, JSON_UNESCAPED_SLASHES) ?>);
             }
-            const label = (button.getAttribute('aria-label') || button.textContent || '').replace(/\s+/g, ' ').trim();
-            if (label.includes('Tahanan')) {
-              button.addEventListener('click', () => go('/'));
-              return;
-            }
-            const match = buttonLinks.find((item) => item.aria ? label === item.text : label.includes(item.text));
-            if (!match) return;
-            button.addEventListener('click', () => go(match.url));
           });
+        }
+      });
+    })();
+  </script>
+  <script>
+    (() => {
+      const postId = <?= json_encode((string) $post['id'], JSON_UNESCAPED_SLASHES) ?>;
+      const viewCount = document.getElementById('blog-view-count');
+      const likeCount = document.getElementById('blog-like-count');
+      const dislikeCount = document.getElementById('blog-dislike-count');
 
-          document.querySelectorAll('.cursor-pointer').forEach((element) => {
-            const label = (element.textContent || '').replace(/\s+/g, ' ').trim();
-            if (label.includes('Claim Bonus') || label.includes('Follow Official Channel')) {
-              element.addEventListener('click', () => go(playUrl));
-            }
-          });
+      function formatCount(value, label) {
+        const count = Number.parseInt(String(value || '0'), 10) || 0;
+        return count.toLocaleString() + ' ' + label;
+      }
 
-          const shareUrl = encodeURIComponent(<?= json_encode($canonical, JSON_UNESCAPED_SLASHES) ?>);
-          const shareTitle = encodeURIComponent(<?= json_encode($articleTitle, JSON_UNESCAPED_SLASHES) ?>);
-          const shareLinks = {
-            Facebook: `https://www.facebook.com/sharer/sharer.php?u=${shareUrl}`,
-            Telegram: `https://t.me/share/url?url=${shareUrl}&text=${shareTitle}`,
-            'X (Twitter)': `https://twitter.com/intent/tweet?url=${shareUrl}&text=${shareTitle}`,
-            WhatsApp: `https://api.whatsapp.com/send?text=${shareTitle}%20${shareUrl}`
-          };
+      function updateCounts(counts) {
+        if (!counts) return;
+        if (viewCount) viewCount.textContent = formatCount(counts.views, 'views');
+        if (likeCount) likeCount.textContent = String(Number.parseInt(String(counts.likes || '0'), 10) || 0);
+        if (dislikeCount) dislikeCount.textContent = String(Number.parseInt(String(counts.dislikes || '0'), 10) || 0);
+      }
 
-          document.querySelectorAll('button').forEach((button) => {
-            const label = (button.textContent || '').replace(/\s+/g, ' ').trim();
-            if (shareLinks[label]) {
-              button.addEventListener('click', () => window.open(shareLinks[label], '_blank', 'noopener,noreferrer'));
-            }
-            if (label === 'Copy Link') {
-              button.addEventListener('click', async () => {
-                try {
-                  await navigator.clipboard.writeText(<?= json_encode($canonical, JSON_UNESCAPED_SLASHES) ?>);
-                  button.querySelector('span:last-child').textContent = 'Copied';
-                } catch (error) {
-                  go(<?= json_encode($canonical, JSON_UNESCAPED_SLASHES) ?>);
-                }
-              });
-            }
-          });
-        })();
-      </script>
-      <script>
-        (() => {
-          const postId = <?= json_encode((string) $post['id'], JSON_UNESCAPED_SLASHES) ?>;
-          const viewCount = document.getElementById('blog-view-count');
-          const likeCount = document.getElementById('blog-like-count');
-          const dislikeCount = document.getElementById('blog-dislike-count');
-
-          function formatCount(value, label) {
-            const count = Number.parseInt(String(value || '0'), 10) || 0;
-            return count.toLocaleString() + ' ' + label;
-          }
-
-          function updateCounts(counts) {
-            if (!counts) return;
-            if (viewCount) viewCount.textContent = formatCount(counts.views, 'views');
-            if (likeCount) likeCount.textContent = String(Number.parseInt(String(counts.likes || '0'), 10) || 0);
-            if (dislikeCount) dislikeCount.textContent = String(Number.parseInt(String(counts.dislikes || '0'), 10) || 0);
-          }
-
-          document.querySelectorAll('[data-blog-reaction]').forEach((button) => {
-            button.addEventListener('click', async () => {
-              const action = button.getAttribute('data-blog-reaction') || '';
-              button.disabled = true;
-              try {
-                const response = await fetch('/api/blog-engagement.php', {
-                  method: 'POST',
-                  headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'fetch'
-                  },
-                  body: JSON.stringify({ postId, action })
-                });
-                const result = await response.json();
-                if (response.ok && result.ok) updateCounts(result.counts);
-              } catch (error) {
-                console.error('Blog reaction failed', error);
-              } finally {
-                button.disabled = false;
-              }
+      document.querySelectorAll('[data-blog-reaction]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const action = button.getAttribute('data-blog-reaction') || '';
+          button.disabled = true;
+          try {
+            const response = await fetch('/api/blog-engagement.php', {
+              method: 'POST',
+              headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'fetch'
+              },
+              body: JSON.stringify({ postId, action })
             });
-          });
-        })();
-      </script>
-      <script type="module" src="/src/main.tsx"></script>
+            const result = await response.json();
+            if (response.ok && result.ok) updateCounts(result.counts);
+          } catch (error) {
+            console.error('Blog reaction failed', error);
+          } finally {
+            button.disabled = false;
+          }
+        });
+      });
+    })();
+  </script>
 
 
 </body>
