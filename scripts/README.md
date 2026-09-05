@@ -1,0 +1,204 @@
+# Scripts
+
+Utility scripts for maintaining the site, admin credentials, blog API access, static routes, assets, and game data.
+
+Run commands from the project root unless noted otherwise:
+
+```sh
+cd /path/to/www
+```
+
+## Requirements
+
+- PHP CLI for `.php` scripts.
+- Node.js for `.cjs` scripts.
+- Python 3 for `enrich-game-descriptions.py`.
+- SQLite support in PHP/Python for scripts that read or update `storage/blogs.sqlite`.
+- A configured `.env` file when scripts need app settings or API credentials.
+
+## Safety Notes
+
+Some scripts modify files or database records:
+
+- `sync-static-routes.php`, `sync-blog-routes.php`, `sync-game-routes.php`, and `build-static-routes.sh` write route `index.html` files.
+- `apply-noindex.cjs` rewrites robots meta tags in `.html` and `.php` files.
+- `minify-assets.cjs` rewrites minified CSS/JS assets.
+- `import-slotslaunch-*.php` update game/provider tables in `storage/blogs.sqlite`.
+- `enrich-game-descriptions.*` update game descriptions, RTP, and volatility unless `--dry-run` is used.
+
+Use `--dry-run` when available before running data imports or enrichment on production data.
+
+## Script Reference
+
+### `generate-password.php`
+
+Generate a password hash for the admin login.
+
+```sh
+php scripts/generate-password.php
+*write your password*
+*copy password and paste it to .env*
+```
+
+The output can be used as `ADMIN_PASSWORD_HASH` in `.env`.
+
+### `generate-blog-api-token.php`
+
+Generate a signed JWT for the public blog post list API.
+
+```sh
+php scripts/generate-blog-api-token.php
+php scripts/generate-blog-api-token.php 604800
+```
+
+The optional argument is the token lifetime in seconds. Values are clamped between 300 seconds and 31,536,000 seconds.
+
+### `sync-static-routes.php`
+
+Create static `index.html` route files from the root `index.html` app shell.
+
+```sh
+php scripts/sync-static-routes.php
+```
+
+It writes fixed routes like `app`, `blog`, `blogs`, `contact`, `invite`, `payments`, `support`, and `vip`. If `storage/blogs.sqlite` exists, it also writes published game and blog routes.
+
+### `sync-blog-routes.php` and `sync-game-routes.php`
+
+Compatibility wrappers around `sync-static-routes.php`.
+
+```sh
+php scripts/sync-blog-routes.php
+php scripts/sync-game-routes.php
+```
+
+### `build-static-routes.sh`
+
+Shell wrapper around `sync-static-routes.php`.
+
+```sh
+scripts/build-static-routes.sh
+```
+
+### `minify-assets.cjs`
+
+Minify the main CSS and JavaScript files.
+
+```sh
+node scripts/minify-assets.cjs
+```
+
+Writes:
+
+- `assets/css/styles.min.css`
+- `assets/js/main.min.js`
+- `assets/js/blog.min.js`
+
+### `apply-noindex.cjs`
+
+Set robots meta tags to `index, follow` across `.html` and `.php` files, excluding `uploads`.
+
+```sh
+node scripts/apply-noindex.cjs
+```
+
+Despite the filename, the current script writes:
+
+```html
+<meta name="robots" content="index, follow">
+```
+
+### `import-slotslaunch-providers.php`
+
+Import or update game providers from the SlotsLaunch providers API.
+
+```sh
+php scripts/import-slotslaunch-providers.php
+php scripts/import-slotslaunch-providers.php --page=2
+php scripts/import-slotslaunch-providers.php --url=https://example.test/providers.json
+```
+
+Environment variables:
+
+- `SLOTSLAUNCH_API_TOKEN`, `SLOTSLAUNCH_TOKEN`, or `GAMES_API_TOKEN`
+- `SLOTSLAUNCH_PROVIDERS_API_URL`
+- `SLOTSLAUNCH_ORIGIN`
+
+### `import-slotslaunch-games.php`
+
+Import or update games from the SlotsLaunch games API.
+
+```sh
+php scripts/import-slotslaunch-games.php
+php scripts/import-slotslaunch-games.php --dry-run --limit=25
+php scripts/import-slotslaunch-games.php --page=2 --max-pages=5
+php scripts/import-slotslaunch-games.php --url=https://example.test/games.json
+```
+
+Options:
+
+- `--dry-run`: fetch and count rows without changing the database.
+- `--limit=N`: import or fetch at most `N` games.
+- `--page=N`: start from a specific API page.
+- `--max-pages=N`: stop after at most `N` pages.
+- `--url=URL`: override the default games endpoint.
+
+Environment variables:
+
+- `SLOTSLAUNCH_API_TOKEN`, `SLOTSLAUNCH_TOKEN`, or `GAMES_API_TOKEN`
+- `SLOTSLAUNCH_GAMES_API_URL`
+- `SLOTSLAUNCH_START_PAGE`
+- `SLOTSLAUNCH_MAX_PAGES`
+- `SLOTSLAUNCH_ORIGIN`
+
+### `enrich-game-descriptions.php`
+
+Generate or fill missing game RTP, volatility, short descriptions, and long descriptions using Ollama. Falls back to local generated copy if Ollama fails.
+
+```sh
+php scripts/enrich-game-descriptions.php --dry-run --limit=10
+php scripts/enrich-game-descriptions.php --limit=50 --offset=100
+php scripts/enrich-game-descriptions.php --slug=game-slug
+php scripts/enrich-game-descriptions.php --fallback-only --limit=25
+```
+
+Options:
+
+- `--limit=N`: number of games to process, from 1 to 500. Default: 25.
+- `--offset=N`: database offset. Default: 0.
+- `--timeout=N`: Ollama request timeout in seconds, from 30 to 3600. Default: 420.
+- `--retries=N`: Ollama retry count, from 0 to 5. Default: 1.
+- `--model=NAME`: Ollama model name.
+- `--ollama-url=URL`: direct Ollama generate endpoint.
+- `--slug=SLUG`: process one game slug.
+- `--overwrite`: replace existing enrichment values.
+- `--dry-run`: show what would happen without updating rows.
+- `--skip-errors`: accepted by the script output/config, but current PHP flow falls back on generation failures.
+- `--fallback-only`: skip Ollama and use local fallback copy.
+
+Environment variables:
+
+- `OLLAMA_HOST`
+- `OLLAMA_GENERATE_URL`
+- `OLLAMA_MODEL`
+
+### `enrich-game-descriptions.py`
+
+Python version of the game enrichment workflow.
+
+```sh
+python3 scripts/enrich-game-descriptions.py --dry-run --limit 10
+python3 scripts/enrich-game-descriptions.py --slug game-slug --overwrite
+python3 scripts/enrich-game-descriptions.py --fallback-only --once
+```
+
+Options include `--limit`, `--offset`, `--timeout`, `--retries`, `--model`, `--ollama-url`, `--slug`, `--overwrite`, `--dry-run`, `--skip-errors`, `--fallback-only`, `--once`, and `--verbose`.
+
+## Generated Files
+
+Do not edit these manually unless you are intentionally replacing generated output:
+
+- Minified files written by `minify-assets.cjs`.
+- Static route `index.html` files written by route sync scripts.
+- `scripts/__pycache__/` Python cache files.
+

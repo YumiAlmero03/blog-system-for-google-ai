@@ -5,12 +5,7 @@ require_once __DIR__ . '/includes/blog-storage.php';
 
 function games_sitemap_base_url(): string
 {
-    $baseUrl = env_value('SITE_BASE_URL');
-    if (!is_string($baseUrl) || $baseUrl === '') {
-        $baseUrl = 'http://localhost';
-    }
-
-    return rtrim($baseUrl, '/');
+    return site_base_url();
 }
 
 function games_sitemap_xml_escape(string $value): string
@@ -24,7 +19,7 @@ $baseUrl = games_sitemap_base_url();
 $stmt = blogs_pdo()->query(
     'SELECT slug, MAX(updated_at) AS updated_at
      FROM games
-     WHERE slug <> "" AND published = 1
+    WHERE slug <> "" AND published = 1 AND done_processing = 1
      GROUP BY slug
      ORDER BY slug ASC'
 );

@@ -20,7 +20,7 @@ $retryMinutes = isset($_GET['retry']) && ctype_digit((string) $_GET['retry']) ? 
   <title>Admin Login | Blog Manager</title>
   <meta name="robots" content="noindex, nofollow">
   <link rel="preload" href="/admin/style.css" as="style"><link rel="stylesheet" href="/admin/style.css">
-  <link rel="icon" href="/assets/icons/favicon.ico">
+  <link rel="icon" href="/assets/favicon.ico">
   <style>
     .admin-login-box {
       max-width: 420px;

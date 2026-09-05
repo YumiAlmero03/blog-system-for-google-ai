@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="144" viewBox="0 0 360 144" role="img" aria-labelledby="title desc">
+  <title id="title">ByBet placeholder</title>
+  <desc id="desc">Placeholder partner logo for ByBet</desc>
+  <rect width="360" height="144" rx="18" fill="#160d07"/>
+  <rect x="8" y="8" width="344" height="128" rx="14" fill="#1f130a" stroke="#f59e0b" stroke-opacity="0.45" stroke-width="2"/>
+  <circle cx="68" cy="72" r="34" fill="#f59e0b" fill-opacity="0.16"/>
+  <path d="M52 92V52h26c8.5 0 14 4.3 14 10.9 0 4.2-2.1 7.4-5.8 9.2 5 1.6 7.8 5 7.8 9.6 0 6.4-5.6 10.3-14.7 10.3H52Zm11-24h13.1c3.5 0 5.6-1.7 5.6-4.4 0-2.6-2.1-4.2-5.6-4.2H63V68Zm0 16.6h14.4c3.7 0 5.8-1.7 5.8-4.5s-2.2-4.5-5.9-4.5H63v9Z" fill="#fbbf24"/>
+  <text x="122" y="82" fill="#fff7ed" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="800">ByBet</text>
+  <text x="124" y="105" fill="#d6d3d1" font-family="Arial, Helvetica, sans-serif" font-size="14" font-weight="700" letter-spacing="2">PARTNER PLACEHOLDER</text>
+</svg>

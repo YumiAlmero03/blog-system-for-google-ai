@@ -1,8 +1,26 @@
 #!/usr/bin/env python3
+# python3 -m scripts.enrich_game_descriptions /help
+# --limit 25 = limits the number of games processed per batch
+# --offset 0 = skips the first N games in the query 
+# --timeout 420 = seconds to wait for Ollama to respond
+# --retries 1 = number of times to retry Ollama generation on failure
+# --model = Ollama model to use (default: env OLLAMA_MODEL or first installed preferred model)
+# --ollama-url = Ollama generate endpoint (default: env OLLAMA_GENERATE
+# --slug = process only the game with this slug
+# --overwrite = overwrite existing values even if they are present
+# --dry-run = do not update the database, just print what would be done
+# --skip-errors = skip games that fail Ollama generation instead of stopping the script
+# --fallback-only = do not use Ollama, only use the fallback generation method
+# --all-games = update all game rows, ignoring existing values  
+# --blog-reset = clear all blog posts and engagements
+# --tracker-reset = clear the blog tracker file
+# --once = process one batch only, using --limit and --offset
+# --verbose = print each game slug while processing
 from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import random
 import re
@@ -17,6 +35,8 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 DB_PATH = ROOT / "storage" / "blogs.sqlite"
+LOG_PATH = ROOT / "storage" / "enrich-game-descriptions.log"
+LOGGER = logging.getLogger("enrich-game-descriptions")
 PREFERRED_MODELS = [
     "qwen3.5:9b",
     "qwen3:8b",
@@ -24,6 +44,32 @@ PREFERRED_MODELS = [
     "gemma4:31b-cloud",
     "tinyllama:latest",
 ]
+
+
+def configure_logging() -> None:
+    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    handler = logging.FileHandler(LOG_PATH, encoding="utf-8")
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    LOGGER.setLevel(logging.INFO)
+    LOGGER.handlers.clear()
+    LOGGER.addHandler(handler)
+    LOGGER.propagate = False
+
+
+def prevent_game_directory_writes() -> None:
+    forbidden_roots = (ROOT / "game", ROOT / "games")
+    for root in forbidden_roots:
+        if root.exists() and not root.is_dir():
+            raise RuntimeError(f"Refusing to use non-directory game path: {root}")
+
+
+def log_error(action: str, error: Exception, game: sqlite3.Row | None = None) -> None:
+    subject = f" game_id={game['id']} game_name={game['name']!r}" if game is not None else ""
+    LOGGER.exception("%s command=%s%s error=%s", action, COMMAND_CONTEXT, subject, error)
+
+
+COMMAND_CONTEXT = "script " + " ".join(argument.split("=", 1)[0] for argument in sys.argv[1:])
+configure_logging()
 
 
 def env_value(name: str) -> str | None:
@@ -35,7 +81,13 @@ def env_value(name: str) -> str | None:
     if not env_path.exists():
         return None
 
-    for line in env_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+    try:
+        lines = env_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    except OSError as exc:
+        LOGGER.warning("file operation command=%s file=.env error=%s", COMMAND_CONTEXT, exc)
+        return None
+
+    for line in lines:
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -54,7 +106,8 @@ def installed_models() -> list[str]:
     try:
         with urllib.request.urlopen(f"{ollama_base_url()}/api/tags", timeout=10) as response:
             payload = json.loads(response.read().decode("utf-8"))
-    except Exception:
+    except Exception as exc:
+        LOGGER.warning("API call command=%s endpoint=/api/tags error=%s", COMMAND_CONTEXT, exc)
         return []
 
     models = payload.get("models", [])
@@ -162,9 +215,14 @@ def build_prompt(game: sqlite3.Row, rtp: float, volatility: str) -> str:
         f"{game_context(game, rtp, volatility)}\n\n"
         "Return only valid JSON with exactly these keys:\n"
         "- short_description: under 160 characters, one sentence, no hype claims.\n"
-        '- long_description: 650 to 800 words, written under the topic "Overview & Game Mechanics". '
-        "Explain likely gameplay flow, symbols/features in general terms, RTP, volatility, demo play, bankroll pacing, and mobile experience. "
-        "Do not promise winnings. Do not mention that you are an AI. Do not invent official license details.\n"
+        "- long_description: 650 to 800 words of valid HTML content using only <h2>, <h3>, and <p> for structure. "
+        "The very first content must be a normal introduction paragraph using <p>. "
+        "Do not place any <h2> before the introduction. Do not use an <h1>. Do not use Markdown headings. "
+        "Do not generate an Overview heading in any form, including 'Overview & Game Mechanics' or '<h2>Overview of [Game Name]</h2>'. "
+        "After the introduction, use natural, relevant <h2> and <h3> sections tailored to the actual game facts, such as how the game works, symbols and features, bonus or special features when supported, RTP and volatility, demo play and bankroll pacing, mobile experience, and final thoughts. "
+        "Keep headings specific to the title and avoid repetitive or generic wording. Do not invent game-specific features that are not provided. "
+        "Do not promise winnings. Do not mention that you are an AI. Do not invent official license details. "
+        "Return valid JSON only, with exactly short_description and long_description and no extra fields.\n"
     )
 
 
@@ -213,8 +271,7 @@ def ollama_generate(url: str, model: str, prompt: str, timeout: int) -> dict[str
         with urllib.request.urlopen(request, timeout=timeout) as response:
             raw = response.read().decode("utf-8")
     except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"Ollama returned HTTP {exc.code}: {body[:300]}") from exc
+        raise RuntimeError(f"Ollama returned HTTP {exc.code}") from exc
 
     if not raw:
         raise RuntimeError("Ollama returned an empty response.")
@@ -247,14 +304,27 @@ def normalize_long_description(value: str) -> str:
     if not value:
         return ""
     if not value.lower().startswith("overview & game mechanics"):
-        value = "Overview & Game Mechanics\n\n" + value
+        value = "\n\n" + value
     return value
 
 
-def select_games(conn: sqlite3.Connection, args: argparse.Namespace) -> list[sqlite3.Row]:
+def ensure_rewrite_status_column(conn: sqlite3.Connection) -> None:
+    try:
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(games)")}
+        if "rewrite_status" not in columns:
+            conn.execute("ALTER TABLE games ADD COLUMN rewrite_status TEXT NOT NULL DEFAULT 'pending'")
+            conn.commit()
+    except Exception as exc:
+        log_error("database schema operation", exc)
+        raise
+
+
+def select_games(conn: sqlite3.Connection, args: argparse.Namespace, include_done: bool = True) -> list[sqlite3.Row]:
     where = []
     params: dict[str, Any] = {}
-    if not args.overwrite:
+    if not args.overwrite or not include_done:
+        where.append("(rewrite_status IS NULL OR rewrite_status <> 'done')")
+    if not args.overwrite and not args.all_games:
         where.append(
             """(
                 rtp IS NULL OR rtp = "" OR
@@ -267,16 +337,18 @@ def select_games(conn: sqlite3.Connection, args: argparse.Namespace) -> list[sql
         where.append("slug = :slug")
         params["slug"] = args.slug.strip()
     where_sql = "WHERE " + " AND ".join(where) if where else ""
+    limit_sql = "" if args.all_games else "LIMIT :limit OFFSET :offset"
     sql = f"""
         SELECT id, name, slug, provider, type, themes, reels, paylines, rtp, volatility,
-               short_description, long_description
+             short_description, long_description, rewrite_status
         FROM games
         {where_sql}
         ORDER BY updated_at DESC, id DESC
-        LIMIT :limit OFFSET :offset
+        {limit_sql}
     """
-    params["limit"] = args.limit
-    params["offset"] = args.offset
+    if not args.all_games:
+        params["limit"] = args.limit
+        params["offset"] = args.offset
     return list(conn.execute(sql, params))
 
 
@@ -293,86 +365,159 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--skip-errors", action="store_true")
     parser.add_argument("--fallback-only", action="store_true")
+    operations = parser.add_mutually_exclusive_group()
+    operations.add_argument("--all-games", action="store_true", help="Update all game rows.")
+    operations.add_argument("--blog-reset", action="store_true", help="Clear blog posts.")
+    operations.add_argument("--tracker-reset", action="store_true", help="Clear the blog tracker.")
+    operations.add_argument("--reset", action="store_true", help="Clear blog, tracker, engagement, and game description data.")
     parser.add_argument("--once", action="store_true", help="Process one batch only, using --limit and --offset.")
     parser.add_argument("--verbose", action="store_true", help="Print each game slug while processing.")
     return parser.parse_args()
 
 
-def process_batch(conn: sqlite3.Connection, args: argparse.Namespace) -> tuple[int, int]:
-    games = select_games(conn, args)
+def reset_blogs(conn: sqlite3.Connection) -> int:
+    try:
+        engagements = conn.execute("DELETE FROM blog_engagements").rowcount
+        posts = conn.execute("DELETE FROM blog_posts").rowcount
+        conn.commit()
+        print(f"Cleared {posts} blog post(s) and {engagements} engagement(s).")
+        return posts
+    except Exception as exc:
+        log_error("reset blog records", exc)
+        raise
+
+
+def reset_tracker() -> None:
+    try:
+        storage_dir = env_value("APP_STORAGE_DIR") or str(ROOT / "storage")
+        tracker_path = Path(storage_dir) / "playnow-clicks.json"
+        tracker_path.parent.mkdir(parents=True, exist_ok=True)
+        tracker_path.write_text("{}\n", encoding="utf-8")
+        print("Cleared blog tracker.")
+    except Exception as exc:
+        log_error("reset tracker file", exc)
+        raise
+
+
+def reset_all(conn: sqlite3.Connection) -> None:
+    savepoint = "enrichment_reset"
+    try:
+        conn.execute(f"SAVEPOINT {savepoint}")
+        engagements = conn.execute("DELETE FROM blog_engagements").rowcount
+        posts = conn.execute("DELETE FROM blog_posts").rowcount
+        games = conn.execute(
+            "UPDATE games SET short_description = '', long_description = '', rewrite_status = 'pending'"
+        ).rowcount
+        conn.execute(f"RELEASE SAVEPOINT {savepoint}")
+    except Exception:
+        error = sys.exc_info()[1]
+        conn.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+        conn.execute(f"RELEASE SAVEPOINT {savepoint}")
+        if isinstance(error, Exception):
+            log_error("reset database records", error)
+        raise
+
+    reset_tracker()
+    print(f"Reset complete: cleared {posts} blog post(s), {engagements} engagement(s), {games} game description(s), and tracker records.")
+
+
+def set_rewrite_status(conn: sqlite3.Connection, game_id: int, status: str) -> None:
+    try:
+        conn.execute("UPDATE games SET rewrite_status = :status WHERE id = :id", {"status": status, "id": game_id})
+        conn.commit()
+    except Exception as exc:
+        log_error(f"database status update status={status} game_id={game_id}", exc)
+        raise
+
+
+def process_batch(conn: sqlite3.Connection, args: argparse.Namespace, attempt: int = 1) -> tuple[int, int]:
+    try:
+        games = select_games(conn, args, include_done=attempt == 1)
+    except Exception as exc:
+        log_error("database game selection", exc)
+        raise
     print(f"Found {len(games)} game(s) to enrich.")
 
     updated = 0
     for game in games:
+        game_id = int(game["id"])
+        if not args.dry_run:
+            set_rewrite_status(conn, game_id, "processing")
         rtp = random_rtp() if args.overwrite or game["rtp"] in (None, "") else float(game["rtp"])
         existing_volatility = normalized_existing_volatility(game["volatility"])
         volatility = random_volatility() if args.overwrite or existing_volatility == "" else existing_volatility
-        if args.verbose:
-            print(f"Generating: {game['slug']}")
+        print(f"Game {game_id} {game['name']} attempt {attempt}")
 
-        generated: dict[str, Any] | None = None
-        if not args.fallback_only:
-            try:
-                generated = ollama_generate_with_retries(
-                    args.ollama_url,
-                    args.model,
-                    build_prompt(game, rtp, volatility),
-                    args.timeout,
-                    args.retries,
-                )
-            except Exception as exc:
-                if args.skip_errors:
-                    print(f"Skipped {game['slug']}: {exc}", file=sys.stderr)
-                    continue
-                print(f"Using fallback for {game['slug']}: {exc}", file=sys.stderr)
-
-        if generated is None:
-            generated = fallback_generated_copy(game, rtp, volatility)
-
-        short = (
-            clamp_short_description(str(generated.get("short_description", "")))
-            if args.overwrite or not str(game["short_description"] or "").strip()
-            else str(game["short_description"])
-        )
-        long = (
-            normalize_long_description(str(generated.get("long_description", "")))
-            if args.overwrite or not str(game["long_description"] or "").strip()
-            else str(game["long_description"])
-        )
-        if not short or not long:
-            raise RuntimeError(f"Could not generate required descriptions for {game['slug']}.")
-
-        if args.dry_run:
-            print(f"Dry run: RTP {rtp:.2f}, volatility {volatility}, short {len(short)} chars.")
+        try:
+            generated = fallback_generated_copy(game, rtp, volatility) if args.fallback_only else ollama_generate_with_retries(
+                args.ollama_url,
+                args.model,
+                build_prompt(game, rtp, volatility),
+                args.timeout,
+                args.retries,
+            )
+            short = (
+                clamp_short_description(str(generated.get("short_description", "")))
+                if args.overwrite or not str(game["short_description"] or "").strip()
+                else str(game["short_description"])
+            )
+            long = (
+                normalize_long_description(str(generated.get("long_description", "")))
+                if args.overwrite or not str(game["long_description"] or "").strip()
+                else str(game["long_description"])
+            )
+            if not short or not long:
+                raise RuntimeError("missing generated description")
+        except Exception as exc:
+            if not args.dry_run:
+                set_rewrite_status(conn, game_id, "failed")
+            log_error(f"game enrichment attempt={attempt}", exc, game)
+            print(f"Game {game_id} {game['name']} attempt {attempt} failed: {exc}", file=sys.stderr)
             continue
 
-        conn.execute(
-            """
-            UPDATE games
-            SET rtp = :rtp,
-                volatility = :volatility,
-                short_description = :short_description,
-                long_description = :long_description,
-                updated_at = :updated_at
-            WHERE id = :id
-            """,
-            {
-                "rtp": rtp,
-                "volatility": volatility,
-                "short_description": short,
-                "long_description": long,
-                "updated_at": int(time.time()),
-                "id": game["id"],
-            },
-        )
-        conn.commit()
-        updated += 1
+        if args.dry_run:
+            print(f"Game {game_id} {game['name']} final status dry-run")
+            continue
+
+        try:
+            conn.execute(
+                """
+                UPDATE games
+                SET rtp = :rtp,
+                    volatility = :volatility,
+                    short_description = :short_description,
+                    long_description = :long_description,
+                    rewrite_status = 'done',
+                    updated_at = :updated_at
+                WHERE id = :id
+                """,
+                {
+                    "rtp": rtp,
+                    "volatility": volatility,
+                    "short_description": short,
+                    "long_description": long,
+                    "updated_at": int(time.time()),
+                    "id": game_id,
+                },
+            )
+            conn.commit()
+            updated += 1
+            print(f"Game {game_id} {game['name']} final status done")
+        except Exception as exc:
+            conn.rollback()
+            try:
+                set_rewrite_status(conn, game_id, "failed")
+            except Exception:
+                pass
+            log_error(f"game database save attempt={attempt}", exc, game)
+            print(f"Game {game_id} {game['name']} attempt {attempt} failed: {exc}", file=sys.stderr)
 
     print(f"Batch updated {updated} of {len(games)} game(s).")
     return len(games), updated
 
 
 def main() -> int:
+    prevent_game_directory_writes()
     args = parse_args()
     args.limit = max(1, min(args.limit, 500))
     args.offset = max(0, args.offset)
@@ -381,6 +526,17 @@ def main() -> int:
 
     conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
+    ensure_rewrite_status_column(conn)
+
+    if args.blog_reset:
+        reset_blogs(conn)
+        return 0
+    if args.tracker_reset:
+        reset_tracker()
+        return 0
+    if args.reset:
+        reset_all(conn)
+        return 0
 
     print(f"Using Ollama model {args.model} at {args.ollama_url}")
     print(
@@ -393,17 +549,20 @@ def main() -> int:
 
     total_updated = 0
     batch = 1
-    run_once = args.once or args.dry_run or bool(args.slug) or args.overwrite or args.offset > 0
+    run_once = args.all_games or args.once or args.dry_run or bool(args.slug) or args.overwrite or args.offset > 0
+    max_attempts = 3 if args.all_games else 1
     while True:
         if not run_once:
             args.offset = 0
         print(f"Batch {batch}")
-        found, updated = process_batch(conn, args)
+        found, updated = process_batch(conn, args, batch)
         total_updated += updated
 
-        if run_once or found == 0:
+        if run_once and (not args.all_games or batch >= max_attempts):
             break
-        if updated == 0:
+        if found == 0 or batch >= max_attempts:
+            break
+        if updated == 0 and not args.all_games:
             print("Stopping because this batch did not update any rows.")
             break
 
@@ -414,4 +573,11 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except SystemExit:
+        raise
+    except Exception as exc:
+        log_error("fatal script failure", exc)
+        print(f"Fatal error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc

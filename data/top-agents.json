@@ -1,0 +1,18 @@
+{
+  "lastUpdatedMonth": "2026-09",
+  "agents": [
+    { "id": 1, "user": "ph_master88", "badge": "VIP 8", "totalInvites": 4821, "totalCommission": 784500 },
+    { "id": 2, "user": "kuya_joker", "badge": "VIP 7", "totalInvites": 4308, "totalCommission": 692100 },
+    { "id": 3, "user": "lucky_alvin", "badge": "VIP 6", "totalInvites": 3976, "totalCommission": 608900 },
+    { "id": 4, "user": "pinoy_slotter", "badge": "VIP 5", "totalInvites": 3614, "totalCommission": 522400 },
+    { "id": 5, "user": "manila_boss", "badge": "VIP 5", "totalInvites": 3352, "totalCommission": 494200 },
+    { "id": 6, "user": "megajack88", "badge": "VIP 8", "totalInvites": 4675, "totalCommission": 741250 }
+  ],
+  "monthly": {
+    "2026-09": {
+      "topAgentId": 1,
+      "monthlyInvites": 384,
+      "monthlyCommission": 52340
+    }
+  }
+}

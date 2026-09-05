@@ -5,12 +5,7 @@ require_once __DIR__ . '/includes/blog-storage.php';
 
 function sitemap_base_url(): string
 {
-    $baseUrl = env_value('SITE_BASE_URL');
-    if (!is_string($baseUrl) || $baseUrl === '') {
-        $baseUrl = 'http://localhost';
-    }
-
-    return rtrim($baseUrl, '/');
+    return site_base_url();
 }
 
 function sitemap_xml_escape(string $value): string
@@ -21,7 +16,7 @@ function sitemap_xml_escape(string $value): string
 header('Content-Type: application/xml; charset=UTF-8');
 
 $baseUrl = sitemap_base_url();
-$posts = blogs_all();
+$posts = blogs_public_all();
 
 echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
 echo "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n";
@@ -37,7 +32,10 @@ foreach ($posts as $post) {
         continue;
     }
 
-    $updatedAt = isset($post['updatedAt']) ? (int) $post['updatedAt'] : time();
+    $updatedAt = max((int) ($post['updatedAt'] ?? 0), (int) ($post['publishedAt'] ?? 0));
+    if ($updatedAt <= 0) {
+        $updatedAt = time();
+    }
     echo "  <url>\n";
     echo "    <loc>" . sitemap_xml_escape($baseUrl . '/blog/' . rawurlencode($slug) . '/') . "</loc>\n";
     echo "    <lastmod>" . gmdate('Y-m-d', $updatedAt) . "</lastmod>\n";

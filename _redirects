@@ -1,0 +1,16 @@
+/game/* /index.html 200
+/games/* /index.html 200
+/fishing-games /arcade 301
+/fishing-games/ /arcade 301
+/fish /arcade 301
+/fish/ /arcade 301
+/fishing /arcade 301
+/fishing/ /arcade 301
+/sports-betting /virtual-sports-betting 301
+/sports-betting/ /virtual-sports-betting 301
+/sports /virtual-sports-betting 301
+/sports/ /virtual-sports-betting 301
+/playnow https://bybet.com/p/xjSD 302
+/playnow/ https://bybet.com/p/xjSD 302
+/blogs/* /blog/:splat 301
+/blog/* /blog/index.html 200
