@@ -106,7 +106,7 @@ function provider_list_rows(PDO $pdo): array
         'SELECT gp.id, gp.api_id, gp.name, "" AS slug, gp.thumbnail, gp.updated_at,
                 COUNT(g.id) AS game_count
          FROM game_providers gp
-         LEFT JOIN games g ON (
+         LEFT JOIN games g ON g.done_processing = 1 AND (
             (g.provider_id = gp.id OR LOWER(g.provider) = LOWER(gp.name))
             AND g.published = 1
          )
@@ -127,7 +127,7 @@ function provider_list_rows(PDO $pdo): array
         'SELECT MIN(id) AS id, 0 AS api_id, provider AS name, provider_slug AS slug, "" AS thumbnail,
                 MAX(updated_at) AS updated_at, COUNT(id) AS game_count
          FROM games
-         WHERE published = 1 AND provider <> ""
+         WHERE published = 1 AND done_processing = 1 AND provider <> ""
          GROUP BY provider_slug, provider'
     );
 

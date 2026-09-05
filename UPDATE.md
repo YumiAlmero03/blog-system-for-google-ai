@@ -40,3 +40,23 @@ To compare against a specific commit or branch:
 sh scripts/package-update.sh HEAD
 sh scripts/package-update.sh main
 ```
+
+## Blog Import Upload Limits
+
+Blog ZIP imports are limited by the application to 100 MB. Configure the web
+server and PHP so upstream limits are not lower than that:
+
+```nginx
+client_max_body_size 100M;
+```
+
+```ini
+upload_max_filesize = 100M
+post_max_size = 100M
+```
+
+For larger exports, raise all three values together. The Nginx
+`client_max_body_size` must be greater than or equal to PHP
+`post_max_size`, and PHP `post_max_size` must be greater than or equal to
+`upload_max_filesize`. Reload/restart Nginx and PHP-FPM after changing these
+values.

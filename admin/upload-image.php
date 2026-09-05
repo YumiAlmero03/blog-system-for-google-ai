@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/image-validation.php';
 
 require_auth();
 require_post();
@@ -18,37 +19,6 @@ const UPLOAD_IMAGE_QUALITY = 60;
 const UPLOAD_OUTPUT_MAX_WIDTH = 1200;
 const UPLOAD_OUTPUT_MAX_HEIGHT = 675;
 
-function detect_uploaded_image_mime(string $path): ?string
-{
-    $allowed = [
-        'image/jpeg' => true,
-        'image/png' => true,
-        'image/webp' => true,
-    ];
-
-    if (class_exists('finfo') && defined('FILEINFO_MIME_TYPE')) {
-        $finfo = new finfo(FILEINFO_MIME_TYPE);
-        $mime = $finfo->file($path);
-        if (is_string($mime) && isset($allowed[$mime])) {
-            return $mime;
-        }
-    }
-
-    if (function_exists('mime_content_type')) {
-        $mime = @mime_content_type($path);
-        if (is_string($mime) && isset($allowed[$mime])) {
-            return $mime;
-        }
-    }
-
-    $dimensions = @getimagesize($path);
-    if (is_array($dimensions) && isset($dimensions['mime']) && is_string($dimensions['mime']) && isset($allowed[$dimensions['mime']])) {
-        return $dimensions['mime'];
-    }
-
-    return null;
-}
-
 function is_gd_image(mixed $image): bool
 {
     return is_resource($image) || (class_exists('GdImage') && $image instanceof GdImage);
@@ -64,6 +34,7 @@ function optimize_uploaded_image(string $source, string $destination, string $mi
         'image/jpeg' => function_exists('imagecreatefromjpeg') ? @imagecreatefromjpeg($source) : false,
         'image/png' => function_exists('imagecreatefrompng') ? @imagecreatefrompng($source) : false,
         'image/webp' => function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($source) : false,
+        'image/avif' => function_exists('imagecreatefromavif') ? @imagecreatefromavif($source) : false,
         default => false,
     };
 
@@ -105,6 +76,11 @@ function optimize_uploaded_image(string $source, string $destination, string $mi
         imagealphablending($image, true);
         imagesavealpha($image, true);
         $saved = imagewebp($image, $destination, UPLOAD_IMAGE_QUALITY);
+    } elseif ($mime === 'image/avif' && function_exists('imageavif')) {
+        imagepalettetotruecolor($image);
+        imagealphablending($image, true);
+        imagesavealpha($image, true);
+        $saved = imageavif($image, $destination, UPLOAD_IMAGE_QUALITY);
     } else {
         imagedestroy($image);
         return move_uploaded_file($source, $destination);
@@ -171,8 +147,9 @@ $extensions = [
     'image/jpeg' => 'jpg',
     'image/png' => 'png',
     'image/webp' => 'webp',
+    'image/avif' => 'avif',
 ];
-$mime = detect_uploaded_image_mime($file['tmp_name']);
+$mime = detect_blog_image_mime($file['tmp_name']);
 
 if (!is_string($mime) || !isset($extensions[$mime])) {
     http_response_code(415);
