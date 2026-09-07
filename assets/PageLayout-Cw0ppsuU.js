@@ -1,0 +1,1 @@
+import{j as t}from"./index-BzbamfTm.js";const e="space-y-8 w-full max-w-7xl mx-auto px-1 sm:px-3 text-stone-200",x=({children:s,className:a=""})=>t.jsx("div",{className:`${e} ${a}`.trim(),children:s});export{x as P};

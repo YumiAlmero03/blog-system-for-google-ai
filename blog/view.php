@@ -8,7 +8,7 @@ $post = $slug !== '' ? blogs_find($slug) : null;
 
 if ($post === null || ($post['status'] ?? 'published') !== 'published') {
   http_response_code(404);
-  readfile(__DIR__ . '/404.html');
+  readfile(__DIR__ . '/../404.html');
   exit;
 }
 
@@ -9014,10 +9014,13 @@ if ($faqEntities !== []) {
                         aria-hidden="true">
                         <rect width="20" height="14" x="2" y="5" rx="2"></rect>
                         <line x1="2" x2="22" y1="10" y2="10"></line>
-                      </svg><span class="text-sm font-medium">Payments</span></a></div>
-                </div><a href="/become-a-partner"
+                      </svg><span class="text-sm font-medium">Payments</span></a>
+                    </div>
+                </div>
+                <a href="/become-a-partner"
                   class="w-full text-left pr-3 pl-10 py-2 rounded-lg flex items-center gap-2.5 transition-all group text-stone-300 hover:text-white hover:bg-[#28180e]"
-                  id="nav-item-partner"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
+                  id="nav-item-partner">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
                     viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                     stroke-linejoin="round"
                     class="lucide lucide-handshake w-3.5 h-3.5 transition-transform group-hover:scale-110 text-amber-400"
@@ -9029,7 +9032,21 @@ if ($faqEntities !== []) {
                     <path d="m21 3 1 11h-2"></path>
                     <path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3"></path>
                     <path d="M3 4h8"></path>
-                  </svg><span class="text-sm font-medium">Become a Partner</span></a>
+                  </svg>
+                  <span class="text-sm font-medium">Become a Partner</span>
+                </a>
+                <a href="/promos"
+                  class="w-full text-left pr-3 pl-10 py-2 rounded-lg flex items-center gap-2.5 transition-all group text-stone-300 hover:text-white hover:bg-[#28180e]"
+                  id="nav-item-partner">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    class="lucide lucide-flame w-5 h-5 text-amber-400" aria-hidden="true">
+                    <path
+                      d="M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0 5 5 0 0 1 1-3 1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4">
+                    </path>
+                  </svg>
+                  <span class="text-sm font-medium">Promos</span>
+                </a>
               </div>
             </div><a href="/blog"
               class="w-full text-left px-3 py-2.5 rounded-lg flex items-center justify-between transition-all group bg-gradient-to-r from-orange-600 via-orange-500 to-amber-600 text-white font-bold shadow-md shadow-orange-950/60 translate-x-1"
@@ -9047,31 +9064,7 @@ if ($faqEntities !== []) {
               <div class="flex items-center gap-1"></div>
             </a>
           </div>
-          <div class="p-2 border-t border-[#291a10] bg-[#120a05]/60 space-y-2 mb-5"><a href="/promos"
-              class="block relative overflow-hidden rounded-xl bg-gradient-to-br from-[#3b200c] via-[#2a1608] to-[#1a0e05] p-2.5 border border-amber-600/30 hover:border-orange-500 transition-all cursor-pointer group shadow-lg">
-              <div class="flex items-center gap-2">
-                <div
-                  class="w-9 h-9 rounded-full bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                    class="lucide lucide-flame w-5 h-5 text-stone-950" aria-hidden="true">
-                    <path
-                      d="M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0 5 5 0 0 1 1-3 1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4">
-                    </path>
-                  </svg></div>
-                <div class="flex flex-col"><span
-                    class="text-[10px] uppercase font-black text-amber-400 tracking-wider">Promotions</span><span
-                    class="text-sm font-bold text-white leading-tight">Super Bonus 240M</span></div>
-              </div>
-              <div
-                class="mt-1.5 flex items-center justify-between text-[10px] text-amber-200/80 font-semibold bg-[#120a05]/80 px-2 py-0.5 rounded">
-                <span>Claim Bonus</span><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
-                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                  stroke-linejoin="round" class="lucide lucide-chevron-right w-3 h-3 text-orange-400"
-                  aria-hidden="true">
-                  <path d="m9 18 6-6-6-6"></path>
-                </svg></div>
-            </a>
+          <div class="p-2 border-t border-[#291a10] bg-[#120a05]/60 space-y-2 mb-5">
             <div class="grid grid-cols-2 gap-1.5"><a href="https://t.me/+fRv-0z-NBJowY2Fl" target="_blank"
                 rel="noopener noreferrer"
                 class="flex items-center justify-center gap-1.5 py-1.5 px-2 bg-[#1d2d3a] hover:bg-[#273c4e] border border-sky-600/30 rounded-lg text-sky-400 text-[11px] font-semibold transition-colors"><svg
@@ -9183,11 +9176,6 @@ if ($faqEntities !== []) {
                 <img alt="<?= blog_h($pageTitle) ?>" class="w-full h-full object-cover" src="<?= blog_h($image) ?>"
                   width="1200" height="675" loading="eager" decoding="async" fetchpriority="high">
                 <div class="absolute inset-0 bg-gradient-to-t from-[#0d0603]/80 via-transparent to-transparent"></div>
-              </div>
-              <div class="space-y-4 text-sm sm:text-base text-stone-200 leading-relaxed">
-                <div class="bg-[#170c06] border border-[#2b170c] p-4 sm:p-5 rounded-2xl leading-relaxed">
-                  <p><?= blog_h($excerpt) ?></p>
-                </div>
               </div>
               <div id="article" class="space-y-4 text-sm sm:text-base text-stone-200 leading-relaxed">
                 <div
@@ -9584,12 +9572,7 @@ if ($faqEntities !== []) {
                   class="text-stone-400 hover:text-amber-300 transition-colors">Responsible Gaming</a></li>
               <li><a href="/terms-and-conditions" class="text-stone-400 hover:text-amber-300 transition-colors">Terms
                   &amp; Conditions</a></li>
-              <li><a href="/privacy-policy" class="text-stone-400 hover:text-amber-300 transition-colors">Privacy
-                  Policy</a></li>
-              <li><a href="/affiliate-sponsor-disclosure"
-                  class="text-stone-400 hover:text-amber-300 transition-colors">Affiliate / Sponsor Disclosure</a></li>
-              <li><a href="/disclaimer" class="text-stone-400 hover:text-amber-300 transition-colors">Disclaimer</a>
-              </li>
+              
             </ul>
           </div>
         </div>
@@ -9744,9 +9727,7 @@ if ($faqEntities !== []) {
               <path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"></path>
             </svg>
           </div>
-          <div
-            class="absolute -top-1.5 -right-1.5 bg-red-600 text-white font-black text-[9px] sm:text-[10px] px-2 py-0.5 rounded-full border border-amber-300 shadow">
-            FREE</div>
+          
         </div>
         <div class="space-y-1 sm:space-y-1.5">
           <h3 id="blog-scroll-promo-title"
@@ -9774,7 +9755,7 @@ if ($faqEntities !== []) {
         </div>
         <div class="space-y-2 pt-1">
           <a href="/playnow"
-            class="primary-orange-button w-full font-black py-3 sm:py-3.5 px-3 rounded-xl sm:rounded-2xl shadow-xl shadow-orange-950/80 transition-all text-sm sm:text-sm flex items-center justify-center gap-2 transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer inline-flex"
+            class="bg-gradient-to-r from-amber-500 via-orange-500 to-red-600 hover:from-amber-400 hover:to-orange-400 text-stone-950  w-full font-black py-3 sm:py-3.5 px-3 rounded-xl sm:rounded-2xl shadow-xl transition-all text-sm sm:text-sm flex items-center justify-center gap-2 transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer inline-flex"
             data-blog-scroll-promo-claim>
             <span>CLAIM ₱500 BONUS NOW</span>
           </a>
