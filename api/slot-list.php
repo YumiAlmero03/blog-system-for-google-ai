@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/blog-storage.php';
+require_once __DIR__ . '/../includes/game-restrictions.php';
 
 const SLOT_LIST_CACHE_TTL = 60;
 const SLOT_IFRAME_TOKEN = 'KljjshkJEwm9XlVUTiGCzsyYkQw4mG22pOKNzS3enaABIHoTdj';
@@ -107,7 +108,7 @@ function slot_list_sort(string $value): string
 function slot_list_cache_key(array $filters): string
 {
     $dbMtime = is_file(blogs_db_path()) ? (int) @filemtime(blogs_db_path()) : 0;
-    $filters['endpoint'] = 'slot-list-v1';
+    $filters['endpoint'] = 'slot-list-v3';
     $filters['dbMtime'] = $dbMtime;
 
     return hash('sha256', json_encode($filters, JSON_UNESCAPED_SLASHES));
@@ -277,7 +278,11 @@ try {
         exit;
     }
 
-    $where = ['published = :published', 'done_processing = 1'];
+    $where = [
+        'published = :published',
+        'done_processing = 1',
+        games_ph_allowed_sql(),
+    ];
     $params = [':published' => $published];
 
     if ($search !== '') {

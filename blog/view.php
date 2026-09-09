@@ -8621,6 +8621,8 @@ if ($faqEntities !== []) {
     .blog-provider-marquee {
       position: relative;
       overflow: hidden;
+      /* Logo height plus the existing item padding and borders. */
+      min-height: calc(1.5rem + 1.3rem + 2px);
     }
 
     .blog-provider-marquee-track {
@@ -8635,6 +8637,7 @@ if ($faqEntities !== []) {
 
     .blog-provider-item {
       display: inline-flex;
+      height: calc(1.5rem + 1.3rem + 2px);
       align-items: center;
       gap: 0.6rem;
       min-width: 150px;
@@ -8733,7 +8736,7 @@ if ($faqEntities !== []) {
             <a href="/" class="flex items-center gap-2 cursor-pointer group select-none shrink-0" id="brand-logo"><img
                 alt="Free Online Games"
                 class="h-8 sm:h-11 w-auto max-w-[112px] min-[420px]:max-w-[140px] sm:max-w-none object-contain rounded-md transition-transform group-hover:scale-105 drop-shadow-[0_2px_8px_rgba(255,180,0,0.4)]"
-                width="180" height="44" loading="eager" decoding="async" fetchpriority="high"
+                width="1254" height="1174" loading="eager" decoding="async" fetchpriority="high"
                 referrerpolicy="no-referrer" src="/assets/free-online-games-logo-C1EG2Cuk.webp"></a>
           </div>
           <div class="order-3 w-full md:order-none md:flex-1 md:max-w-lg md:mx-4">
@@ -9501,7 +9504,7 @@ if ($faqEntities !== []) {
         <div class="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-8 border-b border-[#24150b] pb-10">
           <div class="space-y-3 lg:col-span-2">
             <div class="flex items-center gap-3"><a href="/" class="inline-block m-auto"><img
-                  src="/assets/free-online-games-logo-C1EG2Cuk.webp" alt="Free Online Games" width="160" height="36"
+                  src="/assets/free-online-games-logo-C1EG2Cuk.webp" alt="Free Online Games" width="1254" height="1174"
                   class="w-auto max-w-[180px] m-auto object-contain rounded drop-shadow-[0_2px_6px_rgba(255,180,0,0.4)]"
                   loading="lazy" decoding="async" referrerpolicy="no-referrer"></a></div>
             <p class="text-[11px] text-stone-400 leading-relaxed"><span class="text-amber-400 font-bold">The premier
