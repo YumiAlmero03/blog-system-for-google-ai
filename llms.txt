@@ -1,0 +1,33 @@
+# Free Casino Games Philippines
+
+> FreeCasinoGames.ph provides free casino game demos, game categories, guides, and informational content for users in the Philippines.
+
+## Main Pages
+
+- [Home](https://freecasinogames.ph/): Website overview and game discovery.
+- [Slots](https://freecasinogames.ph/slots/): Free slot games.
+- [Arcade](https://freecasinogames.ph/arcade/): Arcade-style casino games.
+- [Perya Games](https://freecasinogames.ph/perya-games/): Perya and carnival-style games.
+- [Live Casino](https://freecasinogames.ph/live-casino/): Live casino game information.
+- [Card Games](https://freecasinogames.ph/card-games/): Card and table games.
+- [Virtual Sports](https://freecasinogames.ph/virtual-sports-betting/): Virtual sports game information.
+- [Search](https://freecasinogames.ph/search/): Search the game catalog.
+
+## Games
+
+- [Sitemap Index](https://freecasinogames.ph/sitemap-index.xml): Page, blog, and game sitemaps; game chunks list processed, published games excluding Philippines restrictions.
+
+## Blog
+
+- [Blog](https://freecasinogames.ph/blog/): Game guides and informational articles.
+
+## About and Trust
+
+- [About Us](https://freecasinogames.ph/about-us/): Website background and purpose.
+- [Responsible Gaming](https://freecasinogames.ph/responsible-gaming/): Responsible gaming information and support.
+- [Terms and Conditions](https://freecasinogames.ph/terms-and-conditions/): Terms for using the website.
+- [Contact](https://freecasinogames.ph/contact/): Contact and support information.
+
+## Partners
+
+- [Become a Partner](https://freecasinogames.ph/become-a-partner/): Partnership information and inquiries.

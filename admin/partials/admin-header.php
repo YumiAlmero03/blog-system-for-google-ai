@@ -8,6 +8,8 @@ $adminNavItems = [
     ['/admin/slots.php', 'Slots', str_ends_with($adminCurrentPath, '/admin/slots.php')],
     ['/admin/seo-checker-v2.php', 'SEO Checker V2', str_ends_with($adminCurrentPath, '/admin/seo-checker-v2.php')],
     ['/admin/playnow-tracker.php', 'Play Now Tracker', str_ends_with($adminCurrentPath, '/admin/playnow-tracker.php')],
+    ['/admin/contacts.php', 'Contacts', str_ends_with($adminCurrentPath, '/admin/contacts.php')],
+    ['/admin/live-chat.php', 'Live Chat', str_ends_with($adminCurrentPath, '/admin/live-chat.php')],
     ['/admin/settings.php', 'Settings', str_ends_with($adminCurrentPath, '/admin/settings.php')],
     ['/admin/blog-publish.php', 'Publish Post', str_ends_with($adminCurrentPath, '/admin/blog-publish.php')],
     ['/blog/', 'View Blog Hub', false],
