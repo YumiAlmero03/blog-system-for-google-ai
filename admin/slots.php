@@ -433,6 +433,7 @@ $featuredCount = (int) $pdo->query('SELECT COUNT(*) FROM games WHERE featured = 
                     Featured
                   </label>
                 </form>
+                <a class="btn btn-secondary btn-sm" href="/admin/slot-edit.php?id=<?= h($slot['id']) ?>">Edit Content</a>
                 <a class="btn btn-primary btn-sm" href="/game/<?= h(rawurlencode((string) $slot['slug'])) ?>/" target="_blank" rel="noopener">View</a>
                 <?php if ($slot['url'] !== ''): ?>
                   <a class="btn btn-secondary btn-sm" href="<?= h($slot['url']) ?>" target="_blank" rel="noopener nofollow">Open</a>

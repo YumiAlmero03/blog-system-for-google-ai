@@ -24,9 +24,9 @@ function jwt_secret(): ?string
     return is_string($secret) && strlen($secret) >= 32 ? $secret : null;
 }
 
-function jwt_sign(array $claims): string
+function jwt_sign(array $claims, ?string $secret = null): string
 {
-    $secret = jwt_secret();
+    $secret ??= jwt_secret();
     if ($secret === null) {
         throw new RuntimeException('JWT secret is unavailable.');
     }
@@ -53,9 +53,9 @@ function jwt_authorization_token(): ?string
     return null;
 }
 
-function jwt_verify(?string $token, string $audience): ?array
+function jwt_verify(?string $token, string $audience, string $scope = 'blog:read', ?string $secret = null): ?array
 {
-    $secret = jwt_secret();
+    $secret ??= jwt_secret();
     if ($secret === null || $token === null) {
         return null;
     }
@@ -85,7 +85,7 @@ function jwt_verify(?string $token, string $audience): ?array
     }
 
     $now = time();
-    if (isset($claims['exp']) && (!is_int($claims['exp']) || $claims['exp'] < $now)) {
+    if (!isset($claims['exp']) || !is_int($claims['exp']) || $claims['exp'] <= $now) {
         return null;
     }
     if (isset($claims['nbf']) && (!is_int($claims['nbf']) || $claims['nbf'] > $now)) {
@@ -94,7 +94,7 @@ function jwt_verify(?string $token, string $audience): ?array
     if (($claims['aud'] ?? '') !== $audience) {
         return null;
     }
-    if (($claims['scope'] ?? '') !== 'blog:read') {
+    if (($claims['scope'] ?? '') !== $scope) {
         return null;
     }
 

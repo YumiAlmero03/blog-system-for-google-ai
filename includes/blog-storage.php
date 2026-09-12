@@ -157,6 +157,9 @@ function blogs_pdo(): PDO
 
 function blogs_schema(PDO $pdo): void
 {
+    require_once __DIR__ . '/admin-users.php';
+    require_once __DIR__ . '/writers.php';
+    admin_users_schema($pdo);
     $pdo->exec(
         'CREATE TABLE IF NOT EXISTS blog_posts (
             id TEXT PRIMARY KEY,
@@ -178,6 +181,8 @@ function blogs_schema(PDO $pdo): void
         )'
     );
     $columns = $pdo->query('PRAGMA table_info(blog_posts)')->fetchAll();
+    if (!in_array('writer_id',array_column($columns,'name'),true)) $pdo->exec('ALTER TABLE blog_posts ADD COLUMN writer_id INTEGER REFERENCES admin_users(id) ON DELETE SET NULL');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS blog_writer ON blog_posts(writer_id)');
     $hasStatus = false;
     $hasFocusKeyphrase = false;
     $hasSeoTitle = false;
@@ -671,6 +676,7 @@ function blog_row_to_array(array $row): array
         'seoTitle' => normalize_seo_title($row['seo_title'] ?? $row['title']),
         'category' => $row['category'],
         'author' => $row['author'],
+        'writerId' => isset($row['writer_id']) ? (int)$row['writer_id'] : null,
         'excerpt' => $row['excerpt'],
         'content' => $row['content'],
         'featuredImage' => $row['featured_image'],
@@ -851,12 +857,14 @@ function blog_setting_set(string $key, string $value, int $maxLength = 255): voi
         ':updated_at' => time(),
     ]);
 
+    unset($GLOBALS['seo_settings_cache']);
     blog_clear_api_cache();
 }
 
 function blog_website_title(): string
 {
-    return blog_setting_get('website_title', BLOG_DEFAULT_SITE_TITLE);
+    require_once __DIR__ . '/seo-settings.php';
+    return seo_stored_settings()['website_title'] ?? BLOG_DEFAULT_SITE_TITLE;
 }
 
 function blog_ignored_engagement_ips(): string
@@ -1058,6 +1066,7 @@ function blog_record_engagement(string $postId, string $action): array
         ':updated_at' => $now,
     ]);
 
+    unset($GLOBALS['seo_settings_cache']);
     blog_clear_api_cache();
     return ['ok' => true, 'ignored' => false, 'counts' => blog_engagement_counts((string) $post['id'])];
 }
@@ -1231,6 +1240,7 @@ function blog_category_save(array $input): array
         throw $exception;
     }
 
+    unset($GLOBALS['seo_settings_cache']);
     blog_clear_api_cache();
     return ['ok' => true, 'category' => blog_category_find($id)];
 }
@@ -1250,6 +1260,7 @@ function blog_category_delete(string $id): array
 
     $stmt = blogs_pdo()->prepare('DELETE FROM blog_categories WHERE id = :id');
     $stmt->execute([':id' => normalize_slug($id)]);
+    unset($GLOBALS['seo_settings_cache']);
     blog_clear_api_cache();
 
     return ['ok' => true, 'deleted' => $stmt->rowCount() > 0];
@@ -1539,7 +1550,7 @@ function blogs_page(int $count, int $page, ?string $category = null, ?string $st
     $stmt->bindValue(':limit', $count, PDO::PARAM_INT);
     $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
     $stmt->execute();
-    $items = blog_add_internal_link_metrics($pdo, array_map('blog_row_to_array', $stmt->fetchAll()));
+    $items = blog_add_internal_link_metrics($pdo, blogs_add_writers($pdo, array_map('blog_row_to_array', $stmt->fetchAll()), false));
 
     return [
         'items' => $items,
@@ -1594,7 +1605,7 @@ function blogs_find(string $id): ?array
     $stmt->execute([':id' => $id]);
     $row = $stmt->fetch();
 
-    return is_array($row) ? blog_row_to_array($row) : null;
+    return is_array($row) ? blogs_add_writers($pdo,[blog_row_to_array($row)])[0] : null;
 }
 
 function blog_ensure_post_route(string $slug): void
@@ -1611,9 +1622,9 @@ function blogs_upsert_with_pdo(PDO $pdo, array $blog): array
 {
     $stmt = $pdo->prepare(
         'INSERT INTO blog_posts (
-            id, slug, title, seo_title, category, author, excerpt, content, featured_image, status, focus_keyphrase, date_label, published_at, scheduled_at, created_at, updated_at
+            id, slug, title, seo_title, category, author, excerpt, content, featured_image, status, focus_keyphrase, date_label, published_at, scheduled_at, created_at, updated_at, writer_id
         ) VALUES (
-            :id, :slug, :title, :seo_title, :category, :author, :excerpt, :content, :featured_image, :status, :focus_keyphrase, :date_label, :published_at, :scheduled_at, :created_at, :updated_at
+            :id, :slug, :title, :seo_title, :category, :author, :excerpt, :content, :featured_image, :status, :focus_keyphrase, :date_label, :published_at, :scheduled_at, :created_at, :updated_at, :writer_id
         )
         ON CONFLICT(id) DO UPDATE SET
             slug = excluded.slug,
@@ -1621,6 +1632,7 @@ function blogs_upsert_with_pdo(PDO $pdo, array $blog): array
             seo_title = excluded.seo_title,
             category = excluded.category,
             author = excluded.author,
+            writer_id = CASE WHEN :writer_provided THEN excluded.writer_id ELSE blog_posts.writer_id END,
             excerpt = excluded.excerpt,
             content = excluded.content,
             featured_image = excluded.featured_image,
@@ -1638,6 +1650,8 @@ function blogs_upsert_with_pdo(PDO $pdo, array $blog): array
         ':seo_title' => normalize_seo_title($blog['seoTitle'] ?? ($blog['seo_title'] ?? $blog['title'])),
         ':category' => $blog['category'],
         ':author' => $blog['author'],
+        ':writer_id' => $blog['writerId'] ?? null,
+        ':writer_provided' => array_key_exists('writerId',$blog) ? 1 : 0,
         ':excerpt' => $blog['excerpt'],
         ':content' => $blog['content'],
         ':featured_image' => $blog['featuredImage'],
@@ -1731,6 +1745,9 @@ function blogs_upsert(array $blog, bool $manageTransaction = true): array
     $now = time();
     $existing = blogs_find($blog['id']);
     $oldSlug = $existing['slug'] ?? null;
+    $blog['writerId'] = array_key_exists('writerId',$blog)
+        ? writer_validate_id($blog['writerId'],$existing['writerId'] ?? null)
+        : ($existing ? ($existing['writerId'] ?? null) : writer_validate_id(writer_default_id()));
 
     $blog['id'] = $existing['id'] ?? $blog['slug'];
     $blog['status'] = normalize_blog_status($blog['status'] ?? ($existing['status'] ?? null));
@@ -1894,6 +1911,7 @@ function blog_payload_from_post(): array
             'seoTitle' => normalize_seo_title($seoTitle),
             'category' => $category,
             'author' => $author,
+            ...(array_key_exists('writer_id',$_POST) ? ['writerId'=>$_POST['writer_id']] : []),
             'excerpt' => $excerpt,
             'content' => $content,
             'featuredImage' => normalize_featured_image($featuredImage),

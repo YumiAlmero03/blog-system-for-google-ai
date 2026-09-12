@@ -290,10 +290,11 @@ $blogCategoryOptions = blog_categories_all();
       let yoastAnalysisRun = 0;
       const yoastRatingCache = new Map();
       let quickEditId = '';
+      const writerOptions = <?= json_encode(writer_options(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
       const defaultCategory = <?= json_encode(blog_default_category(), JSON_UNESCAPED_SLASHES) ?>;
       const categoryOptions = <?= json_encode(array_values(array_map(static fn (array $category): string => $category['name'], $blogCategoryOptions)), JSON_UNESCAPED_SLASHES) ?>;
-      const yoastModuleUrl = '/assets/vendor/yoastseo/yoastseo.bundle.js?v=3.6.0';
-      const yoastResearcherUrl = '/assets/vendor/yoastseo/researcher.bundle.js?v=3.6.0';
+      const yoastModuleUrl = '/admin/assets-admin/vendor/yoastseo/yoastseo.bundle.js?v=3.6.0';
+      const yoastResearcherUrl = '/admin/assets-admin/vendor/yoastseo/researcher.bundle.js?v=3.6.0';
 
       function showNotice(message, type) {
         notice.textContent = message;
@@ -370,12 +371,19 @@ $blogCategoryOptions = blog_categories_all();
         return values.map((option) => `<option value="${escapeHtml(option)}" ${option === current ? 'selected' : ''}>${escapeHtml(option)}</option>`).join('');
       }
 
+      function writerOptionList(blog) {
+        const current = blog.writerId == null ? '' : String(blog.writerId);
+        const options = [{id:'',name:'Legacy author name'}, ...writerOptions];
+        if (current && !options.some(option => String(option.id) === current)) options.push({id:current,name:blog.writer?.name || 'Assigned writer'});
+        return options.map(option => `<option value="${escapeHtml(String(option.id))}" ${String(option.id) === current ? 'selected' : ''}>${escapeHtml(option.name)}</option>`).join('');
+      }
+
       function quickEditRow(blog, id, status, category) {
         const publishedAt = blog.publishedAtInput || '';
         const scheduledAt = blog.scheduledAtInput || '';
         return `
           <tr class="quick-edit-row" data-quick-edit-row="${escapeHtml(id)}">
-            <td colspan="8">
+            <td colspan="11">
               <form class="quick-edit-form" data-quick-edit-form="${escapeHtml(id)}">
                 <label>Title
                   <input type="text" name="title" value="${escapeHtml(blog.title || '')}" maxlength="160" required>
@@ -383,6 +391,7 @@ $blogCategoryOptions = blog_categories_all();
                 <label>Slug
                   <input type="text" name="slug" value="${escapeHtml(blog.slug || id)}" maxlength="96" pattern="[a-z0-9-]+" required>
                 </label>
+                <label>Writer<select name="writer_id">${writerOptionList(blog)}</select></label>
                 <label>Category
                   <select name="category" required>${optionList(categoryOptions, category)}</select>
                 </label>
@@ -667,8 +676,11 @@ $blogCategoryOptions = blog_categories_all();
                 <strong>${escapeHtml(blog.title)}</strong>
                 <small>Slug: <code style="color:var(--brand);">${escapeHtml(slug)}</code><br>${escapeHtml(blog.excerpt || '')}</small>
               </td>
+              <td>${escapeHtml(blog.writer?.name || blog.author || 'Editorial Team')}</td>
               <td>${escapeHtml(category)}</td>
               <td><span class="blog-status-badge ${status}">${escapeHtml(status)}</span></td>
+              <td class="blog-number-cell">${Number(blog.views || 0).toLocaleString()}</td>
+              <td class="blog-number-cell">${Number(blog.likes || 0).toLocaleString()}</td>
               <td class="blog-date-cell">
                 ${escapeHtml(publishedDate)}
                 <small>Updated: ${escapeHtml(blog.updatedAt ? new Date(Number(blog.updatedAt) * 1000).toLocaleDateString() : '')}</small>
@@ -694,8 +706,11 @@ $blogCategoryOptions = blog_categories_all();
               <thead>
                 <tr>
                   <th>Title</th>
+                  <th>Writer</th>
                   <th>Category</th>
                   <th>Status</th>
+                  <th>Views</th>
+                  <th>Likes</th>
                   <th>Publish/Updated</th>
                   <th>Internal Links</th>
                   <th>Linked From</th>

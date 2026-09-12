@@ -89,7 +89,9 @@ function site_base_url(): string
         return rtrim($configured, '/');
     }
 
-    return 'https://freecasinogames.ph';
+    require_once __DIR__ . '/seo-settings.php';
+    $configured = seo_stored_settings()['site_base_url'] ?? '';
+    return $configured !== '' ? rtrim($configured,'/') : 'https://freecasinogames.ph';
 }
 
 function public_url(string $url, ?string $baseUrl = null): string

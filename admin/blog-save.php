@@ -18,6 +18,18 @@ if (!$payload['ok']) {
 }
 
 try {
+    if (($_SESSION['user']['role'] ?? '') === 'editor') {
+        $existing = blogs_find($payload['blog']['id']);
+        preg_match_all('/^:::custom-code[ \t]*\n[\s\S]*?^:::[ \t]*$/m', str_replace(["\r\n","\r"],"\n",$existing['content'] ?? ''), $oldCode);
+        preg_match_all('/^:::custom-code[ \t]*\n[\s\S]*?^:::[ \t]*$/m', str_replace(["\r\n","\r"],"\n",$payload['blog']['content']), $newCode);
+        if ($oldCode[0] !== $newCode[0]) auth_deny(403,'Custom code changes require an administrator.');
+        // Demo/button URLs also appear in the admin editor preview.
+        preg_match_all('/^\s*url:\s*(.+)$/mi',$payload['blog']['content'],$blockUrls);
+        foreach ($blockUrls[1] as $url) {
+            $url = html_entity_decode(trim($url),ENT_QUOTES | ENT_HTML5,'UTF-8');
+            if (!preg_match('~^(?:https?://[^\s<>]+|/(?!/)[^\s<>]*)$~i',$url)) auth_deny(403,'Use an HTTP(S) or site-relative block URL.');
+        }
+    }
     $duplicateErrors = blog_duplicate_validation_errors($payload['blog']);
     if ($duplicateErrors !== []) {
         http_response_code(422);
@@ -26,6 +38,10 @@ try {
     }
 
     $saved = blogs_upsert($payload['blog']);
+} catch (InvalidArgumentException $exception) {
+    http_response_code(422);
+    echo json_encode(['ok'=>false,'error'=>$exception->getMessage(),'csrfToken'=>csrf_token()]);
+    exit;
 } catch (Throwable $exception) {
     error_log('Blog storage error: ' . $exception->getMessage());
     http_response_code(500);

@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+if (!function_exists('auth_can')) { http_response_code(403); exit; }
 
 $adminCurrentPath = $_SERVER['SCRIPT_NAME'] ?? '';
 $adminNavItems = [
@@ -10,15 +11,24 @@ $adminNavItems = [
     ['/admin/playnow-tracker.php', 'Play Now Tracker', str_ends_with($adminCurrentPath, '/admin/playnow-tracker.php')],
     ['/admin/contacts.php', 'Contacts', str_ends_with($adminCurrentPath, '/admin/contacts.php')],
     ['/admin/live-chat.php', 'Live Chat', str_ends_with($adminCurrentPath, '/admin/live-chat.php')],
-    ['/admin/settings.php', 'Settings', str_ends_with($adminCurrentPath, '/admin/settings.php')],
+    ['/admin/users.php', 'Users', str_ends_with($adminCurrentPath, '/admin/users.php')],
+    ['/admin/settings.php', 'Settings', (str_ends_with($adminCurrentPath, '/admin/settings.php') || str_starts_with($adminCurrentPath, '/admin/settings/'))],
     ['/admin/blog-publish.php', 'Publish Post', str_ends_with($adminCurrentPath, '/admin/blog-publish.php')],
     ['/blog/', 'View Blog Hub', false],
 ];
+if (($_SESSION['user']['role'] ?? '') === 'editor') {
+    $adminNavItems = array_values(array_filter($adminNavItems,static fn(array $item): bool => in_array($item[1],['Blogs','Slots','Contacts','Live Chat'],true)));
+    foreach ($adminNavItems as &$item) {
+        if ($item[1] === 'Blogs' && in_array(auth_route_capability(),['blogs.view','blogs.edit','blogs.publish'],true)) $item[2] = true;
+        if ($item[1] === 'Slots' && in_array(auth_route_capability(),['slots.view','slots.edit'],true)) $item[2] = true;
+    }
+    unset($item);
+}
 ?>
 <header class="site-header">
   <div class="header-inner">
     <a href="/admin/blogs.php" class="brand-logo">
-      <span class="badge-tag" style="background-color: var(--brand); color:#fff;">ADMIN</span>
+      <span class="badge-tag" style="background-color: var(--brand); color:#fff;"><?= h(strtoupper(str_replace('_',' ',$_SESSION['user']['role'] ?? 'admin'))) ?></span>
     </a>
     <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
       <?php foreach ($adminNavItems as [$href, $label, $isActive]): ?>

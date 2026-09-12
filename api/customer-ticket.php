@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/../includes/env.php';
+require_once __DIR__ . '/../includes/customer-ticket-storage.php';
 require_once __DIR__ . '/../includes/smtp-mailer.php';
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -11,16 +11,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     http_response_code(405);
     echo json_encode(['ok' => false, 'error' => 'Method not allowed.'], JSON_UNESCAPED_SLASHES);
     exit;
-}
-
-function ticket_storage_dir(): string
-{
-    $storageDir = env_value('APP_STORAGE_DIR');
-    if (!is_string($storageDir) || $storageDir === '' || $storageDir === '/absolute/path/outside/public/storage') {
-        $storageDir = dirname(__DIR__) . '/storage';
-    }
-
-    return rtrim($storageDir, '/\\');
 }
 
 function ticket_clean_string(mixed $value, int $maxLength): string

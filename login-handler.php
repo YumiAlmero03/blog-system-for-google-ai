@@ -7,7 +7,7 @@ require_once __DIR__ . '/includes/rate-limit.php';
 require_post();
 
 $username = request_string('username', 80);
-$password = request_string('password', 256);
+$password = isset($_POST['password']) && is_string($_POST['password']) && strlen($_POST['password']) <= 256 && $_POST['password'] !== '' ? $_POST['password'] : null;
 $token = request_string('csrf_token', 128);
 $ip = login_client_ip();
 
@@ -34,11 +34,14 @@ if (login_rate_limited($username, $ip) || !auth_credentials_available()) {
     $locked();
 }
 
-if (!auth_check_credentials($username, $password)) {
+try {
+    $user = auth_authenticate_credentials($username,$password);
+    if ($user === null) $failed();
+    auth_mark_authenticated($user);
+} catch (Throwable $e) {
+    error_log('Login temporarily unavailable.');
     $failed();
 }
-
 login_clear_failures($username, $ip);
-auth_mark_authenticated();
 header('Location: /admin/blogs.php', true, 302);
 exit;

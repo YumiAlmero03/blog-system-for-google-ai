@@ -1,0 +1,5 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /promo-code/
+    RewriteRule ^([A-Za-z0-9_-]{8,64})/?$ /promo-code/view.php?code=$1 [L,QSA]
+</IfModule>

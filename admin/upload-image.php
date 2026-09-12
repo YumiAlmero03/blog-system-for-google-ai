@@ -59,7 +59,7 @@ function optimize_uploaded_image(string $source, string $destination, string $mi
                 imagefilledrectangle($resized, 0, 0, $targetWidth, $targetHeight, $transparent);
             }
             imagecopyresampled($resized, $image, 0, 0, 0, 0, $targetWidth, $targetHeight, $sourceWidth, $sourceHeight);
-            imagedestroy($image);
+            if (is_resource($image)) imagedestroy($image);
             $image = $resized;
         }
     }
@@ -82,11 +82,11 @@ function optimize_uploaded_image(string $source, string $destination, string $mi
         imagesavealpha($image, true);
         $saved = imageavif($image, $destination, UPLOAD_IMAGE_QUALITY);
     } else {
-        imagedestroy($image);
+        if (is_resource($image)) imagedestroy($image);
         return move_uploaded_file($source, $destination);
     }
 
-    imagedestroy($image);
+    if (is_resource($image)) imagedestroy($image);
     if ($saved && is_file($destination)) {
         $sourceSize = @filesize($source);
         $destinationSize = @filesize($destination);
@@ -155,6 +155,11 @@ if (!is_string($mime) || !isset($extensions[$mime])) {
     http_response_code(415);
     echo json_encode(['ok' => false, 'error' => 'Unsupported image type.']);
     exit;
+}
+
+if (!validate_blog_image_file($file['tmp_name'],pathinfo($originalName,PATHINFO_EXTENSION))['ok']) {
+    http_response_code(422);
+    echo json_encode(['ok'=>false,'error'=>'Image extension must match its content.']); exit;
 }
 
 $dimensions = @getimagesize($file['tmp_name']);

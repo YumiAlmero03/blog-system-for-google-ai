@@ -1,3 +1,4 @@
+<?php if (!function_exists('auth_can')) { http_response_code(403); exit; } ?>
 <!DOCTYPE html>
 <html lang="en-PH">
 <head>
@@ -7,7 +8,7 @@
 <title><?= h($title) ?> | Admin</title>
 <link rel="stylesheet" href="/admin/style.css">
 <style>
-.support-container{max-width:1200px;margin:24px auto;padding:24px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius-lg)}
+.support-container{margin:24px;padding:24px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius-lg)}
 .support-table{overflow-x:auto}.support-table table{width:100%;border-collapse:collapse}.support-table th,.support-table td{text-align:left;padding:12px;border-bottom:1px solid var(--border);vertical-align:top}
 .support-text{white-space:pre-wrap;overflow-wrap:anywhere}.support-actions{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}.support-container textarea{width:100%;min-height:100px;padding:10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm)}
 .support-message{padding:12px;border-bottom:1px solid var(--border);background:var(--surface-soft);margin:8px 0}.support-error{color:var(--danger)}

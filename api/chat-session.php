@@ -5,109 +5,61 @@ header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, max-age=0');
 header('X-Robots-Tag: noindex, nofollow');
 
+require_once __DIR__ . '/../includes/chat-session-storage.php';
+
+// Admin extensions use the existing session files and existing authentication.
+$adminAction = $_GET['admin_action'] ?? $_POST['admin_action'] ?? null;
+if ($adminAction !== null) {
+    require_once __DIR__ . '/../includes/auth.php';
+    $_SERVER['HTTP_ACCEPT'] = 'application/json';
+    require_auth();
+    try {
+        $method = $_SERVER['REQUEST_METHOD'] ?? '';
+        if (!(($adminAction === 'messages' && $method === 'GET') || ($adminAction === 'reply' && $method === 'POST'))) {
+            http_response_code(405);
+            echo json_encode(['ok'=>false,'error'=>'Method not allowed.']);
+            exit;
+        }
+        if ($method === 'POST') require_valid_csrf();
+        $input = $method === 'POST' ? $_POST : $_GET;
+        $sessionId = $input['session_id'] ?? '';
+        if (!is_string($sessionId) || !chat_is_valid_session_id($sessionId)) {
+            throw new InvalidArgumentException('Invalid session ID.');
+        }
+        if ($adminAction === 'reply') {
+            $text = $input['message'] ?? '';
+            if (!is_string($text) || trim($text) === '' || strlen($text) > 5000) {
+                throw new InvalidArgumentException('Enter a message of up to 5,000 bytes.');
+            }
+            chat_admin_reply($sessionId, $text);
+            echo json_encode(['ok'=>true]);
+        } else {
+            $data = chat_read_session($sessionId);
+            if ($data === null) {
+                http_response_code(404);
+                echo json_encode(['ok'=>false,'error'=>'Chat session not found.']);
+                exit;
+            }
+            $version = hash('sha256', json_encode($data['messages'] ?? []));
+            $unchanged = is_string($input['version'] ?? null) && hash_equals($version,$input['version']);
+            echo json_encode(['ok'=>true,'version'=>$version,'unchanged'=>$unchanged,
+                'messages'=>$unchanged ? [] : ($data['messages'] ?? [])], JSON_INVALID_UTF8_SUBSTITUTE);
+        }
+    } catch (InvalidArgumentException $e) {
+        http_response_code(422);
+        echo json_encode(['ok'=>false,'error'=>$e->getMessage()]);
+    } catch (Throwable $e) {
+        error_log('Admin chat session operation failed.');
+        http_response_code(500);
+        echo json_encode(['ok'=>false,'error'=>'Chat session is unavailable.']);
+    }
+    exit;
+}
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     http_response_code(405);
     header('Allow: POST');
-    echo json_encode(['ok' => false, 'error' => 'Method not allowed.'], JSON_UNESCAPED_SLASHES);
+    echo json_encode(['ok'=>false,'error'=>'Method not allowed.']);
     exit;
-}
-
-function chat_clean_string(mixed $value, int $maxLength): string
-{
-    $value = trim((string) $value);
-    $value = preg_replace('/\s+/', ' ', $value) ?? $value;
-    $value = str_replace(["\r", "\n"], ' ', $value);
-
-    if (function_exists('mb_substr')) {
-        return mb_substr($value, 0, $maxLength);
-    }
-
-    return substr($value, 0, $maxLength);
-}
-
-function chat_filename_part(string $value): string
-{
-    $value = strtolower(trim($value));
-    $value = preg_replace('/[^a-z0-9]+/', '-', $value) ?? '';
-    $value = trim($value, '-');
-
-    return $value !== '' ? substr($value, 0, 60) : 'guest';
-}
-
-function chat_client_ip(): string
-{
-    foreach (['HTTP_CF_CONNECTING_IP', 'HTTP_X_REAL_IP', 'HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR'] as $header) {
-        $value = $_SERVER[$header] ?? '';
-        if (!is_string($value) || $value === '') {
-            continue;
-        }
-
-        $ip = trim(explode(',', $value)[0]);
-        if (filter_var($ip, FILTER_VALIDATE_IP)) {
-            return $ip;
-        }
-    }
-
-    return 'unknown';
-}
-
-function chat_dir(): string
-{
-    return dirname(__DIR__) . '/chats';
-}
-
-function chat_is_valid_session_id(string $sessionId): bool
-{
-    return (bool) preg_match('/^[a-z0-9-]+_\d{4}-\d{2}-\d{2}_\d{3}\.json$/', $sessionId);
-}
-
-function chat_next_session_id(string $name): string
-{
-    $date = date('Y-m-d');
-    $prefix = chat_filename_part($name) . '_' . $date . '_';
-    $dir = chat_dir();
-
-    for ($i = 1; $i <= 999; $i++) {
-        $candidate = $prefix . str_pad((string) $i, 3, '0', STR_PAD_LEFT) . '.json';
-        if (!is_file($dir . '/' . $candidate)) {
-            return $candidate;
-        }
-    }
-
-    return $prefix . uniqid('', false) . '.json';
-}
-
-function chat_normalize_messages(mixed $messages): array
-{
-    if (!is_array($messages)) {
-        return [];
-    }
-
-    $normalized = [];
-    foreach (array_slice($messages, -200) as $message) {
-        if (!is_array($message)) {
-            continue;
-        }
-
-        $text = chat_clean_string($message['text'] ?? '', 5000);
-        if ($text === '') {
-            continue;
-        }
-
-        $sender = chat_clean_string($message['sender'] ?? 'user', 30);
-        if (!in_array($sender, ['user', 'bot', 'agent'], true)) {
-            $sender = 'user';
-        }
-
-        $normalized[] = [
-            'sender' => $sender,
-            'text' => $text,
-            'time' => chat_clean_string($message['time'] ?? '', 60),
-            'type' => chat_clean_string($message['type'] ?? 'chat', 40),
-        ];
-    }
-
-    return $normalized;
 }
 
 $raw = file_get_contents('php://input');
@@ -144,32 +96,28 @@ if ($sessionId === '' || !chat_is_valid_session_id($sessionId)) {
     $sessionId = chat_next_session_id($name);
 }
 
-$path = $dir . '/' . $sessionId;
-$now = date('c');
-$existingData = [];
-if (is_file($path)) {
-    $existingRaw = @file_get_contents($path);
-    $decoded = json_decode(is_string($existingRaw) ? $existingRaw : '', true);
-    if (is_array($decoded)) {
-        $existingData = $decoded;
-    }
-}
-
-$data = [
-    'sessionId' => $sessionId,
-    'name' => $name !== '' ? $name : ($existingData['name'] ?? 'Guest'),
-    'contact' => $contact !== '' ? $contact : ($existingData['contact'] ?? ''),
-    'pageUrl' => $pageUrl,
-    'startedAt' => $existingData['startedAt'] ?? $now,
-    'updatedAt' => $now,
-    'ip' => $existingData['ip'] ?? chat_client_ip(),
-    'userAgent' => chat_clean_string($_SERVER['HTTP_USER_AGENT'] ?? ($existingData['userAgent'] ?? ''), 300),
-    'messages' => $messages,
-];
-
-if (@file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), LOCK_EX) === false) {
+try {
+    $messageCount = chat_update_session($sessionId, static function (array $existingData) use ($sessionId,$name,$contact,$pageUrl,$messages): array {
+        $now = date('c');
+        // Public clients submit snapshots. Keep server-authored replies when an older
+        // browser snapshot is saved, without changing the submitted user/bot history.
+        $merged = chat_preserve_admin_replies($messages, $existingData['messages'] ?? []);
+        return array_replace($existingData, [
+            'sessionId'=>$sessionId,
+            'name'=>$name !== '' ? $name : ($existingData['name'] ?? 'Guest'),
+            'contact'=>$contact !== '' ? $contact : ($existingData['contact'] ?? ''),
+            'pageUrl'=>$pageUrl,
+            'startedAt'=>$existingData['startedAt'] ?? $now,
+            'updatedAt'=>$now,
+            'ip'=>$existingData['ip'] ?? chat_client_ip(),
+            'userAgent'=>chat_clean_string($_SERVER['HTTP_USER_AGENT'] ?? ($existingData['userAgent'] ?? ''),300),
+            'messages'=>$merged,
+        ]);
+    });
+} catch (Throwable $e) {
+    error_log('Chat session save failed.');
     http_response_code(500);
-    echo json_encode(['ok' => false, 'error' => 'Unable to save chat session.'], JSON_UNESCAPED_SLASHES);
+    echo json_encode(['ok'=>false,'error'=>'Unable to save chat session.']);
     exit;
 }
 
@@ -177,5 +125,5 @@ echo json_encode([
     'ok' => true,
     'sessionId' => $sessionId,
     'path' => 'chats/' . $sessionId,
-    'messageCount' => count($messages),
+    'messageCount' => $messageCount,
 ], JSON_UNESCAPED_SLASHES);

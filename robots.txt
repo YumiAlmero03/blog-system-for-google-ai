@@ -1,3 +1,2 @@
 User-agent: *
 Disallow: *
-Sitemap: https://freecasinogames.ph/sitemap-index.xml

@@ -9,6 +9,8 @@ require_auth();
 $initialEditId = isset($_GET['id']) && is_string($_GET['id']) ? normalize_slug($_GET['id']) : '';
 $blogCategoryOptions = blog_categories_all();
 $websiteTitle = blog_website_title();
+$defaultWriterId = writer_default_id();
+$writerOptions = writer_options();
 ?>
 <!DOCTYPE html>
 <html lang="en-PH">
@@ -18,6 +20,8 @@ $websiteTitle = blog_website_title();
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Publish Blog Post | Admin</title>
   <link rel="preload" href="/admin/style.css" as="style"><link rel="stylesheet" href="/admin/style.css">
+  <link rel="stylesheet" href="/admin/content-editor.css">
+  <script src="/admin/content-editor.js"></script>
   <link rel="icon" href="/assets/favicon.svg">
   <style>
     .admin-container {
@@ -276,34 +280,6 @@ $websiteTitle = blog_website_title();
     .editor-tab.active {
       background: var(--brand);
       color: #fff;
-    }
-    .wysiwyg-toolbar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      align-items: center;
-      padding: 8px;
-      margin-bottom: 8px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-    }
-    .wysiwyg-btn {
-      min-width: 34px;
-      min-height: 34px;
-      padding: 6px 9px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      background: var(--surface-soft);
-      color: var(--text);
-      cursor: pointer;
-      font-weight: 800;
-      font-size: 0.82rem;
-    }
-    .wysiwyg-btn:hover,
-    .wysiwyg-btn:focus {
-      border-color: var(--brand);
-      outline: none;
     }
     .link-toolbox {
       display: none;
@@ -1691,7 +1667,7 @@ $websiteTitle = blog_website_title();
                     <button type="button" class="wysiwyg-btn" data-command="faq" title="FAQ block">FAQ</button>
                     <button type="button" class="wysiwyg-btn" data-command="button" title="Button block">Button</button>
                     <button type="button" class="wysiwyg-btn" data-command="table" title="Table block">Table</button>
-                    <button type="button" class="wysiwyg-btn" data-command="custom-code" title="Custom code block">Code</button>
+                    <button type="button" class="wysiwyg-btn" data-command="custom-code" title="Custom code block (administrator only)" <?= auth_can('admin') ? '' : 'disabled' ?>>Code</button>
                     <button type="button" class="wysiwyg-btn" data-command="slot-demo" title="Slot demo block">Demo</button>
                     <button type="button" class="wysiwyg-btn" data-command="link" title="Insert link">Link</button>
                     <button type="button" class="wysiwyg-btn" data-command="clear" title="Clear formatting">Clear</button>
@@ -1804,7 +1780,12 @@ $websiteTitle = blog_website_title();
                   <textarea id="blog-excerpt" name="excerpt" class="form-control" maxlength="170" style="min-height:96px;" required></textarea>
                 </div>
                 <div class="form-group">
-                  <label for="blog-author">Author Name</label>
+                  <label for="blog-writer">Writer</label>
+                  <select id="blog-writer" name="writer_id" class="form-control">
+                    <option value="">Legacy author name</option>
+                    <?php foreach ($writerOptions as $writer): ?><option value="<?= h($writer['id']) ?>" <?= $writer['id'] === $defaultWriterId ? 'selected' : '' ?>><?= h($writer['name']) ?></option><?php endforeach; ?>
+                  </select>
+                  <label for="blog-author">Fallback author name</label>
                   <input type="text" id="blog-author" name="author" class="form-control" value="<?= h(BLOG_DEFAULT_AUTHOR) ?>" maxlength="80">
                 </div>
               </div>
@@ -1896,6 +1877,7 @@ $websiteTitle = blog_website_title();
       const publishedAtField = document.getElementById('blog-published-at');
       const scheduledAtField = document.getElementById('blog-scheduled-at');
       const categoryField = document.getElementById('blog-category');
+      const writerField = document.getElementById('blog-writer');
       const authorField = document.getElementById('blog-author');
       const slug = document.getElementById('blog-slug');
       const slugPreview = document.getElementById('slug-preview-text');
@@ -1992,8 +1974,8 @@ $websiteTitle = blog_website_title();
       let editorTabsFloating = false;
       let editorTabsFrame = 0;
       const editorBlockClipboardPrefix = 'BLOG_EDITOR_BLOCK::';
-      const yoastModuleUrl = '/assets/vendor/yoastseo/yoastseo.bundle.js?v=3.6.0';
-      const yoastResearcherUrl = '/assets/vendor/yoastseo/researcher.bundle.js?v=3.6.0';
+      const yoastModuleUrl = '/admin/assets-admin/vendor/yoastseo/yoastseo.bundle.js?v=3.6.0';
+      const yoastResearcherUrl = '/admin/assets-admin/vendor/yoastseo/researcher.bundle.js?v=3.6.0';
 
       function setSeoSidebarCollapsed(isCollapsed) {
         if (!seoSidebar || !seoSidebarToggle || !editorLayout) {
@@ -4484,24 +4466,7 @@ $websiteTitle = blog_website_title();
 
         focusEditor();
 
-        if (command === 'h2') {
-          document.execCommand('formatBlock', false, 'h2');
-        } else if (command === 'h3') {
-          document.execCommand('formatBlock', false, 'h3');
-        } else if (command === 'bold') {
-          document.execCommand('bold');
-        } else if (command === 'italic') {
-          document.execCommand('italic');
-        } else if (command === 'ul') {
-          document.execCommand('insertUnorderedList');
-        } else if (command === 'ol') {
-          document.execCommand('insertOrderedList');
-        } else if (command === 'quote') {
-          document.execCommand('formatBlock', false, 'blockquote');
-        } else if (command === 'clear') {
-          document.execCommand('removeFormat');
-          document.execCommand('formatBlock', false, 'p');
-        }
+        window.ContentEditor.apply(command);
 
         prepareEditorBlocks();
         syncMarkdownFromEditor();
@@ -5161,6 +5126,9 @@ $websiteTitle = blog_website_title();
         if (focusKeyphrase) focusKeyphrase.value = blog.focusKeyphrase || '';
         updateSaveState(blogStatus ? blogStatus.value : (blog.status || 'published'));
         if (authorField) authorField.value = blog.author || ' Editorial Team';
+        const writerId = blog.writerId == null ? '' : String(blog.writerId);
+        if (writerId && !Array.from(writerField.options).some(option => option.value === writerId)) writerField.add(new Option(blog.writer?.name || 'Assigned writer',writerId));
+        writerField.value = writerId;
         if (excerpt) excerpt.value = blog.excerpt || '';
         updateTitleDisplay();
         updateSeoTitleCounter();

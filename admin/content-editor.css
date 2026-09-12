@@ -1,0 +1,30 @@
+    .wysiwyg-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      padding: 8px;
+      margin-bottom: 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+    }
+    .wysiwyg-btn {
+      min-width: 34px;
+      min-height: 34px;
+      padding: 6px 9px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface-soft);
+      color: var(--text);
+      cursor: pointer;
+      font-weight: 800;
+      font-size: 0.82rem;
+    }
+    .wysiwyg-btn:hover,
+    .wysiwyg-btn:focus {
+      border-color: var(--brand);
+      outline: none;
+    }
+
+.slot-content-editor{padding:18px;border:1px solid var(--border);border-radius:var(--radius-sm);min-height:400px;font-family:inherit;line-height:1.7;overflow-wrap:anywhere}.slot-content-editor:focus{outline:2px solid var(--brand)}.slot-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:18px}.slot-fields label{display:block;font-weight:700}.slot-fields input,.slot-fields textarea{width:100%;padding:10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm)}

@@ -50,16 +50,16 @@ function login_attempts_update(string $key, callable $callback): mixed
     $path = login_attempts_path();
     $dir = dirname($path);
     if (!is_dir($dir) && !@mkdir($dir, 0700, true) && !is_dir($dir)) {
-        return false;
+        return null;
     }
 
     $handle = @fopen($path, 'c+');
     if ($handle === false) {
-        return false;
+        return null;
     }
 
     try {
-        flock($handle, LOCK_EX);
+        if (!flock($handle, LOCK_EX)) return null;
         $raw = stream_get_contents($handle);
         $data = json_decode($raw !== false ? $raw : '', true);
         if (!is_array($data)) {
@@ -80,10 +80,9 @@ function login_attempts_update(string $key, callable $callback): mixed
 
         $result = $callback($data);
 
-        ftruncate($handle, 0);
+        $encoded = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
         rewind($handle);
-        fwrite($handle, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
-        fflush($handle);
+        if (!is_string($encoded) || fwrite($handle,$encoded) !== strlen($encoded) || !ftruncate($handle,strlen($encoded)) || !fflush($handle)) return null;
         flock($handle, LOCK_UN);
 
         return $result;
@@ -95,9 +94,10 @@ function login_attempts_update(string $key, callable $callback): mixed
 function login_rate_limited(string $username, string $ip): bool
 {
     $key = login_rate_key($username, $ip);
-    return (bool) login_attempts_update($key, static function (array &$data) use ($key): bool {
+    $result = login_attempts_update($key, static function (array &$data) use ($key): bool {
         return count($data[$key] ?? []) >= LOGIN_RATE_LIMIT_MAX_FAILURES;
     });
+    return $result !== false;
 }
 
 function login_retry_after_seconds(string $username, string $ip): int

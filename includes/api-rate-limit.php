@@ -39,7 +39,7 @@ function api_rate_limit_exceeded(string $key, int $maxRequests = BLOG_API_RATE_L
     }
 
     try {
-        flock($handle, LOCK_EX);
+        if (!flock($handle, LOCK_EX)) return true;
         $raw = stream_get_contents($handle);
         $data = json_decode($raw !== false ? $raw : '', true);
         if (!is_array($data)) {
@@ -72,10 +72,9 @@ function api_rate_limit_exceeded(string $key, int $maxRequests = BLOG_API_RATE_L
             $limited = false;
         }
 
-        ftruncate($handle, 0);
+        $encoded = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
         rewind($handle);
-        fwrite($handle, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
-        fflush($handle);
+        if (!is_string($encoded) || fwrite($handle,$encoded) !== strlen($encoded) || !ftruncate($handle,strlen($encoded)) || !fflush($handle)) return true;
         flock($handle, LOCK_UN);
 
         return $limited;
