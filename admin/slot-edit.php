@@ -5,7 +5,7 @@ require_capability('slots.edit');
 require_once __DIR__ . '/../includes/slot-content.php';
 $id = filter_var($_GET['id'] ?? null,FILTER_VALIDATE_INT);
 try {
-    $stmt = blogs_pdo()->prepare('SELECT id,name,short_description,long_description,rtp,volatility FROM games WHERE id=?');
+    $stmt = blogs_pdo()->prepare('SELECT id,is_viewable,name,short_description,long_description,rtp,volatility FROM games WHERE id=?');
     $stmt->execute([$id ?: 0]); $game = $stmt->fetch();
     if (!$game) { http_response_code(404); echo 'Game not found.'; exit; }
 } catch (Throwable $e) { http_response_code(500); echo 'Game unavailable.'; exit; }
@@ -19,6 +19,9 @@ $editorHtml = preg_match('/<\/?[a-z][^>]*>/i',$long) ? slot_content_html($long) 
 <form id="slot-content-form">
 <?= csrf_input() ?><input type="hidden" name="id" value="<?= h($game['id']) ?>">
 <div class="slot-fields">
+<input type="hidden" name="is_viewable" value="0">
+<label><input type="checkbox" name="is_viewable" value="1" <?= (int)$game['is_viewable'] === 1 ? 'checked' : '' ?>> Viewable</label>
+
 <label>Game name<input name="name" maxlength="200" required value="<?= h($game['name']) ?>"></label>
 <label>RTP (%)<input name="rtp" type="number" min="0" max="100" step="any" value="<?= h($game['rtp']) ?>"></label>
 <label>Volatility<input name="volatility" maxlength="120" value="<?= h($game['volatility']) ?>"></label>

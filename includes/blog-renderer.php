@@ -282,7 +282,7 @@ function public_blog_payload(array $post): array
 {
     $rendered = blog_render_content($post['content']);
     return ['ok'=>true,'blog'=>[
-        'title'=>$post['title'],'slug'=>$post['slug'],'category'=>$post['category'],
+        'title'=>$post['title'],'slug'=>$post['slug'],'category'=>$post['categoryHierarchy'] ?? null,'tags'=>blog_public_tags($post),
         'author'=>$post['writer']['name'] ?? $post['author'],
         'writer'=>$post['writer'] ?? ['name'=>$post['author'] ?: 'Editorial Team','role_name'=>'','profile_image'=>'','bio'=>'','socials'=>[]],'excerpt'=>$post['excerpt'],
         'content_html'=>$rendered['content_html'],

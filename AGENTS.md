@@ -11,3 +11,9 @@
 - Public writer data is limited to name, display-only `role_name`, an absolute profile image URL, bio, and validated HTTP(S) social links. List responses omit bio/socials; `role_name` never affects permissions. Never expose credentials, usernames, role/session data, or other private account fields.
 
 - Global SEO/site settings use `includes/seo-settings.php` and `api/settings/seo.php` (public GET, admin POST); public heads use `includes/public-head.php`. Reuse these helpers instead of hardcoding Analytics, verification, site names, or default metadata. `SITE_BASE_URL` retains precedence over the saved site URL.
+
+- Blog taxonomy uses `includes/blog-taxonomy.php`: stable category IDs/slugs with validated `parent_id`, `blog_posts.category_id`, and flat `tags`/`blog_post_tags`. Admin CRUD: `admin/blog-category-save.php` and `admin/blog-tag-save.php`; authenticated lookups: `admin/blog-category-list.php` and `admin/blog-tag-list.php`. Editors may assign existing taxonomy via `admin/blog-save.php`, but cannot manage it. Public blog APIs return category hierarchy and tags using grouped lookups.
+
+- Category filtering is shared through `blog_category_filter_ids()` and `blogs_page()`: stable IDs, slugs, or legacy names resolve to IDs; root categories include all descendants, direct child selections stay exact. Admin category-name search also includes descendants. Counts and paginated rows use the same ID predicate.
+
+- Public games must pass publication/processing, exact PH restrictions, provider approval, and `is_viewable` through `includes/game-visibility.php`. Provider overrides reuse existing game provider keys; absent overrides and existing games default to enabled. Provider settings are admin-only; slot visibility uses `slots.edit`. Visibility writes clear API caches and regenerate game sitemap chunks/index.

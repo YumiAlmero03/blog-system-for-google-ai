@@ -108,7 +108,7 @@ function slot_list_sort(string $value): string
 function slot_list_cache_key(array $filters): string
 {
     $dbMtime = is_file(blogs_db_path()) ? (int) @filemtime(blogs_db_path()) : 0;
-    $filters['endpoint'] = 'slot-list-v3';
+    $filters['endpoint'] = 'slot-list-v4';
     $filters['dbMtime'] = $dbMtime;
 
     return hash('sha256', json_encode($filters, JSON_UNESCAPED_SLASHES));
@@ -196,8 +196,7 @@ try {
 
     $where = [
         'published = :published',
-        'done_processing = 1',
-        games_ph_allowed_sql(),
+        game_public_eligibility_sql(),
     ];
     $params = [':published' => $published];
 

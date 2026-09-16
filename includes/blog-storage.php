@@ -2,6 +2,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/env.php';
+require_once __DIR__ . '/game-visibility.php';
+require_once __DIR__ . '/blog-taxonomy.php';
 
 const BLOG_CATEGORIES = ['Guides', 'Troubleshooting', 'Casino', 'Promotions', 'Community'];
 const BLOG_STATUSES = ['published', 'draft', 'scheduled'];
@@ -257,7 +259,7 @@ function blogs_schema(PDO $pdo): void
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_blog_engagements_post_action ON blog_engagements(post_id, action)');
     games_schema($pdo);
     blog_settings_seed($pdo);
-    blog_categories_seed($pdo);
+    blog_taxonomy_schema($pdo);
     blogs_publish_due_scheduled($pdo);
 }
 
@@ -353,6 +355,7 @@ function games_schema(PDO $pdo): void
         $pdo->exec('UPDATE games SET done_processing = 1');
     }
     games_remove_slug_unique_constraint($pdo);
+    game_visibility_schema($pdo);
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_games_slug ON games(slug)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_games_provider_id ON games(provider_id)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_games_type_id ON games(type_id)');
@@ -530,35 +533,17 @@ function blog_settings_seed(PDO $pdo): void
 
 function blog_categories_seed(PDO $pdo): void
 {
-    $now = time();
-    $stmt = $pdo->prepare(
-        'INSERT OR IGNORE INTO blog_categories (id, name, description, sort_order, created_at, updated_at)
-         VALUES (:id, :name, "", :sort_order, :created_at, :updated_at)'
-    );
-
-    foreach (BLOG_CATEGORIES as $index => $category) {
-        $stmt->execute([
-            ':id' => normalize_slug($category),
-            ':name' => $category,
-            ':sort_order' => ($index + 1) * 10,
-            ':created_at' => $now,
-            ':updated_at' => $now,
-        ]);
-    }
-
-    $existingStmt = $pdo->query('SELECT DISTINCT category FROM blog_posts WHERE TRIM(category) <> ""');
-    foreach ($existingStmt->fetchAll(PDO::FETCH_COLUMN) as $category) {
-        $name = normalize_blog_category_name((string) $category);
-        if ($name === null) {
-            continue;
-        }
-        $stmt->execute([
-            ':id' => normalize_slug($name),
-            ':name' => $name,
-            ':sort_order' => 1000,
-            ':created_at' => $now,
-            ':updated_at' => $now,
-        ]);
+    $names = array_merge(BLOG_CATEGORIES, $pdo->query('SELECT DISTINCT category FROM blog_posts WHERE TRIM(category) <> ""')->fetchAll(PDO::FETCH_COLUMN));
+    $find = $pdo->prepare('SELECT id FROM blog_categories WHERE name=?');
+    $exists = $pdo->prepare('SELECT id FROM blog_categories WHERE id=?');
+    $insert = $pdo->prepare('INSERT INTO blog_categories(id,name,description,sort_order,created_at,updated_at) VALUES(?,?,"",?,?,?)');
+    foreach ($names as $index=>$name) {
+        $find->execute([$name]);
+        if ($find->fetchColumn()) continue;
+        $id = normalize_slug($name) ?: 'category';
+        $exists->execute([$id]);
+        if ($exists->fetchColumn()) $id .= '-' . bin2hex(random_bytes(4));
+        $insert->execute([$id,$name,($index+1)*10,time(),time()]);
     }
 }
 
@@ -592,6 +577,7 @@ function blogs_migrate_json(PDO $pdo): void
             if ($normalized === null) {
                 continue;
             }
+            blog_taxonomy_import_category($pdo, $normalized['category']);
             blogs_upsert_with_pdo($pdo, $normalized);
             blog_seed_legacy_engagements($pdo, (string) $normalized['id'], $blog);
         }
@@ -675,6 +661,7 @@ function blog_row_to_array(array $row): array
         'title' => $row['title'],
         'seoTitle' => normalize_seo_title($row['seo_title'] ?? $row['title']),
         'category' => $row['category'],
+        'categoryId' => $row['category_id'] ?? null,
         'author' => $row['author'],
         'writerId' => isset($row['writer_id']) ? (int)$row['writer_id'] : null,
         'excerpt' => $row['excerpt'],
@@ -1094,27 +1081,7 @@ function blog_default_category(): string
 
 function blog_categories_all(bool $includeCounts = false): array
 {
-    $pdo = blogs_pdo();
-    $sql = $includeCounts
-        ? 'SELECT c.*, COUNT(p.id) AS post_count
-           FROM blog_categories c
-           LEFT JOIN blog_posts p ON p.category = c.name
-           GROUP BY c.id
-           ORDER BY c.sort_order DESC, c.name ASC'
-        : 'SELECT *, 0 AS post_count FROM blog_categories ORDER BY sort_order DESC, name ASC';
-    $rows = $pdo->query($sql)->fetchAll();
-
-    return array_map(static function (array $row): array {
-        return [
-            'id' => (string) ($row['id'] ?? ''),
-            'name' => (string) ($row['name'] ?? ''),
-            'description' => (string) ($row['description'] ?? ''),
-            'sortOrder' => (int) ($row['sort_order'] ?? 0),
-            'postCount' => (int) ($row['post_count'] ?? 0),
-            'createdAt' => (int) ($row['created_at'] ?? 0),
-            'updatedAt' => (int) ($row['updated_at'] ?? 0),
-        ];
-    }, $rows);
+    return blog_taxonomy_categories(blogs_pdo(), $includeCounts);
 }
 
 function blog_category_names(): array
@@ -1129,141 +1096,20 @@ function blog_categories_page(): array
 
 function blog_category_find(string $id): ?array
 {
-    $id = normalize_slug($id);
-    if ($id === '') {
-        return null;
+    foreach (blog_categories_all(true) as $category) {
+        if ($category['id'] === $id) return $category;
     }
-
-    $stmt = blogs_pdo()->prepare(
-        'SELECT c.*, COUNT(p.id) AS post_count
-         FROM blog_categories c
-         LEFT JOIN blog_posts p ON p.category = c.name
-         WHERE c.id = :id
-         GROUP BY c.id
-         LIMIT 1'
-    );
-    $stmt->execute([':id' => $id]);
-    $row = $stmt->fetch();
-
-    if (!is_array($row)) {
-        return null;
-    }
-
-    return [
-        'id' => (string) ($row['id'] ?? ''),
-        'name' => (string) ($row['name'] ?? ''),
-        'description' => (string) ($row['description'] ?? ''),
-        'sortOrder' => (int) ($row['sort_order'] ?? 0),
-        'postCount' => (int) ($row['post_count'] ?? 0),
-        'createdAt' => (int) ($row['created_at'] ?? 0),
-        'updatedAt' => (int) ($row['updated_at'] ?? 0),
-    ];
+    return null;
 }
 
 function blog_category_save(array $input): array
 {
-    $name = normalize_blog_category_name($input['name'] ?? null);
-    if ($name === null) {
-        return ['ok' => false, 'errors' => ['Category name is required and must be 50 characters or less.']];
-    }
-
-    $existingId = isset($input['id']) && is_string($input['id']) ? normalize_slug($input['id']) : '';
-    $id = normalize_slug($name);
-    if ($id === '') {
-        return ['ok' => false, 'errors' => ['Category slug is invalid.']];
-    }
-
-    $description = isset($input['description']) && is_string($input['description'])
-        ? substr(trim($input['description']), 0, 180)
-        : '';
-    $sortOrder = isset($input['sort_order']) && is_numeric($input['sort_order'])
-        ? max(0, min(100000, (int) $input['sort_order']))
-        : 0;
-
-    $pdo = blogs_pdo();
-    $duplicateStmt = $pdo->prepare('SELECT id FROM blog_categories WHERE (id = :id OR lower(name) = lower(:name)) AND id <> :existing_id LIMIT 1');
-    $duplicateStmt->execute([
-        ':id' => $id,
-        ':name' => $name,
-        ':existing_id' => $existingId,
-    ]);
-    if ($duplicateStmt->fetchColumn()) {
-        return ['ok' => false, 'errors' => ['A category with this name already exists.']];
-    }
-
-    $existing = $existingId !== '' ? blog_category_find($existingId) : null;
-    $now = time();
-    $pdo->beginTransaction();
-    try {
-        if ($existing) {
-            $stmt = $pdo->prepare(
-                'UPDATE blog_categories
-                 SET id = :id, name = :name, description = :description, sort_order = :sort_order, updated_at = :updated_at
-                 WHERE id = :existing_id'
-            );
-            $stmt->execute([
-                ':id' => $id,
-                ':name' => $name,
-                ':description' => $description,
-                ':sort_order' => $sortOrder,
-                ':updated_at' => $now,
-                ':existing_id' => $existingId,
-            ]);
-
-            if ($existing['name'] !== $name) {
-                $postsStmt = $pdo->prepare('UPDATE blog_posts SET category = :new_name, updated_at = :updated_at WHERE category = :old_name');
-                $postsStmt->execute([
-                    ':new_name' => $name,
-                    ':old_name' => $existing['name'],
-                    ':updated_at' => $now,
-                ]);
-            }
-        } else {
-            $stmt = $pdo->prepare(
-                'INSERT INTO blog_categories (id, name, description, sort_order, created_at, updated_at)
-                 VALUES (:id, :name, :description, :sort_order, :created_at, :updated_at)'
-            );
-            $stmt->execute([
-                ':id' => $id,
-                ':name' => $name,
-                ':description' => $description,
-                ':sort_order' => $sortOrder,
-                ':created_at' => $now,
-                ':updated_at' => $now,
-            ]);
-        }
-        $pdo->commit();
-    } catch (Throwable $exception) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
-        throw $exception;
-    }
-
-    unset($GLOBALS['seo_settings_cache']);
-    blog_clear_api_cache();
-    return ['ok' => true, 'category' => blog_category_find($id)];
+    return blog_taxonomy_save('category', $input);
 }
 
 function blog_category_delete(string $id): array
 {
-    $category = blog_category_find($id);
-    if (!$category) {
-        return ['ok' => false, 'error' => 'Category not found.'];
-    }
-    if ($category['postCount'] > 0) {
-        return ['ok' => false, 'error' => 'Move or edit posts in this category before deleting it.'];
-    }
-    if (count(blog_categories_all()) <= 1) {
-        return ['ok' => false, 'error' => 'At least one category is required.'];
-    }
-
-    $stmt = blogs_pdo()->prepare('DELETE FROM blog_categories WHERE id = :id');
-    $stmt->execute([':id' => normalize_slug($id)]);
-    unset($GLOBALS['seo_settings_cache']);
-    blog_clear_api_cache();
-
-    return ['ok' => true, 'deleted' => $stmt->rowCount() > 0];
+    return blog_taxonomy_delete('category', $id);
 }
 
 function blog_clear_api_cache(): void
@@ -1291,13 +1137,7 @@ function normalize_blog_category_filter(?string $category): ?string
         return null;
     }
 
-    foreach (blog_category_names() as $allowedCategory) {
-        if (strcasecmp($allowedCategory, $category) === 0) {
-            return $allowedCategory;
-        }
-    }
-
-    return null;
+    return $category;
 }
 
 function request_blog_category_filter(): ?string
@@ -1510,8 +1350,7 @@ function blogs_page(int $count, int $page, ?string $category = null, ?string $st
     $where = [];
     $params = [];
     if ($category !== null) {
-        $where[] = 'category = :category';
-        $params[':category'] = $category;
+        $where[] = blog_category_filter_sql(blog_category_filter_ids($pdo, $category), $params, 'category_filter_');
     }
     if ($status !== null) {
         if ($status === 'published') {
@@ -1525,6 +1364,11 @@ function blogs_page(int $count, int $page, ?string $category = null, ?string $st
     if ($search !== '') {
         $where[] = '(title LIKE :search ESCAPE \'\\\' OR slug LIKE :search ESCAPE \'\\\' OR category LIKE :search ESCAPE \'\\\' OR author LIKE :search ESCAPE \'\\\' OR excerpt LIKE :search ESCAPE \'\\\' OR content LIKE :search ESCAPE \'\\\' OR focus_keyphrase LIKE :search ESCAPE \'\\\' OR status LIKE :search ESCAPE \'\\\')';
         $params[':search'] = blog_like_term($search);
+        $searchCategoryIds = blog_category_filter_ids($pdo, $search);
+        if ($searchCategoryIds) {
+            $last = array_key_last($where);
+            $where[$last] = '(' . $where[$last] . ' OR ' . blog_category_filter_sql($searchCategoryIds, $params, 'search_category_') . ')';
+        }
     }
     $whereSql = $where !== [] ? ' WHERE ' . implode(' AND ', $where) : '';
 
@@ -1550,7 +1394,7 @@ function blogs_page(int $count, int $page, ?string $category = null, ?string $st
     $stmt->bindValue(':limit', $count, PDO::PARAM_INT);
     $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
     $stmt->execute();
-    $items = blog_add_internal_link_metrics($pdo, blogs_add_writers($pdo, array_map('blog_row_to_array', $stmt->fetchAll()), false));
+    $items = blog_add_internal_link_metrics($pdo, blogs_add_taxonomy($pdo, blogs_add_writers($pdo, array_map('blog_row_to_array', $stmt->fetchAll()), false)));
 
     return [
         'items' => $items,
@@ -1605,7 +1449,7 @@ function blogs_find(string $id): ?array
     $stmt->execute([':id' => $id]);
     $row = $stmt->fetch();
 
-    return is_array($row) ? blogs_add_writers($pdo,[blog_row_to_array($row)])[0] : null;
+    return is_array($row) ? blogs_add_taxonomy($pdo, blogs_add_writers($pdo,[blog_row_to_array($row)]))[0] : null;
 }
 
 function blog_ensure_post_route(string $slug): void
@@ -1620,17 +1464,18 @@ function blog_remove_post_route(string $slug): void
 
 function blogs_upsert_with_pdo(PDO $pdo, array $blog): array
 {
+    $blog = blog_taxonomy_validate_assignment($pdo, $blog);
     $stmt = $pdo->prepare(
         'INSERT INTO blog_posts (
-            id, slug, title, seo_title, category, author, excerpt, content, featured_image, status, focus_keyphrase, date_label, published_at, scheduled_at, created_at, updated_at, writer_id
+            id, slug, title, seo_title, category, category_id, author, excerpt, content, featured_image, status, focus_keyphrase, date_label, published_at, scheduled_at, created_at, updated_at, writer_id
         ) VALUES (
-            :id, :slug, :title, :seo_title, :category, :author, :excerpt, :content, :featured_image, :status, :focus_keyphrase, :date_label, :published_at, :scheduled_at, :created_at, :updated_at, :writer_id
+            :id, :slug, :title, :seo_title, :category, :category_id, :author, :excerpt, :content, :featured_image, :status, :focus_keyphrase, :date_label, :published_at, :scheduled_at, :created_at, :updated_at, :writer_id
         )
         ON CONFLICT(id) DO UPDATE SET
             slug = excluded.slug,
             title = excluded.title,
             seo_title = excluded.seo_title,
-            category = excluded.category,
+            category = excluded.category, category_id = excluded.category_id,
             author = excluded.author,
             writer_id = CASE WHEN :writer_provided THEN excluded.writer_id ELSE blog_posts.writer_id END,
             excerpt = excluded.excerpt,
@@ -1649,6 +1494,7 @@ function blogs_upsert_with_pdo(PDO $pdo, array $blog): array
         ':title' => $blog['title'],
         ':seo_title' => normalize_seo_title($blog['seoTitle'] ?? ($blog['seo_title'] ?? $blog['title'])),
         ':category' => $blog['category'],
+        ':category_id' => $blog['categoryId'],
         ':author' => $blog['author'],
         ':writer_id' => $blog['writerId'] ?? null,
         ':writer_provided' => array_key_exists('writerId',$blog) ? 1 : 0,
@@ -1664,6 +1510,7 @@ function blogs_upsert_with_pdo(PDO $pdo, array $blog): array
         ':updated_at' => $blog['updatedAt'],
     ]);
 
+    blog_taxonomy_assign_tags($pdo, $blog);
     return $blog;
 }
 
@@ -1779,7 +1626,7 @@ function blogs_upsert(array $blog, bool $manageTransaction = true): array
     }
 
     try {
-        blogs_upsert_with_pdo($pdo, $blog);
+        $blog = blogs_upsert_with_pdo($pdo, $blog);
 
         if ($manageTransaction) {
             $pdo->commit();
@@ -1856,6 +1703,8 @@ function blog_payload_from_post(): array
     $seoTitle = request_string('seo_title', 160);
     $slug = request_string('slug', 110);
     $category = request_string('category', 50);
+    $categoryId = request_string('category_id', 96);
+    if (array_key_exists('category_id', $_POST)) $category = $categoryId !== null ? (blog_category_find($categoryId)['name'] ?? null) : null;
     $author = request_string('author', 80) ?? BLOG_DEFAULT_AUTHOR;
     $excerpt = request_string('excerpt', 360);
     $content = request_string('content', 60000);
@@ -1910,6 +1759,8 @@ function blog_payload_from_post(): array
             'title' => $title,
             'seoTitle' => normalize_seo_title($seoTitle),
             'category' => $category,
+            ...(array_key_exists('category_id', $_POST) ? ['categoryId' => $categoryId] : []),
+            ...(isset($_POST['tags_present']) || array_key_exists('tag_ids', $_POST) ? ['tagIds' => $_POST['tag_ids'] ?? []] : []),
             'author' => $author,
             ...(array_key_exists('writer_id',$_POST) ? ['writerId'=>$_POST['writer_id']] : []),
             'excerpt' => $excerpt,

@@ -76,3 +76,6 @@
       font-size: 0.95rem;
     }
 .blog-table-block th,.blog-table-block td{padding:.65rem;border:1px solid #ccc;text-align:left}.blog-slot-demo-block{width:100%}
+
+/* Reuse the site's compact badge treatment for public taxonomy labels. */
+.blog-article-content .badge-tag { display:inline-flex; align-items:center; min-height:20px; padding:2px 7px; border-radius:6px; font-size:0.68rem; font-weight:900; letter-spacing:0; border:1px solid currentColor; }

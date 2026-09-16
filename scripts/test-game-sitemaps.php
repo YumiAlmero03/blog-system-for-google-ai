@@ -11,6 +11,9 @@ try {
     $db = $dir . '/games.sqlite';
     $pdo = new PDO('sqlite:' . $db);
     $pdo->exec('CREATE TABLE games (id INTEGER PRIMARY KEY, slug TEXT, updated_at INTEGER, published INTEGER, done_processing INTEGER, restrictions TEXT)');
+    $pdo->exec("ALTER TABLE games ADD COLUMN provider TEXT NOT NULL DEFAULT \"\"");
+    $pdo->exec("ALTER TABLE games ADD COLUMN provider_slug TEXT NOT NULL DEFAULT \"\"");
+    game_visibility_schema($pdo);
     $insert = $pdo->prepare('INSERT INTO games (slug, updated_at, published, done_processing, restrictions) VALUES (?, 1700000000, ?, ?, ?)');
     $cases = [
         ['ph', 'PH', false], ['csv-ph', 'US,PH,CN', false],

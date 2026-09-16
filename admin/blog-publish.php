@@ -1751,10 +1751,10 @@ $writerOptions = writer_options();
                     <span style="font-size:0.75rem; color:var(--text-muted); display:block; margin-top:4px;">Page URL: <code>/blog/<span id="slug-preview-text">blog-article</span>/</code></span>
                   </div>
                   <div class="form-group">
-                    <label for="blog-category">Category Tag *</label>
-                    <select id="blog-category" name="category" class="form-control" required>
+                    <label for="blog-category">Category *</label>
+                    <select id="blog-category" name="category_id" class="form-control" required>
                       <?php foreach ($blogCategoryOptions as $category): ?>
-                        <option value="<?= h($category['name']) ?>"><?= h($category['name']) ?></option>
+                        <option value="<?= h($category['id']) ?>"><?= h($category['label']) ?></option>
                       <?php endforeach; ?>
                     </select>
                   </div>
@@ -1780,7 +1780,13 @@ $writerOptions = writer_options();
                   <textarea id="blog-excerpt" name="excerpt" class="form-control" maxlength="170" style="min-height:96px;" required></textarea>
                 </div>
                 <div class="form-group">
+                  <label>Tags</label>
+                  <input type="hidden" name="tags_present" value="1">
+                  <div id="blog-tags">
+                    <?php foreach (blog_tags_all() as $tag): ?><label class="badge-tag"><input type="checkbox" name="tag_ids[]" value="<?= h($tag['id']) ?>"> <?= h($tag['name']) ?></label> <?php endforeach; ?>
+                  </div>
                   <label for="blog-writer">Writer</label>
+
                   <select id="blog-writer" name="writer_id" class="form-control">
                     <option value="">Legacy author name</option>
                     <?php foreach ($writerOptions as $writer): ?><option value="<?= h($writer['id']) ?>" <?= $writer['id'] === $defaultWriterId ? 'selected' : '' ?>><?= h($writer['name']) ?></option><?php endforeach; ?>
@@ -5119,7 +5125,8 @@ $writerOptions = writer_options();
         manualSeoTitle = Boolean(seoTitle && seoTitle.value.trim());
         if (slug) slug.value = blog.slug || blog.id || '';
         setText(slugPreview, slug && slug.value ? slug.value : 'blog-article');
-        if (categoryField) categoryField.value = blog.category || 'Guides';
+        if (categoryField) categoryField.value = blog.categoryId || '';
+        document.querySelectorAll('#blog-tags input').forEach(input => { input.checked = (blog.tagIds || []).includes(input.value); });
         if (blogStatus) blogStatus.value = blog.status || 'published';
         if (publishedAtField) publishedAtField.value = blog.scheduledAtInput || blog.publishedAtInput || currentDateTimeInput();
         if (scheduledAtField) scheduledAtField.value = blog.scheduledAtInput || '';

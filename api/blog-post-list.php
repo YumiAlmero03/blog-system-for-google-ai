@@ -15,7 +15,7 @@ function blog_post_list_cache_key(int $count, int $page, ?string $category): str
     $dbMtime = is_file(blogs_db_path()) ? (int) @filemtime(blogs_db_path()) : 0;
 
     return hash('sha256', json_encode([
-        'endpoint' => 'blog-post-list-v3',
+        'endpoint' => 'blog-post-list-taxonomy-v4',
         'count' => $count,
         'page' => $page,
         'category' => $category,
@@ -87,7 +87,8 @@ function blog_post_list_item(array $post): array
         'title' => $post['title'] ?? '',
         'writer' => array_intersect_key($post['writer'] ?? ['name'=>$post['author'] ?? 'Editorial Team','role_name'=>'','profile_image'=>''],array_flip(['name','role_name','profile_image'])),
         'seoTitle' => $post['seoTitle'] ?? '',
-        'category' => $post['category'] ?? '',
+        'category' => isset($post['categoryHierarchy']) ? ['name'=>$post['categoryHierarchy']['name'],'slug'=>$post['categoryHierarchy']['slug'],'parent_name'=>$post['categoryHierarchy']['parent']['name'] ?? null] : null,
+        'tags' => blog_public_tags($post),
         'author' => $post['author'] ?? '',
         'excerpt' => $post['excerpt'] ?? '',
         'featuredImage' => $post['featuredImage'] ?? BLOG_DEFAULT_IMAGE,

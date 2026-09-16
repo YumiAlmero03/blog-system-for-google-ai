@@ -10,7 +10,7 @@ function public_blog_find(string $slug): ?array
     $stmt = blogs_pdo()->prepare("SELECT * FROM blog_posts WHERE slug=:slug AND $visibility LIMIT 1");
     $stmt->execute([':slug'=>$slug,':visibility_now'=>time()]);
     $row = $stmt->fetch();
-    return $row ? blogs_add_writers(blogs_pdo(),[blog_row_to_array($row)])[0] : null;
+    return $row ? blogs_add_taxonomy(blogs_pdo(), blogs_add_writers(blogs_pdo(),[blog_row_to_array($row)]))[0] : null;
 }
 
 function detail_json(array $payload, int $status = 200): never

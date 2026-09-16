@@ -42,7 +42,21 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         : 0;
     $featuredValue = isset($_POST['featured']) && (string) $_POST['featured'] === '1' ? 1 : 0;
 
-    if ($slotId > 0) {
+    if (($_POST['action'] ?? '') === 'visibility') {
+        try {
+            if ($slotId <= 0) throw new InvalidArgumentException('Invalid game.');
+            $value = game_visibility_value($_POST['is_viewable'] ?? null);
+            $stmt = $pdo->prepare('UPDATE games SET is_viewable=?,updated_at=? WHERE id=?');
+            $stmt->execute([$value,time(),$slotId]);
+            if (!$stmt->rowCount()) throw new InvalidArgumentException('Game not found.');
+            game_visibility_refresh();
+        } catch (InvalidArgumentException $error) {
+            http_response_code(422); echo h($error->getMessage()); exit;
+        } catch (Throwable $error) {
+            http_response_code(500); echo h('Visibility could not be fully applied. Check the game setting and retry to refresh sitemaps.'); exit;
+        }
+    } elseif ($slotId > 0) {
+
         $stmt = $pdo->prepare('UPDATE games SET featured = :featured, updated_at = :updated_at WHERE id = :id');
         $stmt->execute([
             ':featured' => $featuredValue,
@@ -117,7 +131,7 @@ if ($page > $totalPages) {
 
 $stmt = $pdo->prepare(
     "SELECT id, api_id, name, slug, url, thumb, provider, provider_slug, type, type_slug,
-            themes, rtp, volatility, featured, published, upcoming, release, min_bet,
+            themes, rtp, volatility, featured, is_viewable, published, upcoming, release, min_bet,
             max_bet, max_win_per_spin, paylines, updated_at
      FROM games
      {$whereSql}
@@ -423,6 +437,15 @@ $featuredCount = (int) $pdo->query('SELECT COUNT(*) FROM games WHERE featured = 
                 <?php endif; ?>
               </div>
               <div class="slot-actions">
+                <form class="slot-featured-form" method="post" action="/admin/slots.php">
+                  <?= csrf_input() ?>
+                  <input type="hidden" name="action" value="visibility">
+                  <input type="hidden" name="slot_id" value="<?= (int)$slot['id'] ?>">
+                  <input type="hidden" name="return_to" value="<?= h($_SERVER['REQUEST_URI'] ?? '/admin/slots.php') ?>">
+                  <input type="hidden" name="is_viewable" value="0">
+                  <label class="slot-featured-label"><input type="checkbox" name="is_viewable" value="1" <?= (int)$slot['is_viewable'] === 1 ? 'checked' : '' ?> onchange="this.form.submit()"> Viewable</label>
+                </form>
+
                 <form class="slot-featured-form" method="post" action="/admin/slots.php">
                   <?= csrf_input() ?>
                   <input type="hidden" name="slot_id" value="<?= (int) $slot['id'] ?>">

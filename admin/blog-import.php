@@ -158,6 +158,7 @@ try {
             continue;
         }
         $normalized['id'] = $existingId !== false ? (string) $existingId : $slug;
+        blog_taxonomy_import_category($pdo, $normalized['category']);
         blogs_upsert_with_pdo($pdo, $normalized);
         $existingId !== false ? $counts['updated']++ : $counts['imported']++;
     }

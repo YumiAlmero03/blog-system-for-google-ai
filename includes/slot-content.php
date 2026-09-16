@@ -35,7 +35,7 @@ function slot_content_html(string $html): string
 
 function slot_content_save(array $input): void
 {
-    $allowed = ['id','csrf_token','name','short_description','long_description','rtp','volatility'];
+    $allowed = ['id','csrf_token','name','short_description','long_description','rtp','volatility','is_viewable'];
     if (array_diff(array_keys($input),$allowed)) throw new InvalidArgumentException('Unsupported or protected field.');
     $id = filter_var($input['id'] ?? null,FILTER_VALIDATE_INT);
     if (!$id || $id<1) throw new InvalidArgumentException('Invalid game.');
@@ -49,9 +49,11 @@ function slot_content_save(array $input): void
     if (!is_string($rtp) || ($rtp !== '' && (!is_numeric($rtp) || !is_finite((float)$rtp) || (float)$rtp<0 || (float)$rtp>100))) throw new InvalidArgumentException('RTP must be between 0 and 100.');
     $fields['long_description'] = slot_content_html($fields['long_description']);
     $pdo = blogs_pdo();
-    $stmt = $pdo->prepare('UPDATE games SET name=:name,short_description=:short_description,long_description=:long_description,rtp=:rtp,volatility=:volatility,updated_at=:updated_at WHERE id=:id');
-    $stmt->execute($fields+['rtp'=>$rtp === '' ? null : (float)$rtp,'updated_at'=>time(),'id'=>$id]);
+    $visibility = array_key_exists('is_viewable', $input) ? game_visibility_value($input['is_viewable']) : null;
+    $stmt = $pdo->prepare('UPDATE games SET is_viewable=COALESCE(:is_viewable,is_viewable),name=:name,short_description=:short_description,long_description=:long_description,rtp=:rtp,volatility=:volatility,updated_at=:updated_at WHERE id=:id');
+    $stmt->execute($fields+['is_viewable'=>$visibility,'rtp'=>$rtp === '' ? null : (float)$rtp,'updated_at'=>time(),'id'=>$id]);
     if (!$stmt->rowCount()) throw new InvalidArgumentException('Game not found.');
     // Slot list caches use database mtime, but WAL writes may leave that unchanged.
     blog_clear_api_cache();
+    if ($visibility !== null) game_visibility_refresh();
 }

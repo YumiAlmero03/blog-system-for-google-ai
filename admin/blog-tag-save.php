@@ -17,11 +17,11 @@ try {
         $id = request_string('id', 96);
         if ($id === null) {
             http_response_code(422);
-            echo json_encode(['ok' => false, 'error' => 'Category id is required.', 'csrfToken' => csrf_token()], JSON_UNESCAPED_SLASHES);
+            echo json_encode(['ok' => false, 'error' => 'Tag id is required.', 'csrfToken' => csrf_token()], JSON_UNESCAPED_SLASHES);
             exit;
         }
 
-        $result = blog_category_delete($id);
+        $result = blog_taxonomy_delete('tag', $id);
         if (!$result['ok']) {
             http_response_code(422);
             echo json_encode($result + ['csrfToken' => csrf_token()], JSON_UNESCAPED_SLASHES);
@@ -33,13 +33,10 @@ try {
         exit;
     }
 
-    $result = blog_category_save([
+    $result = blog_taxonomy_save('tag', [
         'id' => request_string('id', 96) ?? '',
         'name' => request_string('name', 50) ?? '',
         'slug' => $_POST['slug'] ?? '',
-        'parent_id' => $_POST['parent_id'] ?? null,
-        'description' => request_string('description', 180) ?? '',
-        'sort_order' => request_string('sort_order', 8) ?? '0',
     ]);
 
     if (!$result['ok']) {
@@ -51,7 +48,7 @@ try {
     csrf_rotate();
     echo json_encode($result + ['csrfToken' => csrf_token()], JSON_UNESCAPED_SLASHES);
 } catch (Throwable $exception) {
-    error_log('Blog category save error: ' . $exception->getMessage());
+    error_log('Blog tag save error: ' . $exception->getMessage());
     http_response_code(500);
-    echo json_encode(['ok' => false, 'error' => 'Blog categories are unavailable.', 'csrfToken' => csrf_token()], JSON_UNESCAPED_SLASHES);
+    echo json_encode(['ok' => false, 'error' => 'Blog tags are unavailable.', 'csrfToken' => csrf_token()], JSON_UNESCAPED_SLASHES);
 }

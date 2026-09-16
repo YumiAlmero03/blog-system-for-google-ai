@@ -6,6 +6,7 @@ $adminCurrentPath = $_SERVER['SCRIPT_NAME'] ?? '';
 $adminNavItems = [
     ['/admin/blogs.php', 'Blogs', str_ends_with($adminCurrentPath, '/admin/blogs.php')],
     ['/admin/blog-categories.php', 'Categories', str_ends_with($adminCurrentPath, '/admin/blog-categories.php')],
+    ['/admin/blog-tags.php', 'Tags', str_ends_with($adminCurrentPath, '/admin/blog-tags.php')],
     ['/admin/slots.php', 'Slots', str_ends_with($adminCurrentPath, '/admin/slots.php')],
     ['/admin/seo-checker-v2.php', 'SEO Checker V2', str_ends_with($adminCurrentPath, '/admin/seo-checker-v2.php')],
     ['/admin/playnow-tracker.php', 'Play Now Tracker', str_ends_with($adminCurrentPath, '/admin/playnow-tracker.php')],

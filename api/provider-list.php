@@ -45,7 +45,7 @@ function provider_list_use_sample(): bool
 function provider_list_cache_key(?int $limit, bool $sample): string
 {
     $dbMtime = is_file(blogs_db_path()) ? (int) @filemtime(blogs_db_path()) : 0;
-    return hash('sha256', 'provider-list-v4:' . $dbMtime . ':count=' . ($limit ?? 'all') . ':sample=' . ($sample ? '1' : '0'));
+    return hash('sha256', 'provider-list-v5:' . $dbMtime . ':count=' . ($limit ?? 'all') . ':sample=' . ($sample ? '1' : '0'));
 }
 
 function provider_list_cache_path(string $key): string
@@ -102,16 +102,17 @@ function provider_list_rows(PDO $pdo): array
 {
     $providersBySlug = [];
 
+    $eligible = game_public_eligibility_sql('g');
     $providerStmt = $pdo->query(
         'SELECT gp.id, gp.api_id, gp.name, "" AS slug, gp.thumbnail, gp.updated_at,
                 COUNT(g.id) AS game_count
          FROM game_providers gp
-         LEFT JOIN games g ON g.done_processing = 1 AND (
+         LEFT JOIN games g ON (' . $eligible . ') AND (
             (g.provider_id = gp.id OR LOWER(g.provider) = LOWER(gp.name))
             AND g.published = 1
          )
          WHERE gp.name <> ""
-         GROUP BY gp.id'
+         GROUP BY gp.id HAVING COUNT(g.id) > 0'
     );
 
     foreach ($providerStmt->fetchAll() as $provider) {
@@ -127,7 +128,7 @@ function provider_list_rows(PDO $pdo): array
         'SELECT MIN(id) AS id, 0 AS api_id, provider AS name, provider_slug AS slug, "" AS thumbnail,
                 MAX(updated_at) AS updated_at, COUNT(id) AS game_count
          FROM games
-         WHERE published = 1 AND done_processing = 1 AND provider <> ""
+         WHERE (' . game_public_eligibility_sql() . ') AND provider <> ""
          GROUP BY provider_slug, provider'
     );
 

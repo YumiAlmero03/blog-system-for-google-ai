@@ -249,6 +249,11 @@ $blogCategoryOptions = blog_categories_all();
           <button type="button" id="blog-import-btn" class="btn btn-secondary btn-sm">Import Blogs</button>
         </div>
         <div class="blog-list-tools">
+          <select id="blog-category-filter" class="blog-search-input" aria-label="Filter by category">
+            <option value="">All categories</option>
+            <?php foreach ($blogCategoryOptions as $category): ?><option value="<?= h($category['id']) ?>"><?= h($category['label']) ?></option><?php endforeach; ?>
+          </select>
+
           <input type="search" id="blog-search" class="blog-search-input" placeholder="Search blogs..." autocomplete="off">
           <button type="button" id="blog-search-clear" class="btn btn-secondary btn-sm">Clear</button>
           <span id="blog-search-status" class="blog-search-status" aria-live="polite"></span>
@@ -291,8 +296,9 @@ $blogCategoryOptions = blog_categories_all();
       const yoastRatingCache = new Map();
       let quickEditId = '';
       const writerOptions = <?= json_encode(writer_options(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-      const defaultCategory = <?= json_encode(blog_default_category(), JSON_UNESCAPED_SLASHES) ?>;
-      const categoryOptions = <?= json_encode(array_values(array_map(static fn (array $category): string => $category['name'], $blogCategoryOptions)), JSON_UNESCAPED_SLASHES) ?>;
+      const defaultCategory = <?= json_encode(blog_default_category(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+      const categoryOptions = <?= json_encode($blogCategoryOptions, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+      const tagOptions = <?= json_encode(blog_tags_all(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
       const yoastModuleUrl = '/admin/assets-admin/vendor/yoastseo/yoastseo.bundle.js?v=3.6.0';
       const yoastResearcherUrl = '/admin/assets-admin/vendor/yoastseo/researcher.bundle.js?v=3.6.0';
 
@@ -391,9 +397,10 @@ $blogCategoryOptions = blog_categories_all();
                 <label>Slug
                   <input type="text" name="slug" value="${escapeHtml(blog.slug || id)}" maxlength="96" pattern="[a-z0-9-]+" required>
                 </label>
+<input type="hidden" name="tags_present" value="1"><label>Tags<span>${tagOptions.map(t => `<label><input type="checkbox" name="tag_ids[]" value="${escapeHtml(t.id)}" ${(blog.tagIds || []).includes(t.id) ? 'checked' : ''}> ${escapeHtml(t.name)}</label>`).join(' ')}</span></label>
                 <label>Writer<select name="writer_id">${writerOptionList(blog)}</select></label>
                 <label>Category
-                  <select name="category" required>${optionList(categoryOptions, category)}</select>
+                  <select name="category_id" required>${categoryOptions.map(c => `<option value="${escapeHtml(c.id)}" ${c.id === blog.categoryId ? 'selected' : ''}>${escapeHtml(c.label)}</option>`).join('')}</select>
                 </label>
                 <label>Status
                   <select name="status" required>
@@ -626,6 +633,7 @@ $blogCategoryOptions = blog_categories_all();
         data.append('count', String(pageSize));
         data.append('page', String(currentPage));
         data.append('search', currentSearchTerm());
+        data.append('category', document.getElementById('blog-category-filter').value);
 
         const response = await fetch('/admin/blog-list.php', {
           method: 'POST',
@@ -664,7 +672,7 @@ $blogCategoryOptions = blog_categories_all();
           const slug = blog.slug || id;
           const status = blog.status === 'scheduled' ? 'scheduled' : (blog.status === 'draft' ? 'draft' : 'published');
           const isPublic = Boolean(blog.isPublic || status === 'published');
-          const category = blog.category || 'Uncategorized';
+          const category = blog.categoryLabel || blog.category || 'Uncategorized';
           const quickEditCategory = blog.category || defaultCategory;
           const internalLinkTitles = Array.isArray(blog.internalLinkTitles) ? blog.internalLinkTitles.join(', ') : '';
           const linkedFromTitles = Array.isArray(blog.linkedFromTitles) ? blog.linkedFromTitles.join(', ') : '';
@@ -677,7 +685,7 @@ $blogCategoryOptions = blog_categories_all();
                 <small>Slug: <code style="color:var(--brand);">${escapeHtml(slug)}</code><br>${escapeHtml(blog.excerpt || '')}</small>
               </td>
               <td>${escapeHtml(blog.writer?.name || blog.author || 'Editorial Team')}</td>
-              <td>${escapeHtml(category)}</td>
+              <td>${escapeHtml(category)}<div class="category-meta">${(blog.tags || []).map(t => `<span class="badge-tag">${escapeHtml(t.name)}</span>`).join(' ')}</div></td>
               <td><span class="blog-status-badge ${status}">${escapeHtml(status)}</span></td>
               <td class="blog-number-cell">${Number(blog.views || 0).toLocaleString()}</td>
               <td class="blog-number-cell">${Number(blog.likes || 0).toLocaleString()}</td>
@@ -707,7 +715,7 @@ $blogCategoryOptions = blog_categories_all();
                 <tr>
                   <th>Title</th>
                   <th>Writer</th>
-                  <th>Category</th>
+                  <th>Category / Tags</th>
                   <th>Status</th>
                   <th>Views</th>
                   <th>Likes</th>
@@ -738,6 +746,7 @@ $blogCategoryOptions = blog_categories_all();
         }, 260);
       }
 
+      document.getElementById('blog-category-filter').addEventListener('change', scheduleSearchLoad);
       searchInput.addEventListener('input', scheduleSearchLoad);
       clearSearchBtn.addEventListener('click', async () => {
         if (!searchInput.value) return;

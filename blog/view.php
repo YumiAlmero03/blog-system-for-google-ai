@@ -20,6 +20,8 @@ try {
 <?= public_head_html(['title'=>$post['seoTitle'] ?: $post['title'],'description'=>$post['excerpt'],'image'=>$post['featuredImage'] === BLOG_DEFAULT_IMAGE ? '' : $post['featuredImage'],'fallback_image'=>BLOG_DEFAULT_IMAGE,'canonical'=>$payload['blog']['blogUrl'],'type'=>'article']) ?>
 <?php if ($payload['faq_schema']): ?><script type="application/ld+json"><?= json_encode($payload['faq_schema'],JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES) ?></script><?php endif; ?>
 </head><body><main><article><h1><?= blog_h($post['title']) ?></h1>
+<p class="blog-article-content"><?= blog_h($post['categoryLabel']) ?></p>
+<p class="blog-article-content" aria-label="Tags"><?php foreach ($post['tags'] as $tag): ?><span class="badge-tag"><?= blog_h($tag['name']) ?></span> <?php endforeach; ?></p>
 <div class="blog-article-content"><?= $payload['blog']['content_html'] ?></div>
 <aside class="blog-article-content" aria-label="About the writer">
 <?php if ($payload['blog']['writer']['profile_image'] !== ''): ?><img src="<?= blog_h($payload['blog']['writer']['profile_image']) ?>" alt="<?= blog_h($payload['blog']['writer']['name']) ?>" width="96" height="96" loading="lazy" style="max-width:100%;object-fit:cover;aspect-ratio:1"><?php endif; ?>

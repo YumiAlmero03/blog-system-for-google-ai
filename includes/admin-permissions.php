@@ -9,7 +9,7 @@ function auth_route_capability(): string
         '/admin/blog-list.php'=>'blogs.view', '/admin/blog-edit.php'=>'blogs.edit',
         '/admin/blog-publish.php'=>'blogs.edit', '/admin/blog-create.php'=>'blogs.edit',
         '/admin/blog-save.php'=>'blogs.publish', '/admin/blog-delete.php'=>'blogs.edit',
-        '/admin/blog-category-list.php'=>'blogs.view', '/admin/upload-image.php'=>'blogs.edit',
+        '/admin/blog-category-list.php'=>'blogs.view', '/admin/blog-tag-list.php'=>'blogs.view', '/admin/upload-image.php'=>'blogs.edit',
         '/admin/slots.php'=>(($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' ? 'slots.edit' : 'slots.view'),
         '/admin/slot-edit.php'=>'slots.edit', '/admin/slot-save.php'=>'slots.edit',
         '/admin/contacts.php'=>'contacts.view', '/admin/live-chat.php'=>'chat.view',
@@ -51,7 +51,7 @@ function auth_rate_limit(): void
     require_once __DIR__ . '/api-rate-limit.php';
     $path = $_SERVER['SCRIPT_NAME'] ?? '';
     $write = ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST';
-    $readPosts = ['/admin/blog-list.php','/admin/blog-edit.php','/admin/blog-category-list.php'];
+    $readPosts = ['/admin/blog-list.php','/admin/blog-edit.php','/admin/blog-category-list.php','/admin/blog-tag-list.php'];
     $group = $write && !in_array($path,$readPosts,true) ? 'write' : 'read';
     $limit = $group === 'write' ? 30 : 120;
     if ($path === '/api/chat-session.php') $group = $write ? 'chat-send' : 'chat-poll';

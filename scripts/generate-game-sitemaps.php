@@ -65,8 +65,9 @@ function generate_game_sitemaps(string $dbPath, string $output): array
         ]);
         $pdo->exec('PRAGMA query_only = ON');
         $allowed = games_ph_allowed_sql();
+        $visible = game_visibility_sql();
         $rows = $pdo->query("SELECT id, slug, updated_at, ($allowed) AS ph_allowed
-                            FROM games WHERE published = 1 AND done_processing = 1 ORDER BY id ASC");
+                            FROM games WHERE published = 1 AND done_processing = 1 AND ($visible) ORDER BY id ASC");
         $games = [];
         $blocked = [];
         $excluded = 0;
@@ -191,6 +192,7 @@ if (realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
         exit;
     }
     try {
+        blogs_pdo(); // Apply schema defaults before opening the read-only sitemap snapshot.
         $result = generate_game_sitemaps(blogs_db_path(), dirname(__DIR__));
         printf("Eligible games: %s\nPH-restricted excluded: %s\nSitemaps generated: %d\nURLs written: %s\nSitemap index updated.\nrobots.txt verified.\n",
             number_format($result['eligible']), number_format($result['excluded']), $result['chunks'], number_format($result['eligible']));

@@ -1,62 +1,79 @@
-# Easy Update Upload
+# Uploading an update
 
-Use this when you edit files locally and want a small upload package for aaPanel or cPanel File Manager.
+Build a ZIP locally, review its manifest, and upload it to the existing site through aaPanel or cPanel File Manager. This packages code; it does not deploy anything or replace production data.
+
+## 1. Build the package
+
+From the project directory, run:
 
 ```sh
 sh scripts/package-update.sh
 ```
 
-The script creates:
+Requires Git and PHP with ZipArchive. By default, the package contains tracked changes since `HEAD` plus non-ignored untracked files, using their current working copies. This includes all pending changes, not just the most recent feature.
 
-- `update-packages/site-update-YYYYMMDD-HHMMSS.zip`
-- `update-packages/site-update-YYYYMMDD-HHMMSS-manifest.txt`
-- `update-packages/site-update-YYYYMMDD-HHMMSS-deletions.txt`
-
-Upload the zip to the site root and extract it there. If `deletions.txt` has entries, delete those files on the server too.
-
-## Database Updates
-
-Do not upload your local `storage/blogs.sqlite` to production unless you intentionally want to replace production data.
-
-For database changes, upload the code first, then run a safe schema check:
+If the server runs an older commit, use that deployed commit or branch as the baseline:
 
 ```sh
-php scripts/safe-db-update.php
+sh scripts/package-update.sh <deployed-commit-or-branch>
 ```
 
-That command is a dry run. It only shows missing columns.
+The command creates three files in `update-packages/`:
 
-To add the missing columns without changing existing rows:
+- `site-update-<UTC timestamp>-<suffix>.zip`: changed files, with paths relative to the site root.
+- Matching `-manifest.txt`: baseline commit, creation time, file list, and SHA-256 hashes.
+- Matching `-deletions.txt`: server paths that need manual removal; an empty file means no deletions.
+
+The package excludes storage, uploads, chats, environment files, database files, private-key files, logs, archives, dependencies, and local agent/Git directories. Review the manifest for any other private files before uploading. Generated packages are ignored by Git. Renames appear as an upload plus a deletion.
+
+## 2. Back up and upload
+
+1. Back up the server files and production database using your hosting backup tools. Keep backups outside the public site directory. For a live SQLite database, use a SQLite-aware backup rather than copying only its main file while writes continue.
+2. Review the manifest against the server version. Try the update on staging first.
+3. Put the site into maintenance mode during extraction and database migration.
+4. Upload the ZIP to the site root, where `includes/`, `admin/`, and `api/` already exist. Extract there and allow the listed code files to be overwritten.
+5. Review and apply any entries in the deletions report. Never delete unrelated server files.
+6. Remove the uploaded ZIP and reports from the public server directory afterward.
+
+Do not upload your local `storage/blogs.sqlite`, `.env`, uploads, or customer/chat records.
+
+## 3. Apply database migrations
+
+This project runs its schema migrations through `blogs_pdo()`. There is no `scripts/safe-db-update.php` and no schema-only dry-run command. After backing up and uploading, run this from the server site root:
 
 ```sh
-php scripts/safe-db-update.php --apply
+php -r 'require "includes/blog-storage.php"; blogs_pdo(); echo "Database initialization completed.\n";'
 ```
 
-This script does not import games, replace data, delete rows, or overwrite the production database file.
+This **writes to the production database** using the server configuration. It can add tables/columns, backfill category assignments, and perform existing initialization work, including legacy blog migration and publishing due scheduled posts. Do not describe it as an add-columns-only operation. Test against a backup on staging when upgrading an older installation.
 
-To compare against a specific commit or branch:
+Then regenerate public game sitemaps:
 
 ```sh
-sh scripts/package-update.sh HEAD
-sh scripts/package-update.sh main
+php scripts/generate-game-sitemaps.php
 ```
 
-## Blog Import Upload Limits
+The web/PHP user must be able to write the sitemap files and API cache directory. Provider approval and game visibility saves also refresh sitemaps; a refresh failure appears in the admin response and can be retried by saving again.
 
-Blog ZIP imports are limited by the application to 100 MB. Configure the web
-server and PHP so upstream limits are not lower than that:
+## 4. Verify and finish
 
-```nginx
-client_max_body_size 100M;
-```
+Check admin login, blog editing/Quick Edit, category filtering, tags, provider settings, slot editing, public APIs, and the sitemap index. Hidden games should return public 404s. Remove maintenance mode after checks pass.
 
-```ini
-upload_max_filesize = 100M
-post_max_size = 100M
-```
+If rollback is needed, restore the matching server code and database backup together. Restoring an older database discards writes made after that backup, so keep maintenance mode active until the update is verified.
 
-For larger exports, raise all three values together. The Nginx
-`client_max_body_size` must be greater than or equal to PHP
-`post_max_size`, and PHP `post_max_size` must be greater than or equal to
-`upload_max_filesize`. Reload/restart Nginx and PHP-FPM after changing these
-values.
+## First update — 2026-09-16
+
+The first package includes the current pending implementation:
+
+- Blog tags with CRUD and multiple assignments.
+- Hierarchical categories, stable category IDs, and parent-inclusive filtering/search.
+- Category/tag output in blog APIs and public views.
+- Provider approvals and per-game `is_viewable` controls.
+- Shared public game eligibility and sitemap/provider-list filtering.
+- The missing public game page handler, regression scripts, and updated documentation.
+
+Database changes include category slugs/parents and blog category IDs, tag/relation tables, provider approval overrides, and game visibility. Existing provider approvals and game visibility default to enabled. No production deployment has been performed.
+
+## Blog ZIP upload limits
+
+The application accepts blog ZIP imports up to 100 MB. Configure PHP `upload_max_filesize` to at least 100M, and set `post_max_size` higher to allow multipart form overhead. The web-server request limit must be at least as large as `post_max_size`. Reload the affected services after changing their configuration.

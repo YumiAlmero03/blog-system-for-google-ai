@@ -24,7 +24,7 @@ function blog_category_list_cache_key(): string
     $dbMtime = is_file(blogs_db_path()) ? (int) @filemtime(blogs_db_path()) : 0;
 
     return hash('sha256', json_encode([
-        'endpoint' => 'blog-category-list-v1',
+        'endpoint' => 'blog-category-list-v2',
         'dbMtime' => $dbMtime,
     ], JSON_UNESCAPED_SLASHES));
 }
@@ -69,6 +69,9 @@ function blog_category_list_item(array $category): array
     return [
         'id' => (string) ($category['id'] ?? ''),
         'name' => (string) ($category['name'] ?? ''),
+        'slug' => $category['slug'],
+        'parent_id' => $category['parent_id'],
+        'parent_name' => $category['parent_name'],
         'description' => (string) ($category['description'] ?? ''),
         'postCount' => (int) ($category['postCount'] ?? 0),
     ];

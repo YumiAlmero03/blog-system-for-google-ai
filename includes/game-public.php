@@ -96,8 +96,8 @@ function public_detail_slug(mixed $slug): ?string
 function public_game_find(string $slug): ?array
 {
     if (public_detail_slug($slug) === null) return null;
-    $allowed = games_ph_allowed_sql();
-    $stmt = blogs_pdo()->prepare("SELECT * FROM games WHERE slug=:slug AND published=1 AND done_processing=1 AND ($allowed) ORDER BY updated_at DESC,id DESC LIMIT 1");
+    $allowed = game_public_eligibility_sql();
+    $stmt = blogs_pdo()->prepare("SELECT * FROM games WHERE slug=:slug AND ($allowed) ORDER BY updated_at DESC,id DESC LIMIT 1");
     $stmt->execute([':slug'=>$slug]);
     return $stmt->fetch() ?: null;
 }

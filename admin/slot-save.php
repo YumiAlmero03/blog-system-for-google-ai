@@ -10,4 +10,5 @@ try {
     slot_content_save($_POST);
     echo json_encode(['ok'=>true,'message'=>'Game content saved.']);
 } catch (InvalidArgumentException $e) { http_response_code(422); echo json_encode(['ok'=>false,'error'=>$e->getMessage()]); }
+catch (GameSitemapRefreshException $e) { error_log($e->getPrevious()?->getMessage() ?? $e->getMessage()); http_response_code(500); echo json_encode(['ok'=>false,'error'=>$e->getMessage()]); }
 catch (Throwable $e) { error_log('Slot content save failed.'); http_response_code(500); echo json_encode(['ok'=>false,'error'=>'Unable to save game content.']); }

@@ -12,7 +12,7 @@ require_auth();
   <meta name="robots" content="noindex, nofollow">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Blog Categories | Admin</title>
+  <title>Blog Tags | Admin</title>
   <link rel="preload" href="/admin/style.css" as="style"><link rel="stylesheet" href="/admin/style.css">
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <style>
@@ -34,13 +34,13 @@ require_auth();
       padding-bottom: 16px;
       border-bottom: 2px solid var(--border);
     }
-    .category-layout {
+    .tag-layout {
       display: grid;
       grid-template-columns: minmax(0, 1fr) 320px;
       gap: 18px;
       align-items: start;
     }
-    .category-row {
+    .tag-row {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 14px;
@@ -51,7 +51,7 @@ require_auth();
       border: 1px solid var(--border);
       border-radius: 8px;
     }
-    .category-name {
+    .tag-name {
       display: flex;
       align-items: center;
       gap: 10px;
@@ -59,7 +59,7 @@ require_auth();
       font-weight: 900;
       font-size: 1rem;
     }
-    .category-chip {
+    .tag-chip {
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -73,18 +73,18 @@ require_auth();
       font-size: 0.74rem;
       font-weight: 900;
     }
-    .category-meta {
+    .tag-meta {
       margin-top: 4px;
       color: var(--text-muted);
       font-size: 0.82rem;
     }
-    .category-actions {
+    .tag-actions {
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
       justify-content: flex-end;
     }
-    .category-panel {
+    .tag-panel {
       position: sticky;
       top: 92px;
       padding: 16px;
@@ -117,17 +117,17 @@ require_auth();
     .notice.error { display: block; background: #fff1f1; color: var(--danger); border: 1px solid #e5aaaa; }
     @media (max-width: 820px) {
       .admin-header,
-      .category-row {
+      .tag-row {
         align-items: flex-start;
         grid-template-columns: 1fr;
       }
-      .category-layout {
+      .tag-layout {
         grid-template-columns: 1fr;
       }
-      .category-panel {
+      .tag-panel {
         position: static;
       }
-      .category-actions {
+      .tag-actions {
         justify-content: flex-start;
       }
     }
@@ -141,8 +141,8 @@ require_auth();
       <div class="admin-container">
         <div class="admin-header">
           <div>
-            <h1 style="font-size:1.6rem; color:var(--brand-dark);">Blog Categories</h1>
-            <p style="font-size:0.88rem; color:var(--text-muted);">Create, rename, sort, and remove categories used by blog posts.</p>
+            <h1 style="font-size:1.6rem; color:var(--brand-dark);">Blog Tags</h1>
+            <p style="font-size:0.88rem; color:var(--text-muted);">Create, rename, and remove tags used by blog posts.</p>
           </div>
           <a href="/admin/blogs.php" class="btn btn-secondary btn-sm">Back to Blogs</a>
         </div>
@@ -150,40 +150,28 @@ require_auth();
         <input type="hidden" id="csrf-token" value="<?= h(csrf_token()) ?>">
         <div id="notice" class="notice" role="status"></div>
 
-        <div class="category-layout">
+        <div class="tag-layout">
           <section>
-            <div id="category-list">
-              <p style="color:var(--text-muted); font-size:0.9rem;">Loading categories...</p>
+            <div id="tag-list">
+              <p style="color:var(--text-muted); font-size:0.9rem;">Loading tags...</p>
             </div>
           </section>
 
-          <aside class="category-panel" aria-label="Category form">
-            <h2 id="category-form-title" style="font-size:1.1rem; color:var(--brand-dark); margin-bottom:10px;">Add Category</h2>
-            <form id="category-form">
-              <input type="hidden" id="category-id" name="id">
+          <aside class="tag-panel" aria-label="Tag form">
+            <h2 id="tag-form-title" style="font-size:1.1rem; color:var(--brand-dark); margin-bottom:10px;">Add Tag</h2>
+            <form id="tag-form">
+              <input type="hidden" id="tag-id" name="id">
               <div class="form-group">
-                <label for="category-name">Name *</label>
-                <input type="text" id="category-name" name="name" class="form-control" maxlength="50" required>
+                <label for="tag-name">Name *</label>
+                <input type="text" id="tag-name" name="name" class="form-control" maxlength="50" required>
               </div>
               <div class="form-group">
-                <label for="category-slug">Slug</label>
-                <input id="category-slug" name="slug" class="form-control" maxlength="96">
-              </div>
-              <div class="form-group">
-                <label for="category-parent">Parent Category</label>
-                <select id="category-parent" name="parent_id" class="form-control"></select>
-              </div>
-              <div class="form-group">
-                <label for="category-description">Description</label>
-                <textarea id="category-description" name="description" class="form-control" maxlength="180" rows="3"></textarea>
-              </div>
-              <div class="form-group">
-                <label for="category-sort-order">Sort order</label>
-                <input type="number" id="category-sort-order" name="sort_order" class="form-control" min="0" max="100000" step="1" value="0">
+                <label for="tag-slug">Slug</label>
+                <input id="tag-slug" name="slug" class="form-control" maxlength="96">
               </div>
               <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                <button type="submit" class="btn btn-primary btn-sm">Save Category</button>
-                <button type="button" id="category-reset" class="btn btn-secondary btn-sm">Clear</button>
+                <button type="submit" class="btn btn-primary btn-sm">Save Tag</button>
+                <button type="button" id="tag-reset" class="btn btn-secondary btn-sm">Clear</button>
               </div>
             </form>
           </aside>
@@ -195,18 +183,15 @@ require_auth();
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       let csrfToken = document.getElementById('csrf-token').value;
-      let categories = [];
-      const list = document.getElementById('category-list');
+      let tags = [];
+      const list = document.getElementById('tag-list');
       const notice = document.getElementById('notice');
-      const form = document.getElementById('category-form');
-      const formTitle = document.getElementById('category-form-title');
-      const idField = document.getElementById('category-id');
-      const nameField = document.getElementById('category-name');
-      const descriptionField = document.getElementById('category-description');
-      const sortOrderField = document.getElementById('category-sort-order');
-      const slugField = document.getElementById('category-slug');
-      const parentField = document.getElementById('category-parent');
-      const resetButton = document.getElementById('category-reset');
+      const form = document.getElementById('tag-form');
+      const formTitle = document.getElementById('tag-form-title');
+      const idField = document.getElementById('tag-id');
+      const nameField = document.getElementById('tag-name');
+      const slugField = document.getElementById('tag-slug');
+      const resetButton = document.getElementById('tag-reset');
 
       function escapeHtml(value) {
         return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
@@ -235,60 +220,46 @@ require_auth();
       function resetForm() {
         idField.value = '';
         slugField.value = '';
-        renderParents();
         nameField.value = '';
-        descriptionField.value = '';
-        sortOrderField.value = '0';
-        formTitle.textContent = 'Add Category';
+        formTitle.textContent = 'Add Tag';
         nameField.focus();
       }
 
-      function renderParents(selected = '') {
-        const invalid = new Set(idField.value ? [idField.value] : []);
-        let changed = true;
-        while (changed) {
-          changed = false;
-          categories.forEach(c => { if (invalid.has(c.parent_id) && !invalid.has(c.id)) { invalid.add(c.id); changed = true; } });
-        }
-        parentField.innerHTML = '<option value="">None / Top Level</option>' + categories.filter(c => !invalid.has(c.id)).map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.label)}</option>`).join('');
-        parentField.value = selected;
-      }
 
-      function renderCategories() {
-        renderParents(parentField.value);
+      function renderTags() {
 
-        if (!categories.length) {
-          list.innerHTML = '<p style="color:var(--text-muted); font-size:0.9rem; padding:16px; background:var(--surface-soft); border-radius:8px;">No categories yet.</p>';
+        if (!tags.length) {
+          list.innerHTML = '<p style="color:var(--text-muted); font-size:0.9rem; padding:16px; background:var(--surface-soft); border-radius:8px;">No tags yet.</p>';
           return;
         }
 
-        list.innerHTML = categories.map((category) => {
-          const postCount = Number(category.postCount || 0);
+        list.innerHTML = tags.map((tag) => {
+          const postCount = Number(tag.postCount || 0);
           return `
-            <article class="category-row">
+            <article class="tag-row">
               <div>
-                <div class="category-name">
-                  ${'— '.repeat(category.depth || 0)}${escapeHtml(category.name)}
-                  <span class="category-chip">${escapeHtml(String(postCount))} ${postCount === 1 ? 'post' : 'posts'}</span>
+                <div class="tag-name">
+                  ${escapeHtml(tag.name)}
+                  <span class="tag-chip">${escapeHtml(String(postCount))} ${postCount === 1 ? 'post' : 'posts'}</span>
                 </div>
-                <div class="category-meta">
-                  Slug: <code>${escapeHtml(category.slug)}</code> · Parent: ${escapeHtml(category.parent_name || 'None')} · Updated: ${escapeHtml(new Date(category.updatedAt * 1000).toLocaleDateString())} · Sort: ${escapeHtml(String(category.sortOrder || 0))}
-                  ${category.description ? '<br>' + escapeHtml(category.description) : ''}
+                <div class="tag-meta">
+                  Slug: <code>${escapeHtml(tag.slug)}</code> · Updated: ${escapeHtml(new Date(tag.updatedAt * 1000).toLocaleDateString())}
+                  ${tag.description ? '<br>' + escapeHtml(tag.description) : ''}
                 </div>
               </div>
-              <div class="category-actions">
-                <button type="button" class="btn btn-secondary btn-sm" data-edit="${escapeHtml(category.id)}">Edit</button>
-                <button type="button" class="btn btn-secondary btn-sm" data-delete="${escapeHtml(category.id)}" ${postCount > 0 ? 'disabled title="This category has posts."' : ''} style="color:var(--danger); border-color:var(--danger);">Delete</button>
+              <div class="tag-actions">
+                <button type="button" class="btn btn-secondary btn-sm" data-edit="${escapeHtml(tag.id)}">Edit</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-delete="${escapeHtml(tag.id)}"  style="color:var(--danger); border-color:var(--danger);">Delete</button>
               </div>
             </article>
           `;
         }).join('');
       }
 
-      async function loadCategories() {
+      async function loadTags() {
         const data = new FormData();
         data.append('csrf_token', csrfToken);
-        const response = await fetch('/admin/blog-category-list.php', {
+        const response = await fetch('/admin/blog-tag-list.php', {
           method: 'POST',
           headers: { 'Accept': 'application/json', 'X-Requested-With': 'fetch' },
           body: data
@@ -296,10 +267,10 @@ require_auth();
         const result = await parseJsonResponse(response);
         updateCsrf(result.csrfToken);
         if (!response.ok || !result.ok) {
-          throw new Error(result.error || 'Categories could not be loaded.');
+          throw new Error(result.error || 'Tags could not be loaded.');
         }
-        categories = result.categories || [];
-        renderCategories();
+        tags = result.tags || [];
+        renderTags();
       }
 
       form.addEventListener('submit', async (event) => {
@@ -307,7 +278,7 @@ require_auth();
         const data = new FormData(form);
         data.append('csrf_token', csrfToken);
         data.append('action', 'save');
-        const response = await fetch('/admin/blog-category-save.php', {
+        const response = await fetch('/admin/blog-tag-save.php', {
           method: 'POST',
           headers: { 'Accept': 'application/json', 'X-Requested-With': 'fetch' },
           body: data
@@ -315,12 +286,12 @@ require_auth();
         const result = await parseJsonResponse(response);
         updateCsrf(result.csrfToken);
         if (!response.ok || !result.ok) {
-          showNotice((result.errors || [result.error || 'Category could not be saved.']).join(' '), 'error');
+          showNotice((result.errors || [result.error || 'Tag could not be saved.']).join(' '), 'error');
           return;
         }
-        showNotice('Category saved.', 'ok');
+        showNotice('Tag saved.', 'ok');
         resetForm();
-        await loadCategories().catch((error) => showNotice(error.message || 'Categories could not be loaded.', 'error'));
+        await loadTags().catch((error) => showNotice(error.message || 'Tags could not be loaded.', 'error'));
       });
 
       list.addEventListener('click', async (event) => {
@@ -328,27 +299,24 @@ require_auth();
         const deleteButton = event.target.closest('[data-delete]');
 
         if (editButton) {
-          const category = categories.find((item) => item.id === editButton.dataset.edit);
-          if (!category) return;
-          idField.value = category.id || '';
-          nameField.value = category.name || '';
-          slugField.value = category.slug || '';
-          renderParents(category.parent_id || '');
-          descriptionField.value = category.description || '';
-          sortOrderField.value = String(category.sortOrder || 0);
-          formTitle.textContent = 'Edit Category';
+          const tag = tags.find((item) => item.id === editButton.dataset.edit);
+          if (!tag) return;
+          idField.value = tag.id || '';
+          nameField.value = tag.name || '';
+          slugField.value = tag.slug || '';
+              formTitle.textContent = 'Edit Tag';
           nameField.focus();
           return;
         }
 
         if (deleteButton) {
-          const category = categories.find((item) => item.id === deleteButton.dataset.delete);
-          if (!category || !confirm('Delete category "' + category.name + '"?')) return;
+          const tag = tags.find((item) => item.id === deleteButton.dataset.delete);
+          if (!tag || !confirm('Delete tag "' + tag.name + '"?')) return;
           const data = new FormData();
           data.append('csrf_token', csrfToken);
           data.append('action', 'delete');
-          data.append('id', category.id);
-          const response = await fetch('/admin/blog-category-save.php', {
+          data.append('id', tag.id);
+          const response = await fetch('/admin/blog-tag-save.php', {
             method: 'POST',
             headers: { 'Accept': 'application/json', 'X-Requested-With': 'fetch' },
             body: data
@@ -356,16 +324,16 @@ require_auth();
           const result = await parseJsonResponse(response);
           updateCsrf(result.csrfToken);
           if (!response.ok || !result.ok) {
-            showNotice(result.error || 'Category could not be deleted.', 'error');
+            showNotice(result.error || 'Tag could not be deleted.', 'error');
             return;
           }
-          showNotice('Category deleted.', 'ok');
-          await loadCategories().catch((error) => showNotice(error.message || 'Categories could not be loaded.', 'error'));
+          showNotice('Tag deleted.', 'ok');
+          await loadTags().catch((error) => showNotice(error.message || 'Tags could not be loaded.', 'error'));
         }
       });
 
       resetButton.addEventListener('click', resetForm);
-      loadCategories().catch((error) => showNotice(error.message || 'Categories could not be loaded.', 'error'));
+      loadTags().catch((error) => showNotice(error.message || 'Tags could not be loaded.', 'error'));
     });
   </script>
 </body>
