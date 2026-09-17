@@ -144,15 +144,47 @@ function blog_render_custom_code_block(string $content, int $index): string
   return $output;
 }
 
-function blog_render_button_block(string $content): string
+function blog_button_url_valid(string $url): bool
+{
+  if ($url === '' || strlen($url) > 2048 || preg_match('/[\x00-\x20\x7f<>"\'\\\\]/', $url)) return false;
+  if (str_starts_with($url, '/') && !str_starts_with($url, '//')) return true;
+  return filter_var($url, FILTER_VALIDATE_URL) !== false
+    && in_array(strtolower((string) parse_url($url, PHP_URL_SCHEME)), ['http', 'https'], true)
+    && parse_url($url, PHP_URL_USER) === null && parse_url($url, PHP_URL_PASS) === null;
+}
+
+function blog_button_options(string $content, bool $validate = false): array
 {
   $options = blog_parse_block_options($content);
-  $url = blog_safe_block_url($options['url'] ?? '', '/playnow');
-  $label = trim((string) ($options['label'] ?? 'Open Link')) ?: 'Open Link';
-  $nofollow = isset($options['nofollow']) && preg_match('/^(1|true|yes|on)$/i', $options['nofollow']) === 1;
-  $rel = 'noopener noreferrer' . ($nofollow ? ' nofollow' : '');
+  $label = trim($options['label'] ?? $options['text'] ?? 'Open Link');
+  $url = trim($options['url'] ?? '/playnow');
+  $style = strtolower($options['style'] ?? 'primary');
+  $align = strtolower($options['align'] ?? 'left');
+  if ($validate && (!blog_button_url_valid($url) || $label === '' || strlen($label) > 200
+    || !in_array($style, ['primary', 'secondary'], true) || !in_array($align, ['left', 'center', 'right'], true))) {
+    throw new InvalidArgumentException('Button requires a label (up to 200 characters), a valid HTTP(S) or site-relative URL, and a supported style/alignment.');
+  }
+  return ['label'=>$label ?: 'Open Link', 'url'=>blog_button_url_valid($url) ? $url : '/playnow',
+    'style'=>in_array($style,['primary','secondary'],true) ? $style : 'primary',
+    'align'=>in_array($align,['left','center','right'],true) ? $align : 'left',
+    'new_tab'=>!isset($options['new_tab']) || preg_match('/^(1|true|yes|on)$/i',$options['new_tab']) === 1,
+    'nofollow'=>isset($options['nofollow']) && preg_match('/^(1|true|yes|on)$/i',$options['nofollow']) === 1];
+}
 
-  return '<p class="blog-button-block"><a class="blog-button-link" href="' . blog_h($url) . '" target="_blank" rel="' . blog_h($rel) . '">' . blog_h($label) . '</a></p>';
+function blog_validate_button_blocks(string $markdown): void
+{
+  preg_match_all('/^:::button[ \t]*\n([\s\S]*?)^:::[ \t]*$/m',str_replace(["\r\n","\r"],"\n",$markdown),$matches);
+  foreach ($matches[1] as $content) blog_button_options($content,true);
+}
+
+function blog_render_button_block(string $content): string
+{
+  $button = blog_button_options($content);
+  $url = str_starts_with($button['url'], '/') ? public_url($button['url']) : $button['url'];
+  $rel = 'noopener noreferrer' . ($button['nofollow'] ? ' nofollow' : '');
+  $class = 'blog-button-link' . ($button['style'] === 'secondary' ? ' blog-slot-demo-real' : '');
+  return '<p class="blog-button-block" style="text-align:' . $button['align'] . '"><a class="' . $class . '" href="' . blog_h($url) . '"'
+    . ($button['new_tab'] ? ' target="_blank"' : '') . ' rel="' . $rel . '">' . blog_h($button['label']) . '</a></p>';
 }
 
 function blog_render_slot_demo_block(string $content): string

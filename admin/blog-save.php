@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/blog-storage.php';
+require_once __DIR__ . '/../includes/blog-renderer.php';
 
 require_auth();
 require_post();
@@ -18,6 +19,7 @@ if (!$payload['ok']) {
 }
 
 try {
+    blog_validate_button_blocks($payload['blog']['content']);
     if (($_SESSION['user']['role'] ?? '') === 'editor') {
         $existing = blogs_find($payload['blog']['id']);
         preg_match_all('/^:::custom-code[ \t]*\n[\s\S]*?^:::[ \t]*$/m', str_replace(["\r\n","\r"],"\n",$existing['content'] ?? ''), $oldCode);

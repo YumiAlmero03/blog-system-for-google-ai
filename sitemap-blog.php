@@ -16,7 +16,10 @@ function sitemap_xml_escape(string $value): string
 header('Content-Type: application/xml; charset=UTF-8');
 
 $baseUrl = sitemap_base_url();
-$posts = blogs_public_all();
+$pdo = blogs_pdo();
+$stmt = $pdo->prepare('SELECT slug,updated_at AS updatedAt,published_at AS publishedAt FROM blog_posts WHERE ' . blog_public_visibility_sql() . ' ORDER BY created_at DESC');
+$stmt->execute([':visibility_now'=>time()]);
+$posts = $stmt->fetchAll();
 
 echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
 echo "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n";

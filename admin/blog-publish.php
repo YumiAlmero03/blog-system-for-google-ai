@@ -715,6 +715,8 @@ $writerOptions = writer_options();
       font-weight: 900;
       text-decoration: none;
     }
+    .editor-button-preview.btn-secondary { background:#fff; color:#344054; border:1px solid var(--border-strong); }
+    .editor-button-label, .editor-button-style, .editor-button-align { font:inherit; padding:8px; border:1px solid var(--border-strong); border-radius:var(--radius-sm); }
     .editor-button-follow {
       display: inline-flex;
       align-items: center;
@@ -2606,23 +2608,43 @@ $writerOptions = writer_options();
         return `<section class="editor-block editor-table-block" data-block-type="table" data-table-headings="${hasHeadings ? 'true' : 'false'}" draggable="true"><div class="editor-table-actions" contenteditable="false"><button type="button" data-table-add-row>Add Row</button><button type="button" data-table-remove-row>Remove Row</button><button type="button" data-table-add-col>Add Column</button><button type="button" data-table-remove-col>Remove Column</button><button type="button" data-table-toggle-headings class="${hasHeadings ? 'is-active' : ''}">Styled Headings</button></div><div class="editor-table-wrap" contenteditable="false"><table class="editor-table"><tbody>${body}</tbody></table></div></section>`;
       }
 
+      function validButtonUrl(url) {
+        if (!url || url.length > 2048 || /[\s<>"'\\]/.test(url)) return false;
+        if (url.startsWith('/') && !url.startsWith('//')) return true;
+        if (!/^https?:\/\//i.test(url)) return false;
+        try { const parsed = new URL(url); return !parsed.username && !parsed.password; } catch { return false; }
+      }
+
       function normalizeButtonBlock(value) {
-        const button = { url: '/playnow', nofollow: false };
-        String(value || '').split(/\n/).forEach((line) => {
-          const match = line.match(/^\s*(url|nofollow)\s*:\s*(.*)\s*$/i);
-          if (!match) return;
-          const key = match[1].toLowerCase();
-          const raw = match[2].trim();
-          if (key === 'url') button.url = raw || '/playnow';
-          if (key === 'nofollow') button.nofollow = /^(1|true|yes|on)$/i.test(raw);
+        const options = {};
+        String(value || '').split(/\n/).forEach(line => {
+          const match = line.match(/^\s*(label|text|url|style|align|new_tab|nofollow)\s*:\s*(.*?)\s*$/i);
+          if (match) options[match[1].toLowerCase()] = match[2];
         });
-        return button;
+        return { label: options.label ?? options.text ?? 'Open Link', url: options.url ?? '/playnow',
+          style: ['primary','secondary'].includes(options.style) ? options.style : 'primary',
+          align: ['left','center','right'].includes(options.align) ? options.align : 'left',
+          new_tab: options.new_tab === undefined || /^(1|true|yes|on)$/i.test(options.new_tab),
+          nofollow: /^(1|true|yes|on)$/i.test(options.nofollow || '') };
+      }
+
+      function buttonFields(block) {
+        return { label: block.querySelector('.editor-button-label').value.trim(), url: block.querySelector('.editor-button-url').value.trim(),
+          style: block.querySelector('.editor-button-style').value, align: block.querySelector('.editor-button-align').value,
+          new_tab: block.querySelector('.editor-button-new-tab').checked, nofollow: block.querySelector('.editor-button-nofollow').checked };
       }
 
       function renderButtonBlock(button) {
-        const normalized = Object.assign({ url: '/playnow', nofollow: false }, button || {});
-        const checked = normalized.nofollow ? ' checked' : '';
-        return `<section class="editor-block editor-button-block" data-block-type="button" draggable="true"><button type="button" class="editor-block-close" data-remove-block aria-label="Remove button block" title="Remove button block">&times;</button><label class="editor-faq-field-label">Button URL</label><input type="url" class="editor-button-url" value="${escapeHtml(normalized.url || '/playnow')}" aria-label="Button URL" draggable="false"><label class="editor-button-follow"><input type="checkbox" class="editor-button-nofollow"${checked}> Nofollow link</label><a class="editor-button-preview" href="${escapeHtml(normalized.url || '/playnow')}" target="_blank" rel="noopener noreferrer">Open Link</a></section>`;
+        const b = Object.assign(normalizeButtonBlock(''), button || {});
+        const options = (values, selected) => values.map(value => `<option value="${value}" ${value === selected ? 'selected' : ''}>${value[0].toUpperCase()+value.slice(1)}</option>`).join('');
+        return `<section class="editor-block editor-button-block" data-block-type="button" draggable="true" contenteditable="false"><button type="button" class="editor-block-close" data-remove-block aria-label="Remove button block" title="Remove button block">&times;</button>
+          <label class="editor-faq-field-label">Button label<input type="text" class="editor-button-label editor-button-url-field" value="${escapeHtml(b.label)}" maxlength="200" required draggable="false"></label>
+          <label class="editor-faq-field-label">Button URL<input type="text" class="editor-button-url" value="${escapeHtml(b.url)}" maxlength="2048" required draggable="false"></label>
+          <label class="editor-faq-field-label">Style<select class="editor-button-style">${options(['primary','secondary'],b.style)}</select></label>
+          <label class="editor-faq-field-label">Alignment<select class="editor-button-align">${options(['left','center','right'],b.align)}</select></label>
+          <label class="editor-button-follow"><input type="checkbox" class="editor-button-new-tab" ${b.new_tab ? 'checked' : ''}> Open in new tab</label>
+          <label class="editor-button-follow"><input type="checkbox" class="editor-button-nofollow" ${b.nofollow ? 'checked' : ''}> Nofollow link</label>
+          <a class="editor-button-preview ${b.style === 'secondary' ? 'btn-secondary' : ''}" style="justify-self:${({left:'start',center:'center',right:'end'})[b.align]}" href="${escapeHtml(validButtonUrl(b.url) ? b.url : '#')}" ${b.new_tab ? 'target="_blank"' : ''} rel="noopener noreferrer${b.nofollow ? ' nofollow' : ''}">${escapeHtml(b.label)}</a></section>`;
       }
 
       function splitCustomCode(value) {
@@ -2772,9 +2794,8 @@ $writerOptions = writer_options();
         }
 
         if (node.classList && node.classList.contains('editor-button-block')) {
-          const url = (node.querySelector('.editor-button-url')?.value || '/playnow').trim();
-          const nofollow = node.querySelector('.editor-button-nofollow')?.checked ? 'true' : 'false';
-          return `:::button\nurl: ${url}\nnofollow: ${nofollow}\n:::\n\n`;
+          const b = buttonFields(node);
+          return `:::button\nlabel: ${b.label}\nurl: ${b.url}\nstyle: ${b.style}\nalign: ${b.align}\nnew_tab: ${b.new_tab}\nnofollow: ${b.nofollow}\n:::\n\n`;
         }
 
         if (node.classList && node.classList.contains('editor-table-block')) {
@@ -3816,7 +3837,7 @@ $writerOptions = writer_options();
       }
 
       function eventTargetInStructuredField(event) {
-        const field = event.target && event.target.closest ? event.target.closest('.editor-faq-question,.editor-faq-answer,.editor-table textarea,.editor-button-url,.editor-button-nofollow,.editor-custom-code-pane textarea,.editor-slot-demo-query') : null;
+        const field = event.target && event.target.closest ? event.target.closest('.editor-faq-question,.editor-faq-answer,.editor-table textarea,.editor-button-block input,.editor-button-block select,.editor-custom-code-pane textarea,.editor-slot-demo-query') : null;
         return Boolean(field && wysiwygEditor.contains(field));
       }
 
@@ -3896,13 +3917,17 @@ $writerOptions = writer_options();
         syncStructuredBlockChange(true);
       }
 
-      function updateButtonPreview(buttonBlock) {
-        const url = buttonBlock?.querySelector('.editor-button-url')?.value || '/playnow';
-        const nofollow = buttonBlock?.querySelector('.editor-button-nofollow')?.checked;
-        const preview = buttonBlock?.querySelector('.editor-button-preview');
-        if (!preview) return;
-        preview.href = url || '/playnow';
-        preview.rel = 'noopener noreferrer' + (nofollow ? ' nofollow' : '');
+      function updateButtonPreview(block) {
+        const b = buttonFields(block);
+        const field = block.querySelector('.editor-button-url');
+        field.setCustomValidity(validButtonUrl(b.url) ? '' : 'Use a valid HTTP(S) or site-relative URL.');
+        const preview = block.querySelector('.editor-button-preview');
+        preview.setAttribute('href', validButtonUrl(b.url) ? b.url : '#');
+        preview.textContent = b.label || 'Open Link';
+        if (b.new_tab) preview.setAttribute('target','_blank'); else preview.removeAttribute('target');
+        preview.rel = 'noopener noreferrer' + (b.nofollow ? ' nofollow' : '');
+        preview.classList.toggle('btn-secondary', b.style === 'secondary');
+        preview.style.justifySelf = ({left:'start',center:'center',right:'end'})[b.align];
       }
 
       function setCustomCodeTab(block, tab) {
@@ -4632,7 +4657,13 @@ $writerOptions = writer_options();
         }
         scheduleEditorHistory(false);
       });
+      on(wysiwygEditor, 'change', (event) => {
+        const block = event.target.closest('.editor-button-block');
+        if (block) { updateButtonPreview(block); syncStructuredBlockChange(); }
+      });
       on(wysiwygEditor, 'input', (event) => {
+        const buttonBlock = event.target.closest('.editor-button-block');
+        if (buttonBlock) updateButtonPreview(buttonBlock);
         const slotQuery = event.target && event.target.closest ? event.target.closest('.editor-slot-demo-query') : null;
         if (slotQuery && wysiwygEditor.contains(slotQuery)) {
           searchSlotDemoGames(slotQuery.closest('.editor-slot-demo-block'), slotQuery.value);

@@ -61,7 +61,7 @@ function slot_list_item(array $slot): array
         'slug' => $slug,
         'gameUrl' => $slug !== '' ? '/game/' . rawurlencode($slug) . '/' : '',
         'iframeUrl' => slot_list_iframe_url($slot['url'] ?? ''),
-        'thumbnail' => (string) ($slot['thumb'] ?? ''),
+        'thumbnail' => !empty($slot['thumb']) ? public_detail_url((string)$slot['thumb']) : '',
         'shortDescription' => (string) ($slot['short_description'] ?? ''),
         'longDescription' => (string) ($slot['long_description'] ?? ''),
         'provider' => [

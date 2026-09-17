@@ -1,5 +1,6 @@
 # API and admin guidance
 
+- Check `INDEX.md` before searching documentation and read only task-relevant documents; when creating, renaming, moving, or deleting a maintained project `.md` file, update `INDEX.md` in the same change.
 - Read `AGENT.md` for existing project conventions; reuse endpoints and storage helpers before adding APIs.
 - Public details: `api/game.php?slug=…` and `api/blog.php?slug=…`; keep visibility checks in `includes/game-public.php` and `includes/public-detail.php` (processed/public slugs, exact PH restrictions, published/due blogs).
 - Blog HTML must reuse `includes/blog-renderer.php` for Markdown and special blocks, shared with `blog/view.php`.
@@ -17,3 +18,5 @@
 - Category filtering is shared through `blog_category_filter_ids()` and `blogs_page()`: stable IDs, slugs, or legacy names resolve to IDs; root categories include all descendants, direct child selections stay exact. Admin category-name search also includes descendants. Counts and paginated rows use the same ID predicate.
 
 - Public games must pass publication/processing, exact PH restrictions, provider approval, and `is_viewable` through `includes/game-visibility.php`. Provider overrides reuse existing game provider keys; absent overrides and existing games default to enabled. Provider settings are admin-only; slot visibility uses `slots.edit`. Visibility writes clear API caches and regenerate game sitemap chunks/index.
+
+- Index Checker: `/admin/index-checker/` and `scripts/check-google-indexing.php` use XML sitemaps as the URL source. Search Console inspection results are private/admin-only; credentials must stay outside the public site and never enter the public SEO settings API.

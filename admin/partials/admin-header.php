@@ -13,6 +13,7 @@ $adminNavItems = [
     ['/admin/contacts.php', 'Contacts', str_ends_with($adminCurrentPath, '/admin/contacts.php')],
     ['/admin/live-chat.php', 'Live Chat', str_ends_with($adminCurrentPath, '/admin/live-chat.php')],
     ['/admin/users.php', 'Users', str_ends_with($adminCurrentPath, '/admin/users.php')],
+    ['/admin/index-checker/', 'Index Checker', str_starts_with($adminCurrentPath, '/admin/index-checker/')],
     ['/admin/settings.php', 'Settings', (str_ends_with($adminCurrentPath, '/admin/settings.php') || str_starts_with($adminCurrentPath, '/admin/settings/'))],
     ['/admin/blog-publish.php', 'Publish Post', str_ends_with($adminCurrentPath, '/admin/blog-publish.php')],
     ['/blog/', 'View Blog Hub', false],

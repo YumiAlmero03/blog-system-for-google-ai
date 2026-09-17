@@ -128,6 +128,13 @@ Environment variables:
 
 Import or update games from the SlotsLaunch games API.
 
+Thumbnails are validated and saved under `/uploads/games/` with deterministic game-ID/source-hash filenames. Valid cached files are reused; changed source URLs produce new files without overwriting the previous image. Only thumbnails are downloaded. Public APIs use the shared absolute URL helper.
+
+Downloads allow public HTTP(S) addresses, use 5-second connection/15-second total timeouts, and are limited to 8 MB and 40 megapixels. JPEG, PNG, WebP, and supported AVIF files must pass MIME/signature/dimension checks. Redirects are not followed; use a direct asset URL. Failed downloads log a sanitized source identity and reason, keep any previous valid local thumbnail, and set `done_processing=0`. A successful download does not mark the game processed; the existing completion workflow still applies. Re-encountering the game on import retries localization.
+
+`GAME_IMAGE_UPLOAD_DIR` optionally overrides the physical games upload directory for isolated tests or deployments that map `/uploads/games/` to another directory; the default is the site's `uploads/games`. Tests: `php scripts/test-game-images.php`.
+
+
 ```sh
 php scripts/import-slotslaunch-games.php
 php scripts/import-slotslaunch-games.php --dry-run --limit=25
@@ -138,7 +145,7 @@ php scripts/import-slotslaunch-games.php --url=https://example.test/games.json
 Options:
 
 - `--dry-run`: fetch and count rows without changing the database.
-- `--limit=N`: import or fetch at most `N` games.
+- `--limit=N`: import or fetch at most `N` games, capped at 100; default 100.
 - `--page=N`: start from a specific API page.
 - `--max-pages=N`: stop after at most `N` pages.
 - `--url=URL`: override the default games endpoint.

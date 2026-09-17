@@ -8,6 +8,7 @@ if (PHP_SAPI !== 'cli') {
 }
 
 require_once __DIR__ . '/../includes/blog-storage.php';
+require_once __DIR__ . '/../includes/game-images.php';
 
 const SLOTSLAUNCH_DEFAULT_GAMES_URL = 'https://slotslaunch.com/api/games';
 
@@ -239,6 +240,7 @@ function fetch_all_games(string $url, ?int $limit = null, int $maxPages = 10000)
 
 function import_fetched_games(PDO $pdo, string $url, ?int $limit = null, int $maxPages = 10000): array
 {
+    $limit = max(1, min(100, $limit ?? 100));
     $seenUrls = [];
     $currentUrl = $url;
     $imported = 0;
@@ -281,6 +283,7 @@ function import_fetched_games(PDO $pdo, string $url, ?int $limit = null, int $ma
                 }
             }
             $pdo->commit();
+            blog_clear_api_cache();
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
@@ -525,13 +528,24 @@ function normalize_themes(array $game): array
     return $themes;
 }
 
-function import_game(PDO $pdo, array $game): bool
+function import_game(PDO $pdo, array $game, ?callable $imageDownload = null): bool
 {
     $apiId = int_or_null(value_at($game, ['id', 'api_id', 'game_id']));
     $name = string_value(value_at($game, ['name', 'title']));
 
     if ($apiId === null || $name === '') {
         return false;
+    }
+
+    $source = string_value(value_at($game, ['thumb', 'thumbnail', 'image', 'icon']));
+    $existing = $pdo->prepare('SELECT thumb FROM games WHERE api_id=?'); $existing->execute([$apiId]);
+    $oldThumb = (string)($existing->fetchColumn() ?: '');
+    $imageFailed = false;
+    try { $localThumb = game_image_localize($apiId, $source, $imageDownload); }
+    catch (Throwable $error) {
+        $localThumb = game_image_local_valid($oldThumb) ? $oldThumb : '';
+        $imageFailed = true;
+        game_image_failure_log($apiId, $name, $source, $error->getMessage());
     }
 
     $provider = normalize_provider($game);
@@ -547,7 +561,7 @@ function import_game(PDO $pdo, array $game): bool
         ':name' => $name,
         ':slug' => string_value(value_at($game, ['slug'])) ?: normalize_slug($name . '-' . $apiId),
         ':url' => string_value(value_at($game, ['url', 'game_url', 'launch_url', 'iframe_url'])),
-        ':thumb' => string_value(value_at($game, ['thumb', 'thumbnail', 'image', 'icon'])),
+        ':thumb' => $localThumb,
         ':short_description' => string_value(value_at($game, ['short_description', 'description', 'excerpt', 'summary'])),
         ':long_description' => string_value(value_at($game, ['long_description', 'full_description', 'content', 'overview'])),
         ':provider_id' => $providerId,
@@ -643,6 +657,7 @@ function import_game(PDO $pdo, array $game): bool
             updated_at = excluded.updated_at';
 
     $pdo->prepare($sql)->execute($data);
+    if ($imageFailed) $pdo->prepare('UPDATE games SET done_processing=0 WHERE api_id=?')->execute([$apiId]);
 
     $gameId = (int) $pdo->query('SELECT id FROM games WHERE api_id = ' . (int) $apiId)->fetchColumn();
     $pdo->prepare('DELETE FROM game_theme_links WHERE game_id = :game_id')->execute([':game_id' => $gameId]);
@@ -657,8 +672,10 @@ function import_game(PDO $pdo, array $game): bool
     return true;
 }
 
+if (realpath($_SERVER['SCRIPT_FILENAME'] ?? '') !== __FILE__) return;
+
 $dryRun = cli_option('--dry-run') !== null;
-$limit = int_or_null(cli_option('--limit'));
+$limit = max(1, min(100, int_or_null(cli_option('--limit')) ?? 100));
 $token = slotslaunch_token();
 $url = slotslaunch_games_url($token);
 $maxPages = slotslaunch_max_pages();
