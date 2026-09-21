@@ -1,8 +1,8 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/../includes/auth.php';
-require_once __DIR__ . '/../includes/image-validation.php';
+require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/image-validation.php';
 
 require_auth();
 require_post();
@@ -176,7 +176,7 @@ if ($width < UPLOAD_MIN_WIDTH || $height < UPLOAD_MIN_HEIGHT || $width > UPLOAD_
     exit;
 }
 
-$uploadDir = dirname(__DIR__) . '/uploads/blogs';
+$uploadDir = __DIR__ . '/uploads/blogs';
 if (!is_dir($uploadDir)) {
     mkdir($uploadDir, 0755, true);
 }

@@ -5,12 +5,12 @@ header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, max-age=0');
 header('X-Robots-Tag: noindex, nofollow');
 
-require_once __DIR__ . '/../includes/chat-session-storage.php';
+require_once __DIR__ . '/../admin/includes/chat-session-storage.php';
 
 // Admin extensions use the existing session files and existing authentication.
 $adminAction = $_GET['admin_action'] ?? $_POST['admin_action'] ?? null;
 if ($adminAction !== null) {
-    require_once __DIR__ . '/../includes/auth.php';
+    require_once __DIR__ . '/../admin/includes/auth.php';
     $_SERVER['HTTP_ACCEPT'] = 'application/json';
     require_auth();
     try {

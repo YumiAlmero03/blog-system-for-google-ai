@@ -1,8 +1,8 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__ . '/../../includes/auth.php';
+require_once __DIR__ . '/../includes/auth.php';
 require_admin();
-require_once __DIR__ . '/../../includes/index-checker.php';
+require_once __DIR__ . '/../includes/index-checker.php';
 header('Cache-Control: no-store');
 $pdo=index_checker_pdo(); $message='';
 if (($_SERVER['REQUEST_METHOD'] ?? '')==='POST') {

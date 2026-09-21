@@ -1,9 +1,9 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/includes/auth.php';
 $_SERVER['HTTP_ACCEPT'] = 'application/json';
 require_capability('slots.edit'); require_post(); require_valid_csrf();
-require_once __DIR__ . '/../includes/slot-content.php';
+require_once __DIR__ . '/includes/slot-content.php';
 header('Content-Type: application/json; charset=UTF-8');
 try {
     if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0)>220000) throw new InvalidArgumentException('Request too large.');

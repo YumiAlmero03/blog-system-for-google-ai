@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/../includes/env.php';
+require_once __DIR__ . '/../admin/includes/env.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, max-age=0');
@@ -16,7 +16,7 @@ function playnow_storage_dir(): string
 {
     $storageDir = env_value('APP_STORAGE_DIR');
     if (!is_string($storageDir) || $storageDir === '' || $storageDir === '/absolute/path/outside/public/storage') {
-        $storageDir = dirname(__DIR__) . '/storage';
+        $storageDir = __DIR__ . '/../admin/storage';
     }
 
     return rtrim($storageDir, '/\\');

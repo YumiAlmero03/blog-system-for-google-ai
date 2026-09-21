@@ -1,9 +1,9 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/includes/auth.php';
 require_auth();
-require_once __DIR__ . '/../includes/admin-support-data.php';
-require_once __DIR__ . '/../includes/admin-date.php';
+require_once __DIR__ . '/includes/admin-support-data.php';
+require_once __DIR__ . '/includes/admin-date.php';
 header('Cache-Control: no-store');
 $id = admin_support_query('id'); $search = admin_support_query('search');
 $error = ''; $chat = null; $rows = []; $total = 0;

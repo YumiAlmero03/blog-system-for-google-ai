@@ -1,8 +1,8 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/includes/auth.php';
 require_capability('slots.edit');
-require_once __DIR__ . '/../includes/slot-content.php';
+require_once __DIR__ . '/includes/slot-content.php';
 $id = filter_var($_GET['id'] ?? null,FILTER_VALIDATE_INT);
 try {
     $stmt = blogs_pdo()->prepare('SELECT id,is_viewable,name,short_description,long_description,rtp,volatility FROM games WHERE id=?');

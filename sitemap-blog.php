@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/includes/blog-storage.php';
+require_once __DIR__ . '/admin/includes/blog-storage.php';
 
 function sitemap_base_url(): string
 {

@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/includes/playnow-promos.php';
+require_once __DIR__ . '/admin/includes/playnow-promos.php';
 
 function promo_h(mixed $value): string
 {
@@ -58,7 +58,7 @@ $image = playnow_promo_clean($promo['ogImage'] ?? '', 500);
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
-  <?php require_once __DIR__ . '/includes/public-head.php'; echo public_head_html(['title'=>$title,'description'=>$description,'canonical'=>$canonical,'image'=>$image]); ?>
+  <?php require_once __DIR__ . '/admin/includes/public-head.php'; echo public_head_html(['title'=>$title,'description'=>$description,'canonical'=>$canonical,'image'=>$image]); ?>
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="<?= promo_h($title) ?>">
   <meta name="twitter:description" content="<?= promo_h($description) ?>">

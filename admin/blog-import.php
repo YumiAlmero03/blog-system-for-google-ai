@@ -1,9 +1,9 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/../includes/auth.php';
-require_once __DIR__ . '/../includes/blog-storage.php';
-require_once __DIR__ . '/../includes/image-validation.php';
+require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/blog-storage.php';
+require_once __DIR__ . '/includes/image-validation.php';
 
 require_auth();
 require_post();
@@ -74,7 +74,7 @@ if (!is_array($manifest) || ($manifest['format'] ?? '') !== 'blogs-export-v1' ||
     blog_import_error('blogs.json is invalid or unsupported.');
 }
 
-$uploadDir = dirname(__DIR__) . '/uploads/blogs';
+$uploadDir = __DIR__ . '/uploads/blogs';
 if (!is_dir($uploadDir) && !@mkdir($uploadDir, 0755, true) && !is_dir($uploadDir)) {
     $zip->close();
     blog_import_error('Upload storage is unavailable.', 500);

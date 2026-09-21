@@ -1,8 +1,8 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/../includes/blog-storage.php';
-require_once __DIR__ . '/../includes/game-public.php';
+require_once __DIR__ . '/../admin/includes/blog-storage.php';
+require_once __DIR__ . '/../admin/includes/game-public.php';
 
 const SLOT_LIST_CACHE_TTL = 60;
 

@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__ . '/../includes/public-detail.php';
+require_once __DIR__ . '/../admin/includes/public-detail.php';
 $slug = detail_request_slug();
 try {
     $game = public_game_find($slug);

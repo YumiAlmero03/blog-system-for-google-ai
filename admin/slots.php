@@ -1,9 +1,9 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/../includes/auth.php';
-require_once __DIR__ . '/../includes/blog-storage.php';
-require_once __DIR__ . '/../includes/admin-date.php';
+require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/blog-storage.php';
+require_once __DIR__ . '/includes/admin-date.php';
 
 require_auth();
 
@@ -46,6 +46,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         try {
             if ($slotId <= 0) throw new InvalidArgumentException('Invalid game.');
             $value = game_visibility_value($_POST['is_viewable'] ?? null);
+            require_once __DIR__ . '/includes/indexing-queue.php';
+            indexing_content_changed($pdo, 'game');
             $stmt = $pdo->prepare('UPDATE games SET is_viewable=?,updated_at=? WHERE id=?');
             $stmt->execute([$value,time(),$slotId]);
             if (!$stmt->rowCount()) throw new InvalidArgumentException('Game not found.');

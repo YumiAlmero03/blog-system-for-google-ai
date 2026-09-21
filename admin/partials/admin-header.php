@@ -36,7 +36,7 @@ if (($_SESSION['user']['role'] ?? '') === 'editor') {
       <?php foreach ($adminNavItems as [$href, $label, $isActive]): ?>
         <a href="<?= h($href) ?>" class="btn <?= $isActive ? 'btn-primary' : 'btn-secondary' ?> btn-sm"><?= h($label) ?></a>
       <?php endforeach; ?>
-      <form action="/logout.php" method="post" style="margin:0;">
+      <form action="/admin/logout.php" method="post" style="margin:0;">
         <?= csrf_input() ?>
         <button type="submit" class="btn btn-secondary btn-sm">Logout</button>
       </form>

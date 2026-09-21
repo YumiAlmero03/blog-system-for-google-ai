@@ -1,3 +1,16 @@
 /storage/
 /update-packages/
 /uploads/
+# Private Google configuration (runtime storage must also remain outside the web root).
+.google-private*/
+google-config.json
+service-account*.json
+.game-sitemaps.lock
+/admin/storage/
+/admin/uploads/
+/admin/chats/
+/admin/update-packages/
+/admin/.env
+/admin/.vscode/
+**/.DS_Store
+/admin/.root-DS_Store

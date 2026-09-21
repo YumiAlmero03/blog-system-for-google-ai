@@ -4,6 +4,18 @@ Options -Indexes
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
+    RewriteRule ^\.(?:git|gitignore|htaccess)(?:/|$) - [F,L]
+
+    # Backend runtime/configuration is never served directly.
+    RewriteRule ^admin/(?:includes|scripts|storage|chats|data|update-packages|\.github|\.vscode)(?:/|$) - [F,L]
+    RewriteRule ^admin/(?:\.[^/]+|[^/]+\.(?:md|sh))$ - [F,L]
+
+    # Preserve existing public upload URLs and root IndexNow verification URLs.
+    RewriteRule ^uploads/(.*)$ admin/uploads/$1 [L]
+    RewriteCond %{DOCUMENT_ROOT}/admin/$1.txt -f
+    RewriteRule ^([a-zA-Z0-9-]{8,128})\.txt$ admin/$1.txt [L]
+    RewriteRule ^(login(?:-handler)?|logout)\.php$ admin/$1.php [L]
+
     RewriteRule ^game/([A-Za-z0-9-]+)/?$ /game/index.php?slug=$1 [L,QSA]
     RewriteRule ^games/([A-Za-z0-9-]+)/?$ /game/index.php?slug=$1 [L,QSA]
     RewriteRule ^blog/([A-Za-z0-9-]+)/?$ /blog/view.php?slug=$1 [L,QSA]

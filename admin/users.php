@@ -1,8 +1,8 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/includes/auth.php';
 require_admin();
-require_once __DIR__ . '/../includes/admin-date.php';
+require_once __DIR__ . '/includes/admin-date.php';
 $error = ''; $editor = null; $rows = [];
 $id = filter_var($_GET['id'] ?? 0,FILTER_VALIDATE_INT) ?: 0;
 $page = max(1,(int)(filter_var($_GET['page'] ?? 1,FILTER_VALIDATE_INT) ?: 1));

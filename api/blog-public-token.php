@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/../includes/jwt.php';
+require_once __DIR__ . '/../admin/includes/jwt.php';
 
 if (!in_array(($_SERVER['REQUEST_METHOD'] ?? ''), ['GET', 'POST'], true)) {
     http_response_code(405);

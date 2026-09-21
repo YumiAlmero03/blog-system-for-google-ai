@@ -1,9 +1,9 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/../includes/auth.php';
-require_once __DIR__ . '/../includes/blog-storage.php';
-require_once __DIR__ . '/../includes/image-validation.php';
+require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/blog-storage.php';
+require_once __DIR__ . '/includes/image-validation.php';
 
 require_auth();
 if (!class_exists('ZipArchive')) {
@@ -14,7 +14,7 @@ if (!class_exists('ZipArchive')) {
 $pdo = blogs_pdo();
 $rows = $pdo->query('SELECT * FROM blog_posts ORDER BY created_at DESC')->fetchAll(PDO::FETCH_ASSOC);
 $blogs = array_map('blog_row_to_array', $rows);
-$uploadRoot = realpath(dirname(__DIR__) . '/uploads/blogs');
+$uploadRoot = realpath(__DIR__ . '/uploads/blogs');
 $images = [];
 
 foreach ($blogs as $index => $blog) {
@@ -33,7 +33,7 @@ foreach ($blogs as $index => $blog) {
             continue;
         }
         $filename = basename($relative);
-        $sourcePath = realpath(dirname(__DIR__) . '/' . $relative);
+        $sourcePath = realpath(__DIR__ . '/../' . $relative);
         if (!$sourcePath || !is_file($sourcePath) || !str_starts_with($sourcePath, $uploadRoot . DIRECTORY_SEPARATOR)) {
             continue;
         }

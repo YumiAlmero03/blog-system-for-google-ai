@@ -1,8 +1,8 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/../includes/auth.php';
-require_once __DIR__ . '/../includes/blog-storage.php';
+require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/blog-storage.php';
 
 require_auth();
 $blogCategoryOptions = blog_categories_all();

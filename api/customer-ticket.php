@@ -1,8 +1,8 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/../includes/customer-ticket-storage.php';
-require_once __DIR__ . '/../includes/smtp-mailer.php';
+require_once __DIR__ . '/../admin/includes/customer-ticket-storage.php';
+require_once __DIR__ . '/../admin/includes/smtp-mailer.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, max-age=0');
