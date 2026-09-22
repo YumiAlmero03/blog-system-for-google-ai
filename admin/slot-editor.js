@@ -7,7 +7,27 @@
   toolbar.addEventListener('click', event => {
     const button = event.target.closest('[data-command]'); if (!button) return;
     editor.focus();
-    if (button.dataset.command === 'link') {
+    if (button.dataset.command === 'table') {
+      const input = prompt('Number of symbol rows (1–30)', '5');
+      if (input === null) return;
+      const rows = Number(input);
+      if (!Number.isInteger(rows) || rows < 1 || rows > 30) {
+        feedback.textContent = 'Enter a whole number from 1 to 30.';
+        return;
+      }
+      editor.focus();
+      const selection = window.getSelection();
+      if (!selection.rangeCount || !editor.contains(selection.anchorNode) || !editor.contains(selection.focusNode)) {
+        const range = document.createRange();
+        range.selectNodeContents(editor); range.collapse(false);
+        selection.removeAllRanges(); selection.addRange(range);
+      }
+      const row = '<tr><td>Symbol</td><td>Required combination</td><td>Check in-game paytable</td></tr>';
+      document.execCommand('insertHTML', false,
+        '<table><caption>Symbol payouts</caption><thead><tr><th>Symbol</th><th>Required combination</th><th>Payout and units</th></tr></thead><tbody>' +
+        row.repeat(rows) + '</tbody></table><p><br></p>');
+      feedback.textContent = 'Table inserted. Click a cell to edit its content.';
+    } else if (button.dataset.command === 'link') {
       const href = prompt('Link URL (https:// or /path/)');
       if (href && /^(https?:\/\/|\/(?!\/)|#)/i.test(href.trim())) document.execCommand('createLink',false,href.trim());
     } else window.ContentEditor.apply(button.dataset.command);

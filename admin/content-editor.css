@@ -1,3 +1,7 @@
+.slot-content-editor table{width:100%;border-collapse:collapse;margin:16px 0;table-layout:fixed}
+.slot-content-editor th,.slot-content-editor td{border:1px solid var(--border-strong);padding:8px;text-align:left;vertical-align:top;overflow-wrap:anywhere}
+.slot-content-editor th{background:var(--surface-soft)}
+.slot-content-editor caption{text-align:left;font-weight:700;margin-bottom:8px}
     .wysiwyg-toolbar {
       display: flex;
       flex-wrap: wrap;

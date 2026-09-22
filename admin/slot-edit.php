@@ -29,7 +29,7 @@ $editorHtml = preg_match('/<\/?[a-z][^>]*>/i',$long) ? slot_content_html($long) 
 </div>
 <h2>Long description</h2>
 <div class="wysiwyg-toolbar" id="slot-toolbar" aria-label="Content formatting">
-<?php foreach (['h2'=>'H2','h3'=>'H3','bold'=>'B','italic'=>'I','ul'=>'Bullets','ol'=>'Numbered list','link'=>'Link','clear'=>'Clear formatting'] as $command=>$label): ?><button type="button" class="wysiwyg-btn" data-command="<?= h($command) ?>" title="<?= h($command) ?>"><?= h($label) ?></button><?php endforeach; ?>
+<?php foreach (['h2'=>'H2','h3'=>'H3','bold'=>'B','italic'=>'I','ul'=>'Bullets','ol'=>'Numbered list','table'=>'Table','link'=>'Link','clear'=>'Clear formatting'] as $command=>$label): ?><button type="button" class="wysiwyg-btn" data-command="<?= h($command) ?>" title="<?= h($command) ?>"><?= h($label) ?></button><?php endforeach; ?>
 </div>
 <div id="slot-editor" class="slot-content-editor" role="textbox" aria-label="Long description" aria-multiline="true" contenteditable="true"><?= $editorHtml ?></div>
 <p id="slot-feedback" role="status"></p><button class="btn btn-primary" type="submit">Save content</button>

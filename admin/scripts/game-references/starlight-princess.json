@@ -1,0 +1,39 @@
+{
+  "slug": "starlight-princess",
+  "name": "Starlight Princess",
+  "source_notes": {
+    "paytable": "User-supplied reference, not independently verified against the game's paytable. Present as supplied reference values and advise checking the configured game.",
+    "provider_url": "https://www.pragmaticplay.com/en/games/starlight-princess/",
+    "rules_url": "https://www.pokerstars.it/content/dam/new-dam/italy/website/documenti/slot/Starlight%20Princess.pdf",
+    "verified": "Provider confirms 8-30 matches anywhere, 2x-500x multipliers, 4+ scatters for 15 free spins, and winning multipliers accumulating in the bonus. Operator rules confirm base-bet payout units and tumbling until no further wins.",
+    "version_note": "Reference default RTP is not universal: the operator rules list 95.50%. Preserve saved API statistics; do not replace them with reference defaults. Symbol names and exact payouts below are user-supplied. Do not transfer these facts to Starlight Princess 1000 or other variants."
+  },
+  "payout_basis": "Multiples of the base bet, before feature multipliers",
+  "payout_columns": ["8-9 symbols", "10-11 symbols", "12+ symbols"],
+  "symbols": [
+    {"name": "Sun Amulet", "payouts": [10, 25, 50]},
+    {"name": "Heart Amulet", "payouts": [2.5, 10, 25]},
+    {"name": "Moon Amulet", "payouts": [2, 5, 15]},
+    {"name": "Star Amulet", "payouts": [1.5, 2, 12]},
+    {"name": "Red Gem", "payouts": [1, 1.5, 10]},
+    {"name": "Blue Gem", "payouts": [0.8, 1.2, 8]},
+    {"name": "Green Gem", "payouts": [0.5, 1, 5]},
+    {"name": "Teal Gem", "payouts": [0.4, 0.9, 4]},
+    {"name": "Yellow Gem", "payouts": [0.25, 0.75, 2]}
+  ],
+  "user_supplied_overview": {
+    "default_rtp": "96.50%",
+    "volatility": "Very High (5/5)",
+    "maximum_win": "5000x bet",
+    "layout": "6 reels by 5 rows",
+    "bet_range": "$0.20-$100; currency and version dependent, verify in-game",
+    "retrigger": "+5 free spins; trigger condition not provided, do not invent it",
+    "multiplier_appearance": "Winged hearts; user-supplied description"
+  },
+  "mechanics": [
+    "Pay anywhere: at least 8 matching symbols, without adjacency or paylines. Do not describe this as cluster pays.",
+    "After a win, paid symbols disappear and replacements fall into the gaps; tumbles continue until no more combinations win.",
+    "Multiplier symbols range from 2x to 500x; their values add and apply to the sequence's total win at its end.",
+    "Four or more scatters start 15 free spins. During free spins, multipliers landing on winning tumbles add to a running bonus total."
+  ]
+}

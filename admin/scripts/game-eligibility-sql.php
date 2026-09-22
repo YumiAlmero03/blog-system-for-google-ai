@@ -5,6 +5,7 @@ if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 require_once __DIR__ . '/../includes/game-visibility.php';
 echo json_encode([
     'eligible' => game_public_eligibility_sql(),
+    'eligible_unprocessed' => 'games.published = 1 AND (' . game_public_slug_sql() . ') AND (' . games_ph_allowed_sql('games.restrictions') . ') AND (' . game_visibility_sql() . ')',
     'provider' => game_provider_approved_sql(),
     'ph_allowed' => games_ph_allowed_sql('games.restrictions'),
 ], JSON_THROW_ON_ERROR);

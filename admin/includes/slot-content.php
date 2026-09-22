@@ -17,7 +17,7 @@ function slot_content_html(string $html): string
         if (in_array($tag,['script','style','iframe','object','embed','svg','math','template','form','input','button'],true)) return '';
         $children = '';
         foreach ($node->childNodes as $child) $children .= $render($child);
-        if (!in_array($tag,['p','div','h2','h3','strong','b','em','i','a','ul','ol','li','br','blockquote'],true)) return $children;
+        if (!in_array($tag,['p','div','h2','h3','strong','b','em','i','a','ul','ol','li','br','blockquote','table','caption','thead','tbody','tr','th','td'],true)) return $children;
         if ($tag === 'div') $tag = 'p';
         if ($tag === 'br') return '<br>';
         $attributes = '';
