@@ -50,6 +50,17 @@ function slot_list_iframe_url(mixed $value): string
     return $url . $separator . 'token=' . rawurlencode(SLOT_IFRAME_TOKEN) . $fragment;
 }
 
+function slot_list_thumbnail_url(string $thumbnail): string
+{
+    $thumbnail = trim($thumbnail);
+    // Local game uploads work on the current host without a configured site domain.
+    if (preg_match('~^/?uploads/games/[a-zA-Z0-9._-]+\.(?:jpe?g|png|webp|avif)$~iD', $thumbnail)) {
+        return '/' . ltrim($thumbnail, '/');
+    }
+
+    return $thumbnail !== '' ? public_detail_url($thumbnail) : '';
+}
+
 function slot_list_item(array $slot): array
 {
     $slug = (string) ($slot['slug'] ?? '');
@@ -61,7 +72,7 @@ function slot_list_item(array $slot): array
         'slug' => $slug,
         'gameUrl' => $slug !== '' ? '/game/' . rawurlencode($slug) . '/' : '',
         'iframeUrl' => slot_list_iframe_url($slot['url'] ?? ''),
-        'thumbnail' => !empty($slot['thumb']) ? public_detail_url((string)$slot['thumb']) : '',
+        'thumbnail' => slot_list_thumbnail_url((string) ($slot['thumb'] ?? '')),
         'shortDescription' => (string) ($slot['short_description'] ?? ''),
         'longDescription' => (string) ($slot['long_description'] ?? ''),
         'provider' => [
