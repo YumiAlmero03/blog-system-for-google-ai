@@ -15,7 +15,7 @@ GSC_SERVICE_ACCOUNT_FILE=/private/server/path/search-console-service-account.jso
 GSC_PROPERTY=sc-domain:freecasinogames.ph
 ```
 
-Use the exact property registered in Search Console. URL-prefix properties are also supported, for example `https://freecasinogames.ph/` (trailing slash required). Saved settings take precedence; removing credentials also disables the legacy file fallback. If neither a saved property nor `GSC_PROPERTY` exists, the worker uses the existing SEO website URL, respecting `SITE_BASE_URL` precedence. The site origin is always the existing SEO website URL; sitemap discovery starts at its `/sitemap-index.xml`.
+Use the exact property registered in Search Console. URL-prefix properties are also supported, for example `[insert_domain_here]/` (trailing slash required). Saved settings take precedence; removing credentials also disables the legacy file fallback. If neither a saved property nor `GSC_PROPERTY` exists, the worker uses the existing SEO website URL, respecting `SITE_BASE_URL` precedence. The site origin is always the existing SEO website URL; sitemap discovery starts at its `/sitemap-index.xml`.
 
 PHP needs PDO SQLite, DOM, cURL and OpenSSL. No Composer packages are required. Inspection and connection tests request `webmasters.readonly`; sitemap submission requests `webmasters`. Access tokens are held in process memory; key material and raw Google responses are not stored in SQLite.
 

@@ -51,7 +51,7 @@ After implementation, report:
 
 ## Current APIs
 
-Base URL: `https://freecasinogames.ph`. Inventory checked on 2026-09-11 against all nine PHP endpoints in `/api`.
+Base URL: `[insert_domain_here]`. Inventory checked on 2026-09-11 against all nine PHP endpoints in `/api`.
 
 Verification below means local PHP handler execution, using a temporary SQLite database copy and temporary storage for writes. It does not establish production HTTP availability. All nine files passed `php -l`. No real engagement, click, chat, or ticket records were changed; no email was sent.
 
@@ -77,10 +77,10 @@ GET inputs use query parameters. POST inputs for the list endpoints use form fie
 Example read requests:
 
 ```text
-https://freecasinogames.ph/api/slot-list.php?count=24&page=1
-https://freecasinogames.ph/api/provider-list.php?count=20
-https://freecasinogames.ph/api/blog-category-list.php
-https://freecasinogames.ph/api/blog-post-list.php?count=10&page=1
+[insert_domain_here]/api/slot-list.php?count=24&page=1
+[insert_domain_here]/api/provider-list.php?count=20
+[insert_domain_here]/api/blog-category-list.php
+[insert_domain_here]/api/blog-post-list.php?count=10&page=1
 ```
 
 Do not use successful requests to write endpoints as production health checks: they can create records, change analytics, or send email. Provider counts use the same public game eligibility as the slot list.

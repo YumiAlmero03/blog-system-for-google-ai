@@ -85,7 +85,7 @@ function site_base_url(): string
     if (is_string($configured) && trim($configured) !== '') {
         $configured = str_replace(
             ['http://freecasinogames.ph', 'https://freeonlinegames.info', 'http://freeonlinegames.info'],
-            ['https://freecasinogames.ph', 'https://freecasinogames.ph', 'https://freecasinogames.ph'],
+            ['[insert_domain_here]', '[insert_domain_here]', '[insert_domain_here]'],
             trim($configured)
         );
 
@@ -94,7 +94,7 @@ function site_base_url(): string
 
     require_once __DIR__ . '/seo-settings.php';
     $configured = seo_stored_settings()['site_base_url'] ?? '';
-    return $configured !== '' ? rtrim($configured,'/') : 'https://freecasinogames.ph';
+    return $configured !== '' ? rtrim($configured,'/') : '[insert_domain_here]';
 }
 
 function public_url(string $url, ?string $baseUrl = null): string
@@ -111,7 +111,7 @@ function public_url(string $url, ?string $baseUrl = null): string
     ) {
         return str_replace(
             ['http://freecasinogames.ph', 'https://freeonlinegames.info', 'http://freeonlinegames.info'],
-            ['https://freecasinogames.ph', 'https://freecasinogames.ph', 'https://freecasinogames.ph'],
+            ['[insert_domain_here]', '[insert_domain_here]', '[insert_domain_here]'],
             $url
         );
     }

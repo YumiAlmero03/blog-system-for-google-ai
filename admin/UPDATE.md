@@ -1,5 +1,51 @@
 # Uploading an update
 
+## Quick steps for aaPanel
+
+1. **Back up the server.** Back up the current website and database before replacing files. Pause existing jobs during the update. Keep backups outside the public website folder; use a SQLite-aware backup if the database is still being written to.
+
+2. **Create the update ZIP on your computer.** Open Terminal in this project's root folder and run:
+
+   ```sh
+   sh admin/scripts/package-update.sh <deployed-commit-or-branch>
+   ```
+
+   Replace `<deployed-commit-or-branch>` with the Git version currently on the server. If the server already matches your local `HEAD` and you only need pending changes, run `sh admin/scripts/package-update.sh` instead. The default does **not** include changes already committed locally. Find the ZIP and its file/deletion lists in `admin/update-packages/` and check that the intended changes are listed.
+
+3. **Upload and extract.** In **aaPanel → Files**, open your website root—the folder containing `admin` and `api`. Upload the ZIP, extract it there, and allow overwriting the packaged code files. Apply only the removals listed in the matching `-deletions.txt`. Keep the server's `.env`, database, storage, uploads, and chat records; do not replace them with local copies.
+
+4. **Update the database and sitemaps.** Open the server terminal and run these commands. Replace `YOUR_SITE_FOLDER` with your actual folder:
+
+   ```sh
+   cd /www/wwwroot/YOUR_SITE_FOLDER
+   php -r 'require "admin/includes/blog-storage.php"; blogs_pdo(); echo "Database update finished.\n";'
+   php admin/scripts/generate-game-sitemaps.php
+   ```
+
+   The database command applies the application's initialization and migrations to the existing server database. If `php` is not found, use the full path to your installed aaPanel PHP CLI.
+
+5. **Configure daily game generation once.** In the server's `admin/.env`, add or update these settings, keeping all other settings:
+
+   ```dotenv
+   OLLAMA_API_KEY=your_actual_api_key
+   OLLAMA_MODEL=gemma4:31b-cloud
+   OLLAMA_HOST=http://127.0.0.1:11434
+   ```
+
+   Python 3 and PHP CLI must be available to the cron user. Ollama must run on this server at that address and have access to the selected model. The cron user needs write access to the game's database and `admin/storage`.
+
+6. **Add the daily job once.** In **aaPanel → Cron → Add Task**, choose **Shell Script**, set **Daily at 02:00**, and paste:
+
+   ```sh
+   cd /www/wwwroot/YOUR_SITE_FOLDER && /usr/bin/python3 admin/scripts/enrich-games-daily.py
+   ```
+
+   Replace the site folder and Python path if needed. Set the server timezone to **Asia/Manila** for 2 AM Manila time. If this job already exists, edit it instead of creating a duplicate. Each run attempts up to 20 eligible games with `done_processing=0`; successfully saved games become `1` and are skipped next time. Failed games remain available for retry. Check `admin/storage/enrich-games-daily.log` for results.
+
+7. **Check and finish.** Sign in to admin, open a slot, check its table and save behavior, and check `/api/slot-list.php`. Remove the uploaded ZIP and reports from the public server folder, then resume the site and paused jobs. If something fails, use the matching code/database backup to roll back.
+
+More deployment details follow below.
+
 Build a ZIP locally, review its manifest, and upload it to the existing site through aaPanel or cPanel File Manager. This packages code; it does not deploy anything or replace production data.
 
 ## 1. Build the package
