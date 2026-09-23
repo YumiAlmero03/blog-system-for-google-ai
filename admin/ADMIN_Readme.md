@@ -1,6 +1,7 @@
 # API and admin guidance
 
-- Check `INDEX.md` before searching documentation and read only task-relevant documents; when creating, renaming, moving, or deleting a maintained project `.md` file, update `INDEX.md` in the same change.
+- Check `README.md` before searching documentation and read only task-relevant documents; when creating, renaming, moving, or deleting a maintained project `.md` file, update `README.md` in the same change.
+- When adding, changing, renaming, or removing an API, update both `AGENT.md` and `API.md` in the same change with routes, methods, permissions, inputs, and responses.
 - Read `AGENT.md` for existing project conventions; reuse endpoints and storage helpers before adding APIs.
 - Public details: `api/game.php?slug=…` and `api/blog.php?slug=…`; keep visibility checks in `admin/includes/game-public.php` and `admin/includes/public-detail.php` (processed/public slugs, exact PH restrictions, published/due blogs).
 - Blog HTML must reuse `admin/includes/blog-renderer.php` for Markdown and special blocks, shared with `blog/view.php`.

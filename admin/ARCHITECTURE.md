@@ -18,7 +18,7 @@ Server-rendered PHP + HTML5 application using SQLite through PDO.
 │   ├── login-handler.php
 │   ├── logout.php
 │   ├── .env
-│   └── INDEX.md
+│   └── README.md
 ├── api/
 ├── promo-code/
 ├── promo-code.php

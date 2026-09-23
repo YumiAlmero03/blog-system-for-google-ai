@@ -2,6 +2,8 @@
 
 * Stack: PHP + HTML5 + SQLite.
 * Make the smallest necessary change.
+* Read [README.md](README.md) for the documentation index; update it whenever maintained documentation is added, renamed, moved, or removed.
+* Whenever an API is added, changed, renamed, or removed, update both this `AGENT.md` and [API.md](API.md) in the same change. Record methods, permissions, inputs, outputs, compatibility paths, and relevant behavior.
 * Inspect only task-relevant files; expand only if needed.
 * Do not modify or refactor unrelated code.
 * Preserve existing HTML, classes, CSS variables, typography, grids, styling, and responsive behavior.
@@ -51,39 +53,28 @@ After implementation, report:
 
 ## Current APIs
 
-Base URL: `[insert_domain_here]`. Inventory checked on 2026-09-11 against all nine PHP endpoints in `/api`.
+Base URL: your configured site origin. The current source inventory contains 12 public-facing PHP entrypoints under `/api/`. See [API.md](API.md) for request fields, response formats, examples, and authenticated handlers. Update both documents whenever an API changes; this inventory does not certify production availability.
 
-Verification below means local PHP handler execution, using a temporary SQLite database copy and temporary storage for writes. It does not establish production HTTP availability. All nine files passed `php -l`. No real engagement, click, chat, or ticket records were changed; no email was sent.
-
-| Endpoint | Methods | Purpose and inputs | Local verification |
+| Endpoint | Methods | Access | Purpose |
 | --- | --- | --- | --- |
-| `/api/slot-list.php` | GET, POST | Paginated games. `count` (1–100, default 24), `page`, `search`, `provider` (slug), `type`/`types`, `featured`, `progressive`, `megaways`, `upcoming`, `published` (default 1), `sort`. Returns `slots`, `pagination`, and `filters`. Requires publication, processing, provider approval and `is_viewable=1`; excludes exact PH/PHILIPPINES restriction tokens through shared public eligibility. | Both methods returned status 200 and `ok: true`. |
-| `/api/provider-list.php` | GET | Approved providers with eligible public game counts. Optional `count` or `limit` (1–1000); `sample` or `dev` enables sample data. Returns `providers`, `total`, `count`, `limit`, and `sample`. | Real database mode returned status 200 and `ok: true`. |
-| `/api/blog-category-list.php` | GET, POST | Public blog categories. No required input. Includes stable IDs, slugs, parent IDs/names and post counts. | Both methods returned status 200 and `ok: true`. |
-| `/api/blog-post-list.php` | GET, POST | Published blog listing. `count` (1–100, default 10), `page`, optional `category` (ID, slug, or legacy name; top-level categories include descendants, child selections stay exact). Returns `blogs` and `pagination`; blogs include category name/slug/parent name and tags. | Both methods returned status 200 and `ok: true`. |
-| `/api/blog.php` | GET | Public specific blog by `slug`. Returns rendered Markdown and supported special blocks, plus public writer data, category name/slug/parent and tags. | Passed isolated public-detail and writer HTTP tests. |
-| `/api/game.php` | GET | Public specific game by `slug`. Returns only eligible game data, respecting publication, processing, PH restrictions, provider approval and game visibility. | Passed public-detail visibility and HTTP tests. |
-| `/api/settings/seo.php` | GET, POST | Public site SEO metadata/settings and authorized admin updates. | Passed isolated public GET, admin update, validation, and authorization HTTP tests. |
-| `/admin/blog-category-list.php`, `/admin/blog-tag-list.php` | POST | Authenticated taxonomy lists and counts; requires CSRF. Editors may read. | Isolated taxonomy handler tests passed. |
-| `/admin/blog-category-save.php`, `/admin/blog-tag-save.php` | POST | Admin/super-user CRUD; CSRF required. `action=save/delete`, `id`, `name`, `slug`; categories also accept `parent_id`. | Isolated taxonomy validation, permission and CSRF checks passed. |
-| `/api/blog-public-token.php` | GET, POST | Issues a public `blog:read` JWT with audience `blog-post-list`, `token`, and `expiresIn: 300`. Requires `BLOG_API_JWT_SECRET` of at least 32 characters. The current blog listing handler does not require this token. | Both methods returned status 200 and `ok: true`; token values were not logged. |
-| `/api/blog-engagement.php` | POST | Records engagement. Required `postId` (blog ID), `action` (`view`, `like`, or `dislike`). Updates blog engagement storage. | A `view` on a copied published blog returned status 200 and `ok: true`. |
-| `/api/playnow-click.php` | POST | Records button click analytics. Optional context includes `pageUrl`, `pagePath`, `pageTitle`, `referrer`, `targetUrl`, `buttonText`, `buttonClass`, `buttonId`, `buttonName`, `buttonTag`, `section`, `selector`, and `location`. | Isolated click returned status 200 and `ok: true`. |
-| `/api/chat-session.php` | POST | Saves chat transcripts. Requires nonempty `messages` with `text`; each message can include `sender` (`user`, `bot`, `agent`), `time`, and `type`. Optional `name`, `contact`, `page_url`, and `session_id`. Returns `sessionId`, `path`, and `messageCount`. | Valid payload returned `ok: true` and saved one message in temporary storage; empty messages returned 422. |
-| `/api/customer-ticket.php` | POST | Saves a support ticket and attempts email delivery. Required `full_name`, `contact`, `topic`, `problem`; optional `page_url`. Uses configured SMTP or mail fallback. Check `emailSent`: `ok: true` alone does not confirm delivery. | Validation only: missing fields returned 422. Successful submission and email delivery were not tested. |
+| `/api/slot-list.php` | GET, POST | Public | Paginated eligible games of all supported types. |
+| `/api/provider-list.php` | GET | Public | Providers and eligible game counts. |
+| `/api/game.php` | GET | Public | One eligible game by slug. |
+| `/api/blog-post-list.php` | GET, POST | Public | Published blog list. |
+| `/api/blog-category-list.php` | GET, POST | Public | Blog category hierarchy and counts. |
+| `/api/blog.php` | GET | Public | Published blog detail and rendered content. |
+| `/api/blog-public-token.php` | GET, POST | Public | Short-lived public blog JWT. |
+| `/api/blog-engagement.php` | POST | Public | Record a view, like, or dislike. |
+| `/api/playnow-click.php` | POST | Public | Record a Play Now click. |
+| `/api/chat-session.php` | POST; GET for admin messages | Public transcript save; authenticated admin actions | Save transcripts, read messages, or reply. |
+| `/api/customer-ticket.php` | POST | Public | Save a support ticket and attempt email delivery. |
+| `/api/settings/seo.php` | GET, POST | Public GET; admin/super-user POST | Read or update site SEO settings. |
 
-GET inputs use query parameters. POST inputs for the list endpoints use form fields (`application/x-www-form-urlencoded`), not JSON. Engagement, click, chat, and ticket endpoints accept JSON or form fields. The token endpoint needs no request fields. These handlers contain no login requirement; this does not verify deployment-level access rules.
+Game routes remain `/api/slot-list.php`, `/api/provider-list.php`, and `/api/game.php`, with implementations in `admin/games/api/` and catalogue data in `games.sqlite`. Public eligibility includes the global Games switch, publication, processing, provider approval, visibility, slug validity, and PH restrictions. Disabling Games returns empty game/provider lists (including sample mode) and 404 game details. Local game-list thumbnails use `/uploads/games/...`.
 
-Example read requests:
+Game admin handlers are `/admin/games/save.php` (POST, `slots.edit`, form fields and CSRF), `/admin/games/index.php` (GET list; POST featured/visibility with `slots.edit`), `/admin/games/providers.php` (admin/super-user provider approvals), and `/admin/games/settings.php` (admin/super-user `enabled=0/1` switch). The latter page handlers return HTML. Old slot/provider URLs remain compatibility entrypoints. All admin writes require CSRF. CLI import/enrichment/runtime scripts are not HTTP APIs.
 
-```text
-[insert_domain_here]/api/slot-list.php?count=24&page=1
-[insert_domain_here]/api/provider-list.php?count=20
-[insert_domain_here]/api/blog-category-list.php
-[insert_domain_here]/api/blog-post-list.php?count=10&page=1
-```
-
-Do not use successful requests to write endpoints as production health checks: they can create records, change analytics, or send email. Provider counts use the same public game eligibility as the slot list.
+List POSTs use form fields, not JSON. Public engagement/click/chat/ticket writes accept JSON or form data and may change records or send email. SEO settings GET is public; POST is admin-only. Chat `admin_action=messages` uses authenticated GET with `chat.view`; `admin_action=reply` uses authenticated form POST with `chat.reply` and CSRF.
 
 ### Contact and chat admin pages
 
