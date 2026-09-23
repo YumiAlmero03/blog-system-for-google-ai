@@ -8,6 +8,7 @@ Options -Indexes
 
     # Backend runtime/configuration is never served directly.
     RewriteRule ^admin/(?:includes|scripts|storage|chats|data|update-packages|\.github|\.vscode)(?:/|$) - [F,L]
+    RewriteRule ^admin/games/(?:includes|scripts)(?:/|$) - [F,L]
     RewriteRule ^admin/(?:\.[^/]+|[^/]+\.(?:md|sh))$ - [F,L]
 
     # Preserve existing public upload URLs and root IndexNow verification URLs.

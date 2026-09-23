@@ -7,6 +7,7 @@ Server-rendered PHP + HTML5 application using SQLite through PDO.
 /
 ├── admin/
 │   ├── includes/
+│   ├── games/                  # Game pages, API implementations, helpers, and jobs
 │   ├── scripts/
 │   ├── storage/
 │   ├── uploads/
@@ -127,3 +128,15 @@ Game sitemap:
 Optional enrichment utility:
 
 `admin/scripts/enrich-game-descriptions.py`
+
+## Games module
+
+`admin/games/` contains the game listing/editor, provider management, module settings, API implementations, shared game helpers, and import/enrichment/sitemap jobs. Existing `/api/slot-list.php`, `/api/provider-list.php`, `/api/game.php`, old admin URLs, and `admin/scripts/` job paths remain compatibility entrypoints. Use the **Games** dropdown for **All Games**, **Providers**, and **Games Settings**; provider/module settings require an administrator, while editors retain game-edit access.
+
+The catalogue lives in `APP_STORAGE_DIR/games.sqlite` (default `admin/storage/games.sqlite`). It contains `games`, `game_providers`, `game_types`, `game_themes`, `game_theme_links`, `game_provider_settings`, and `game_module_settings`. Blogs, users, site settings, and shared indexing queues remain in `blogs.sqlite`. The shared PDO connection attaches the game database as `game_store` so blog demo and indexing queries can still resolve game records without duplicating them.
+
+On first initialization, migration takes an exclusive application lock, creates a consistent `blogs-before-games-*.sqlite` backup, copies existing game tables with their IDs, values, indexes, and relationships, verifies row counts, and removes the legacy tables from the blog database. Game schema upgrades then run on the separate database. If both databases already contain game tables, migration stops for reconciliation rather than merging unknown data. Pause web writes and scheduled jobs during deployment; restore both databases together when rolling back.
+
+The Games switch defaults to enabled. When disabled, shared public eligibility excludes all games, cached list responses cannot bypass the switch, details return not found, game demos disappear, and game sitemap chunks are removed. Imports and enrichment jobs skip new work; Python enrichment also checks before each game and before saving. Admin editing stays available. A new successful enrichment still sets `done_processing=1`, and the daily job selects at most 20 unfinished records.
+
+Regression checks: `php admin/scripts/test-game-storage.php`, `php admin/scripts/test-game-visibility.php`, and `php admin/scripts/test-fresh-storage.php`. Use a valid `SITE_BASE_URL` when testing public absolute URLs.

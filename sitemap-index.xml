@@ -3,4 +3,7 @@
   <sitemap>
     <loc>[insert_domain_here]/sitemap-blog.php</loc>
   </sitemap>
+  <sitemap>
+    <loc>https://example.test/sitemap-blog.php</loc>
+  </sitemap>
 </sitemapindex>

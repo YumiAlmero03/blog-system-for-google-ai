@@ -22,7 +22,7 @@ try {
     import_game($pdo,$input,$download); $row=$pdo->query('SELECT * FROM games WHERE api_id=1')->fetch();
     gi_check((int)$row['done_processing']===1 && (int)$row['is_viewable']===0,'Successful repeat preserves processing and visibility');
     $pdo->exec('UPDATE games SET is_viewable=1 WHERE api_id=1');
-    gi_check(slot_list_item($row)['thumbnail']==='https://example.test'.$local,'Shared list absolute thumbnail');
+    gi_check(slot_list_item($row)['thumbnail']===$local,'Shared list local upload thumbnail');
     gi_check(public_game_payload(public_game_find('image-game'))['thumbnail']==='https://example.test'.$local,'Detail absolute thumbnail');
     foreach (['/api/slot-list.php','/api/game.php'] as $endpoint) {
         $runner='$_SERVER["REQUEST_METHOD"]="GET"; $_GET=["slug"=>"image-game"]; require '.var_export(dirname(__DIR__,2).$endpoint,true).';';
@@ -30,7 +30,7 @@ try {
         $json=stream_get_contents($pipes[1]); $errors=stream_get_contents($pipes[2]); fclose($pipes[1]); fclose($pipes[2]);
         gi_check(proc_close($process)===0 && $errors==='','API execution'); $data=json_decode($json,true);
         $image=$data['game']['thumbnail'] ?? $data['slots'][0]['thumbnail'] ?? '';
-        gi_check($image==='https://example.test'.$local && !str_contains($image,'assets.slotslaunch'),'API uses local absolute thumbnail');
+        gi_check($image===($endpoint === '/api/game.php' ? 'https://example.test'.$local : $local) && !str_contains($image,'assets.slotslaunch'),'API uses local upload thumbnail');
     }
     $hash=hash_file('sha256',$dir.'/images/'.basename($local));
     ini_set('error_log',$dir.'/failures.log');

@@ -345,7 +345,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             <h1 style="font-size:1.6rem; color:var(--brand-dark);">Settings</h1>
             <p style="font-size:0.88rem; color:var(--text-muted);">Find and replace text across blog database fields.</p>
           </div>
-          <a href="/admin/settings/providers/" class="btn btn-secondary btn-sm">Providers Settings</a>
+          <a href="/admin/games/settings.php" class="btn btn-secondary btn-sm">Games Settings</a>
           <a href="/admin/settings/seo/" class="btn btn-secondary btn-sm">SEO Settings</a>
           <a href="/admin/blogs.php" class="btn btn-secondary btn-sm">Back to Blogs</a>
         </div>

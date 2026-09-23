@@ -1,131 +1,90 @@
-# Uploading an update
+# Update using two files
 
-## Quick steps for aaPanel
+Upload only **`updater.py`** and **`site-update.zip`**. The ZIP contains the complete current application, so you do not need the server's last Git commit or intermediate update packages. The server does not need Git.
 
-1. **Back up the server.** Back up the current website and database before replacing files. Pause existing jobs during the update. Keep backups outside the public website folder; use a SQLite-aware backup if the database is still being written to.
+## 1. Create the two files on your computer
 
-2. **Create the update ZIP on your computer.** Open Terminal in this project's root folder and run:
-
-   ```sh
-   sh admin/scripts/package-update.sh <deployed-commit-or-branch>
-   ```
-
-   Replace `<deployed-commit-or-branch>` with the Git version currently on the server. If the server already matches your local `HEAD` and you only need pending changes, run `sh admin/scripts/package-update.sh` instead. The default does **not** include changes already committed locally. Find the ZIP and its file/deletion lists in `admin/update-packages/` and check that the intended changes are listed.
-
-3. **Upload and extract.** In **aaPanel → Files**, open your website root—the folder containing `admin` and `api`. Upload the ZIP, extract it there, and allow overwriting the packaged code files. Apply only the removals listed in the matching `-deletions.txt`. Keep the server's `.env`, database, storage, uploads, and chat records; do not replace them with local copies.
-
-4. **Update the database and sitemaps.** Open the server terminal and run these commands. Replace `YOUR_SITE_FOLDER` with your actual folder:
-
-   ```sh
-   cd /www/wwwroot/YOUR_SITE_FOLDER
-   php -r 'require "admin/includes/blog-storage.php"; blogs_pdo(); echo "Database update finished.\n";'
-   php admin/scripts/generate-game-sitemaps.php
-   ```
-
-   The database command applies the application's initialization and migrations to the existing server database. If `php` is not found, use the full path to your installed aaPanel PHP CLI.
-
-5. **Configure daily game generation once.** In the server's `admin/.env`, add or update these settings, keeping all other settings:
-
-   ```dotenv
-   OLLAMA_API_KEY=your_actual_api_key
-   OLLAMA_MODEL=gemma4:31b-cloud
-   OLLAMA_HOST=http://127.0.0.1:11434
-   ```
-
-   Python 3 and PHP CLI must be available to the cron user. Ollama must run on this server at that address and have access to the selected model. The cron user needs write access to the game's database and `admin/storage`.
-
-6. **Add the daily job once.** In **aaPanel → Cron → Add Task**, choose **Shell Script**, set **Daily at 02:00**, and paste:
-
-   ```sh
-   cd /www/wwwroot/YOUR_SITE_FOLDER && /usr/bin/python3 admin/scripts/enrich-games-daily.py
-   ```
-
-   Replace the site folder and Python path if needed. Set the server timezone to **Asia/Manila** for 2 AM Manila time. If this job already exists, edit it instead of creating a duplicate. Each run attempts up to 20 eligible games with `done_processing=0`; successfully saved games become `1` and are skipped next time. Failed games remain available for retry. Check `admin/storage/enrich-games-daily.log` for results.
-
-7. **Check and finish.** Sign in to admin, open a slot, check its table and save behavior, and check `/api/slot-list.php`. Remove the uploaded ZIP and reports from the public server folder, then resume the site and paused jobs. If something fails, use the matching code/database backup to roll back.
-
-More deployment details follow below.
-
-Build a ZIP locally, review its manifest, and upload it to the existing site through aaPanel or cPanel File Manager. This packages code; it does not deploy anything or replace production data.
-
-## 1. Build the package
-
-From the project directory, run:
+From this project's root folder:
 
 ```sh
-sh admin/scripts/package-update.sh
+python3 admin/scripts/updater.py --build .
 ```
 
-Requires Git and PHP with ZipArchive. By default, the package contains tracked changes since `HEAD` plus non-ignored untracked files, using their current working copies. This includes all pending changes, not just the most recent feature.
+Find both files in **`admin/update-packages/full/`**. Always upload the matching pair from the same build. Rebuild after making more changes.
 
-If the server runs an older commit, use that deployed commit or branch as the baseline:
+## 2. Upload both files
+
+In **aaPanel → Files**, open the website root containing `admin` and `api`. Upload `updater.py` and `site-update.zip` there. **Do not extract the ZIP yourself.**
+
+Keep the site's existing `.env`, SQLite database, uploads, and chats. These are excluded from the package. The full package includes tracked application dependencies and current non-ignored new files; review new files before building to avoid packaging private material.
+
+## 3. Check the update
+
+In the aaPanel terminal, replace `YOUR_SITE_FOLDER` and run:
 
 ```sh
-sh admin/scripts/package-update.sh <deployed-commit-or-branch>
+cd /www/wwwroot/YOUR_SITE_FOLDER
+python3 updater.py --check
 ```
 
-The command creates three files in `admin/update-packages/`:
+Requires **Python 3.10+** and **PHP 8.1+ with PDO SQLite**. If PHP is not on the command path, add its actual location, for example `--php /www/server/php/84/bin/php`, to both the check and installation commands.
 
-- `site-update-<UTC timestamp>-<suffix>.zip`: changed files, with paths relative to the site root.
-- Matching `-manifest.txt`: baseline commit, creation time, file list, and SHA-256 hashes.
-- Matching `-deletions.txt`: server paths that need manual removal; an empty file means no deletions.
+## 4. Install
 
-The package excludes storage, uploads, chats, environment files, database files, private-key files, logs, archives, dependencies, and local agent/Git directories. Review the manifest for any other private files before uploading. Generated packages are ignored by Git. Renames appear as an upload plus a deletion.
-
-## 2. Back up and upload
-
-1. Back up the server files and production database using your hosting backup tools. Keep backups outside the public site directory. For a live SQLite database, use a SQLite-aware backup rather than copying only its main file while writes continue.
-2. Review the manifest against the server version. Try the update on staging first.
-3. Put the site into maintenance mode during extraction and database migration.
-4. Upload the ZIP to the site root, where `admin/includes/`, `admin/`, and `api/` already exist. Extract there and allow the listed code files to be overwritten.
-5. Review and apply any entries in the deletions report. Never delete unrelated server files.
-6. Remove the uploaded ZIP and reports from the public server directory afterward.
-
-Do not upload your local `admin/storage/blogs.sqlite`, `.env`, uploads, or customer/chat records.
-
-## 3. Apply database migrations
-
-This project runs its schema migrations through `blogs_pdo()`. There is no `admin/scripts/safe-db-update.php` and no schema-only dry-run command. After backing up and uploading, run this from the server site root:
+Enable website maintenance mode and pause cron jobs first so files and database records are not being changed during the update. Then run:
 
 ```sh
-php -r 'require "admin/includes/blog-storage.php"; blogs_pdo(); echo "Database initialization completed.\n";'
+python3 updater.py
 ```
 
-This **writes to the production database** using the server configuration. It can add tables/columns, backfill category assignments, and perform existing initialization work, including legacy blog migration and publishing due scheduled posts. Do not describe it as an add-columns-only operation. Test against a backup on staging when upgrading an older installation.
+The updater checks the matching ZIP and file hashes, backs up affected code and both SQLite databases when present, validates PHP syntax, installs the full application, removes obsolete application paths recorded in repository history, runs existing database migrations, clears API caches, and regenerates game sitemaps. Unrelated server files are left alone.
 
-Then regenerate public game sitemaps:
+Backups are created in **`.site-update-backups` beside the website folder**, outside the site root. The command prints the exact location. If that parent directory is not writable, use a writable private directory outside the website:
 
 ```sh
-php admin/scripts/generate-game-sitemaps.php
+python3 updater.py --backup-dir /path/outside/website/backups
 ```
 
-The web/PHP user must be able to write the sitemap files and API cache directory. Provider approval and game visibility saves also refresh sitemaps; a refresh failure appears in the admin response and can be retried by saving again.
+Run as the site's deployment user with permission to update code, storage, and sitemaps. The updater does not automatically enable maintenance mode or configure Nginx.
 
-## 4. Verify and finish
+## 5. Finish
 
-Check admin login, blog editing/Quick Edit, category filtering, tags, provider settings, slot editing, public APIs, and the sitemap index. Hidden games should return public 404s. Remove maintenance mode after checks pass.
+Check admin login, slot editing, `/api/slot-list.php`, and your sitemaps. Then resume the site and cron jobs. Delete the uploaded `updater.py` and `site-update.zip` from the public website folder. Keep the backup privately.
 
-If rollback is needed, restore the matching server code and database backup together. Restoring an older database discards writes made after that backup, so keep maintenance mode active until the update is verified.
+If the updater reports a failure, **keep maintenance enabled**. It prints the backup location; `restore-info.json` records the original database location and newly added files. Restore the backed-up code and both databases together before reopening the site. It does not automatically roll back migrations or undo unrelated writes.
 
-## First update — 2026-09-16
+## Updating a much older installation
 
-The first package includes the current pending implementation:
+You can skip releases when the server already uses **`admin/includes/blog-storage.php`** and the current `admin/` layout. Existing database migration helpers apply missing schema changes; test very old databases on a staging copy first. A full package cannot guarantee compatibility with every historical schema.
 
-- Blog tags with CRUD and multiple assignments.
-- Hierarchical categories, stable category IDs, and parent-inclusive filtering/search.
-- Category/tag output in blog APIs and public views.
-- Provider approvals and per-game `is_viewable` controls.
-- Shared public game eligibility and sitemap/provider-list filtering.
-- The missing public game page handler, regression scripts, and updated documentation.
+If the server uses an older root-level backend layout, migrate its runtime data and `.env` to the correct locations first. The updater stops rather than guesses which database to use. Preserve the server's `APP_STORAGE_DIR` setting when configured.
 
-Database changes include category slugs/parents and blog category IDs, tag/relation tables, provider approval overrides, and game visibility. Existing provider approvals and game visibility default to enabled. No production deployment has been performed.
+For Nginx, retain rules blocking private paths such as `admin/storage`, `admin/includes`, `admin/scripts`, `admin/chats`, `admin/data`, `admin/update-packages`, and hidden files. Nginx does not read `.htaccess`.
 
-## Blog ZIP upload limits
+## Games module database update
 
-The application accepts blog ZIP imports up to 100 MB. Configure PHP `upload_max_filesize` to at least 100M, and set `post_max_size` higher to allow multipart form overhead. The web-server request limit must be at least as large as `post_max_size`. Reload the affected services after changing their configuration.
+This release moves game code into `admin/games/` and the catalogue into `admin/storage/games.sqlite` (or the configured `APP_STORAGE_DIR`). During database initialization, existing game records move automatically from `blogs.sqlite` with a pre-migration SQLite backup. Keep maintenance mode enabled and pause cron jobs until migration finishes. Do not upload local database files.
 
-## Admin directory layout
+The updater now backs up both databases. If rolling back the first split migration to older code, restore the old `blogs.sqlite` backup and remove the newly created `games.sqlite` and its sidecar files while all writers are stopped; `restore-info.json` records whether the game database existed before the update. For later rollbacks, restore both matching database backups.
 
-Application code, documentation, `.env`, uploads, and runtime storage now live under `admin/`. Run tools from the repository root with `php admin/scripts/<script>.php` or `bash admin/update.sh`. Update existing cron commands to `php admin/scripts/check-google-indexing.php`. Keep the root API, promo-code, sitemap, robots, `.htaccess`, and Git files in place.
+In Nginx, add private-path rules for `admin/games/includes` and `admin/games/scripts` alongside the existing private folders. Apache receives matching rules in this release.
 
-Move existing runtime directories and `.env` with the application; deployment packages intentionally omit runtime data and credentials. The Apache root `.htaccess` preserves `/uploads/` and legacy login URLs while blocking private backend files. IndexNow key files live under `admin/` but remain verifiable at `/{key}.txt` through the root rewrite. If using Nginx, configure equivalent aliases/rewrite rules and deny direct access to `admin/includes`, `admin/scripts`, `admin/storage`, `admin/chats`, `admin/data`, `admin/update-packages`, and hidden files; Nginx does not read `.htaccess`.
+After deployment, open **Games → Games Settings** to enable/disable all games. Existing API links and cron commands still work through compatibility entrypoints.
+
+## Daily game job — configure once
+
+Keep these settings in the server's `admin/.env`:
+
+```dotenv
+OLLAMA_API_KEY=your_actual_api_key
+OLLAMA_MODEL=gemma4:31b-cloud
+OLLAMA_HOST=http://127.0.0.1:11434
+```
+
+Ollama must be accessible at that address on the server. In **aaPanel → Cron**, create one **Shell Script** task scheduled **Daily at 02:00**:
+
+```sh
+cd /www/wwwroot/YOUR_SITE_FOLDER && /usr/bin/python3 admin/scripts/enrich-games-daily.py
+```
+
+Replace the paths if needed and set the server timezone to **Asia/Manila**. Edit an existing job instead of creating duplicates. Each run attempts up to 20 eligible games with `done_processing=0`; successful saves set it to `1`, so later runs skip them. Results are in `admin/storage/enrich-games-daily.log`.

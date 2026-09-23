@@ -6,7 +6,7 @@ This index lives at `admin/INDEX.md`. Start here when looking for project docume
 
 - [ADMIN_Readme.md](ADMIN_Readme.md) — Operational rules and shared API guidance for agents working in this repository.
 - [AGENT.md](AGENT.md) — Project conventions, API inventory, and implementation guidance.
-- [ARCHITECTURE.md](ARCHITECTURE.md) — Application structure and module relationships.
+- [ARCHITECTURE.md](ARCHITECTURE.md) — Application structure, the Games module, and separate game/blog databases.
 
 ## Development
 
@@ -15,7 +15,7 @@ This index lives at `admin/INDEX.md`. Start here when looking for project docume
 
 ## Deployment
 
-- [Update guide](UPDATE.md) — Simple aaPanel upload/update steps, daily 20-game cron setup, and detailed deployment guidance.
+- [Update guide](UPDATE.md) — Two-file updates, game database migration, backups, and daily game cron setup.
 
 ## SEO
 

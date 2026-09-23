@@ -7,7 +7,6 @@ $adminNavItems = [
     ['/admin/blogs.php', 'Blogs', str_ends_with($adminCurrentPath, '/admin/blogs.php')],
     ['/admin/blog-categories.php', 'Categories', str_ends_with($adminCurrentPath, '/admin/blog-categories.php')],
     ['/admin/blog-tags.php', 'Tags', str_ends_with($adminCurrentPath, '/admin/blog-tags.php')],
-    ['/admin/slots.php', 'Slots', str_ends_with($adminCurrentPath, '/admin/slots.php')],
     ['/admin/seo-checker-v2.php', 'SEO Checker V2', str_ends_with($adminCurrentPath, '/admin/seo-checker-v2.php')],
     ['/admin/playnow-tracker.php', 'Play Now Tracker', str_ends_with($adminCurrentPath, '/admin/playnow-tracker.php')],
     ['/admin/contacts.php', 'Contacts', str_ends_with($adminCurrentPath, '/admin/contacts.php')],
@@ -33,6 +32,18 @@ if (($_SESSION['user']['role'] ?? '') === 'editor') {
       <span class="badge-tag" style="background-color: var(--brand); color:#fff;"><?= h(strtoupper(str_replace('_',' ',$_SESSION['user']['role'] ?? 'admin'))) ?></span>
     </a>
     <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+      <?php if (auth_can('slots.view')): ?>
+      <details class="games-nav" style="position:relative;">
+        <summary class="btn <?= str_starts_with($adminCurrentPath, '/admin/games/') ? 'btn-primary' : 'btn-secondary' ?> btn-sm">Games ▾</summary>
+        <div style="position:absolute;z-index:20;min-width:180px;padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);display:grid;gap:6px;">
+          <a class="btn btn-secondary btn-sm" href="/admin/games/">All Games</a>
+          <?php if (auth_can('admin')): ?>
+          <a class="btn btn-secondary btn-sm" href="/admin/games/providers.php">Providers</a>
+          <a class="btn btn-secondary btn-sm" href="/admin/games/settings.php">Games Settings</a>
+          <?php endif; ?>
+        </div>
+      </details>
+      <?php endif; ?>
       <?php foreach ($adminNavItems as [$href, $label, $isActive]): ?>
         <a href="<?= h($href) ?>" class="btn <?= $isActive ? 'btn-primary' : 'btn-secondary' ?> btn-sm"><?= h($label) ?></a>
       <?php endforeach; ?>

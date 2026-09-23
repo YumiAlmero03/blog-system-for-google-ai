@@ -27,7 +27,7 @@ function fresh_run(string $code): string {
 }
 try {
     mkdir($temp, 0700);
-    foreach (['admin/includes', 'api'] as $directory) {
+    foreach (['admin/includes', 'admin/games', 'api'] as $directory) {
         $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root . '/' . $directory, FilesystemIterator::SKIP_DOTS));
         foreach ($iterator as $file) {
             if ($file->getExtension() !== 'php') continue;
@@ -40,6 +40,7 @@ try {
         if ($state === 'empty') { fresh_remove($temp . '/admin/storage'); mkdir($temp . '/admin/storage', 0700); }
         fresh_run('require "admin/includes/blog-storage.php"; blogs_pdo();');
         fresh_check(is_file($temp . '/admin/storage/blogs.sqlite'), "$state storage: database created");
+        fresh_check(is_file($temp . '/admin/storage/games.sqlite'), "$state storage: separate game database created");
         fresh_check(!is_dir($temp . '/admin/storage/api-cache'), 'Cache must be lazy');
         foreach (['login-attempts.min.json', 'customer-tickets.json', 'playnow-clicks.json', 'backups'] as $name) {
             fresh_check(!file_exists($temp . '/admin/storage/' . $name), "$name must be lazy");

@@ -79,7 +79,7 @@ function indexing_google_sitemap_job(PDO $pdo): void
     $job=$pdo->query("SELECT * FROM indexing_jobs WHERE name='google-sitemap' AND next_at<=".time())->fetch(PDO::FETCH_ASSOC);
     if (!$job) return;
     try {
-        generate_game_sitemaps(blogs_db_path(),env_value('GAME_SITEMAP_OUTPUT_DIR') ?: site_root_path());
+        generate_game_sitemaps(games_db_path(),env_value('GAME_SITEMAP_OUTPUT_DIR') ?: site_root_path());
         $state=google_state(); $original=$state; $state['submission_pending']=true; google_write_state($state,$original);
         google_submit_pending_sitemap();
         $pdo->prepare('DELETE FROM indexing_jobs WHERE name=? AND version=?')->execute([$job['name'],$job['version']]);

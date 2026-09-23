@@ -9,7 +9,8 @@ if (PHP_SAPI !== 'cli') {
 
 $root = dirname(__DIR__);
 $shellPath = $root . '/index.html';
-$dbPath = $root . '/storage/blogs.sqlite';
+require_once __DIR__ . '/../includes/blog-storage.php';
+$dbPath = blogs_db_path();
 
 if (!is_file($shellPath)) {
     fwrite(STDERR, "Missing index.html app shell.\n");
@@ -63,12 +64,9 @@ $routes = [
 ];
 
 if (is_file($dbPath)) {
-    $pdo = new PDO('sqlite:' . $dbPath, null, null, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    ]);
+    $pdo = blogs_pdo();
 
-    foreach ($pdo->query('SELECT slug FROM games WHERE published = 1 AND slug <> ""') as $row) {
+    foreach ($pdo->query('SELECT slug FROM games WHERE ' . game_public_eligibility_sql()) as $row) {
         $slug = route_sync_clean_slug($row['slug'] ?? '');
         if ($slug !== '') {
             $routes[] = 'games/' . $slug;

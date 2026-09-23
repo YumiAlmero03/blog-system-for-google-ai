@@ -10,6 +10,8 @@ function auth_route_capability(): string
         '/admin/blog-publish.php'=>'blogs.edit', '/admin/blog-create.php'=>'blogs.edit',
         '/admin/blog-save.php'=>'blogs.publish', '/admin/blog-delete.php'=>'blogs.edit',
         '/admin/blog-category-list.php'=>'blogs.view', '/admin/blog-tag-list.php'=>'blogs.view', '/admin/upload-image.php'=>'blogs.edit',
+        '/admin/games/index.php'=>(($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' ? 'slots.edit' : 'slots.view'),
+        '/admin/games/'=>(($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' ? 'slots.edit' : 'slots.view'), '/admin/games/edit.php'=>'slots.edit', '/admin/games/save.php'=>'slots.edit',
         '/admin/slots.php'=>(($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' ? 'slots.edit' : 'slots.view'),
         '/admin/slot-edit.php'=>'slots.edit', '/admin/slot-save.php'=>'slots.edit',
         '/admin/contacts.php'=>'contacts.view', '/admin/live-chat.php'=>'chat.view',
