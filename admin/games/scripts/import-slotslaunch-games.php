@@ -9,6 +9,7 @@ if (PHP_SAPI !== 'cli') {
 
 require_once __DIR__ . '/../../includes/blog-storage.php';
 require_once __DIR__ . '/../../includes/game-images.php';
+require_once __DIR__ . '/../includes/provider-images.php';
 
 const SLOTSLAUNCH_DEFAULT_GAMES_URL = 'https://slotslaunch.com/api/games';
 
@@ -576,6 +577,13 @@ function import_game(PDO $pdo, array $game, ?callable $imageDownload = null): bo
     $provider = normalize_provider($game);
     $type = normalize_type($game);
     $providerId = upsert_lookup($pdo, 'game_providers', $provider['source']);
+    if ($providerId !== null) {
+        $providerApiId = (int) value_at($provider['source'],['id','api_id']);
+        $providerThumb = provider_image_from_payload($providerApiId,$provider['source'],$imageDownload);
+        if ($providerThumb !== '') {
+            $pdo->prepare('UPDATE game_providers SET thumbnail=? WHERE id=?')->execute([$providerThumb,$providerId]);
+        }
+    }
     $typeId = upsert_lookup($pdo, 'game_types', $type['source']);
     $themeRows = normalize_themes($game);
     $themeNames = array_map(static fn (array $theme): string => $theme['name'], $themeRows);

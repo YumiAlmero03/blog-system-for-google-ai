@@ -26,6 +26,7 @@ if (($_SESSION['user']['role'] ?? '') === 'editor') {
     unset($item);
 }
 ?>
+<script src="/admin/table-pagination.js" defer></script>
 <header class="site-header">
   <div class="header-inner">
     <a href="/admin/blogs.php" class="brand-logo">

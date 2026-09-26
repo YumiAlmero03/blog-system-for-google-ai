@@ -30,6 +30,25 @@ Use `--dry-run` when available before running data imports or enrichment on prod
 
 ## Script Reference
 
+### Continuous chat services
+
+See [Chat integration](../CHAT-INTEGRATION.md) for the complete deployment and frontend guide.
+
+```sh
+npm ci --prefix admin/scripts/chat-socket
+php admin/scripts/chat-ai-worker.php
+```
+
+In another terminal (local example):
+
+```sh
+CHAT_ALLOWED_ORIGINS=http://localhost:8083 CHAT_BACKEND_URL=http://127.0.0.1:8083/api/chat-session.php node admin/scripts/chat-socket/server.mjs
+```
+
+The PHP worker uses the existing Ollama host/key and defaults specifically to `gemma4:31b-cloud`, with `CHAT_AI_MODEL` as an optional override independent of `OLLAMA_MODEL`. `CHAT_AI_ENABLED=0` disables AI. Optional `--once` scans once; normal mode scans continuously every two seconds. The worker sends recent message text to the configured Ollama service and saves replies in existing private chat files. No web search is used. Node 22+ and the `ws` dependency are required for the relay; Node receives its configuration through process environment variables. Run both as supervised services in production and proxy `/chat-ws` over WSS.
+
+Tests use temporary storage: `php admin/scripts/test-chat-realtime.php` and `node admin/scripts/chat-socket/test.mjs` (local mock AI; requires localhost listeners).
+
 ### `generate-password.php`
 
 Generate a password hash for the admin login.
@@ -110,7 +129,7 @@ Despite the filename, the current script writes:
 
 ### `import-slotslaunch-providers.php`
 
-Import or update game providers from the SlotsLaunch providers API.
+Import or update game providers from the SlotsLaunch providers API, including validated local thumbnails. The original entrypoint and the sync command below share the same implementation.
 
 ```sh
 php admin/scripts/import-slotslaunch-providers.php
@@ -123,6 +142,26 @@ Environment variables:
 - `SLOTSLAUNCH_API_TOKEN`, `SLOTSLAUNCH_TOKEN`, or `GAMES_API_TOKEN`
 - `SLOTSLAUNCH_PROVIDERS_API_URL`
 - `SLOTSLAUNCH_ORIGIN`
+
+### `sync-providers.php`
+
+Refresh provider metadata and download thumbnails into `uploads/providers`:
+
+```sh
+php admin/games/scripts/sync-providers.php
+```
+
+Uses the same token and API settings as `import-slotslaunch-providers.php`. Optional `--page=N` starts at that page and follows remaining pagination; `--url=...` overrides the provider API source. The Games module must be enabled. This is a CLI command, not a public HTTP write API.
+
+The existing `game_providers.thumbnail` column stores `/uploads/providers/provider-<api-id>-<source-hash>.<extension>`. The public `/api/provider-list.php` returns that value in `thumbnail`. Valid cached files are reused, changed source URLs get new files, and a failed/missing image preserves the previous thumbnail. Failed downloads print the provider ID for retry on the next sync. Providers without an image remain empty. The sync updates metadata without changing provider approvals or game processing/publication flags and clears API caches after each page. Network downloads do not hold a database write transaction.
+
+Image downloads reuse the game importer protections: public HTTP(S) addresses only, no redirects, 8 MB maximum, 40 megapixels maximum, and MIME/signature/dimension validation for JPEG, PNG, WebP, and supported AVIF. Files receive deterministic names and are moved into place only after validation. SVG/GIF sources are not accepted. Optional `PROVIDER_IMAGE_UPLOAD_DIR` overrides the physical upload directory for deployments/tests; public paths remain `/uploads/providers/...`.
+
+The command exits with status 1 if any supplied thumbnail cannot be downloaded or validated, after saving the other providers; the final summary reports the failed image count. Missing/empty source URLs preserve the previous image and are not counted as download failures.
+
+Source field priority is `thumb` (SlotsLaunch), then `thumbnail`, `image`, `logo`, and `icon` if the earlier field is absent or blank. This applies on both insert and update. PHP game imports also check the nested `provider.thumb` when creating/updating a provider; a missing nested image is left for provider sync and never replaced with the game's thumbnail.
+
+Test with `php admin/scripts/test-provider-images.php` (temporary database/files; no live provider changes).
 
 ### `import-slotslaunch-games.php`
 

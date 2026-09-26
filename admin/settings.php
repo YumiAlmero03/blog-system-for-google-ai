@@ -401,7 +401,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
           <?php if (is_array($result)): ?>
             <section class="settings-card" aria-label="Find and replace results">
               <h2 style="font-size:1.15rem; color:var(--brand-dark);">Results</h2>
-              <table class="summary-table">
+              <table class="summary-table" data-paginate data-pagination-label="Settings summary">
                 <thead>
                   <tr>
                     <th>Field</th>

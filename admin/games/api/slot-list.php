@@ -108,7 +108,7 @@ function slot_list_sort(string $value): string
 function slot_list_cache_key(array $filters): string
 {
     $dbMtime = games_cache_version();
-    $filters['endpoint'] = 'slot-list-v5';
+    $filters['endpoint'] = 'slot-list-v6';
     $filters['dbMtime'] = $dbMtime;
 
     return hash('sha256', json_encode($filters, JSON_UNESCAPED_SLASHES));
@@ -158,10 +158,11 @@ if (!in_array(($_SERVER['REQUEST_METHOD'] ?? ''), ['GET', 'POST'], true)) {
 
 header('X-Robots-Tag: noindex, nofollow');
 header('Content-Type: application/json; charset=UTF-8');
-header('Cache-Control: public, max-age=' . SLOT_LIST_CACHE_TTL);
+$random = slot_list_bool_filter('random') === 1;
+header($random ? 'Cache-Control: no-store' : 'Cache-Control: public, max-age=' . SLOT_LIST_CACHE_TTL);
 
-$count = slot_list_positive_int('count', 24, 1, 100);
-$page = slot_list_positive_int('page', 1, 1, 1000000);
+$count = slot_list_positive_int('count', $random ? 1 : 24, 1, 100);
+$page = $random ? 1 : slot_list_positive_int('page', 1, 1, 1000000);
 $search = slot_list_string('search');
 $provider = slot_list_string('provider');
 $types = slot_list_type_filter();
@@ -170,7 +171,7 @@ $progressive = slot_list_bool_filter('progressive');
 $megaways = slot_list_bool_filter('megaways') === 1 ? 1 : null;
 $upcoming = slot_list_bool_filter('upcoming');
 $published = slot_list_bool_filter('published') ?? 1;
-$sort = slot_list_string('sort', 32);
+$sort = $random ? 'random' : slot_list_string('sort', 32);
 $offset = ($page - 1) * $count;
 
 try {
@@ -187,7 +188,7 @@ try {
         'published' => $published,
         'sort' => $sort,
     ]);
-    $cachedPayload = slot_list_cache_read($cacheKey);
+    $cachedPayload = $random ? null : slot_list_cache_read($cacheKey);
     if ($cachedPayload !== null) {
         header('X-API-Cache: HIT');
         echo $cachedPayload;
@@ -235,7 +236,7 @@ try {
     }
 
     $whereSql = 'WHERE ' . implode(' AND ', $where);
-    $orderSql = slot_list_sort($sort);
+    $orderSql = $random ? 'RANDOM()' : slot_list_sort($sort);
     $pdo = blogs_pdo();
     $countStmt = $pdo->prepare("SELECT COUNT(*) FROM games {$whereSql}");
     foreach ($params as $key => $value) {
@@ -243,7 +244,7 @@ try {
     }
     $countStmt->execute();
     $total = (int) $countStmt->fetchColumn();
-    $totalPages = max(1, (int) ceil($total / $count));
+    $totalPages = $random ? 1 : max(1, (int) ceil($total / $count));
 
     if ($page > $totalPages) {
         $page = $totalPages;
@@ -285,14 +286,15 @@ try {
             'upcoming' => $upcoming,
             'published' => $published,
             'sort' => $sort,
+            'random' => $random,
         ],
     ], JSON_UNESCAPED_SLASHES);
     if (!is_string($payload)) {
         throw new RuntimeException('Slot response encoding failed.');
     }
 
-    slot_list_cache_write($cacheKey, $payload);
-    header('X-API-Cache: MISS');
+    if (!$random) slot_list_cache_write($cacheKey, $payload);
+    header('X-API-Cache: ' . ($random ? 'BYPASS' : 'MISS'));
     echo $payload;
 } catch (Throwable $exception) {
     error_log('Slot list storage error: ' . $exception->getMessage());

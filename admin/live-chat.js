@@ -1,4 +1,31 @@
 (() => {
+  const presence = document.getElementById('chat-presence');
+  const available = document.getElementById('chat-available');
+  const clientId = crypto.randomUUID();
+  let presenceBusy = false;
+  async function heartbeat() {
+    if (!presence || presenceBusy) return;
+    presenceBusy = true;
+    try {
+      const online = available.checked && !document.hidden;
+      const response = await fetch('/api/chat-session.php', {
+        method: 'POST', headers: { Accept: 'application/json' },
+        body: new URLSearchParams({ admin_action: 'presence', client_id: clientId,
+          online: online ? '1' : '0', csrf_token: presence.dataset.csrf }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error('Presence unavailable; reconnect or sign in again.');
+      document.getElementById('chat-presence-status').textContent = online ? 'Online' : 'Offline';
+    } catch (error) { document.getElementById('chat-presence-status').textContent = error.message; }
+    finally { presenceBusy = false; }
+  }
+  available?.addEventListener('change', heartbeat);
+  document.addEventListener('visibilitychange', heartbeat);
+  window.addEventListener('pagehide', () => {
+    if (presence) navigator.sendBeacon('/api/chat-session.php', new URLSearchParams({ admin_action: 'presence',
+      client_id: clientId, online: '0', csrf_token: presence.dataset.csrf }));
+  });
+  heartbeat(); setInterval(heartbeat,25000);
   const root = document.getElementById('conversation');
   if (!root) return;
   const error = document.getElementById('chat-error');
@@ -20,7 +47,7 @@
           row.className = 'support-message support-text';
           const timestamp = new Date(message.time || '');
           const displayTime = Number.isNaN(timestamp.getTime()) ? (message.time || '') : timestamp.toLocaleString();
-          row.textContent = `${message.sender === 'agent' ? 'Admin' : message.sender === 'bot' ? 'Bot' : 'Customer'} · ${displayTime}\n${message.text || ''}`;
+          row.textContent = `${message.sender === 'agent' ? 'Admin' : message.type === 'ai' ? 'AI assistant' : message.sender === 'bot' ? 'Bot' : 'Customer'} · ${displayTime}\n${message.text || ''}`;
           fragment.append(row);
         }
         document.getElementById('chat-messages').replaceChildren(fragment);

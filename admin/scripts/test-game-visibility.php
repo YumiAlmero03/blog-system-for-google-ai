@@ -71,6 +71,16 @@ try {
     }
     [$status,$data]=visibility_handler(['path'=>'/api/slot-list.php','method'=>'GET','get'=>['count'=>'1','page'=>'2']]);
     visibility_check($status===200 && $data['pagination']['total']===3 && count($data['slots'])===1,'Eligible pagination count');
+    foreach ([['random'=>'1'], ['random'=>'true','count'=>'2'], ['random'=>'1','count'=>'100']] as $filters) {
+        [$status,$data]=visibility_handler(['path'=>'/api/slot-list.php','method'=>'GET','get'=>$filters]);
+        $expected=isset($filters['count']) ? min(3,(int)$filters['count']) : 1;
+        $slugs=array_column($data['slots'],'slug');
+        visibility_check($status===200 && count($slugs)===$expected,'Random count/default');
+        visibility_check(count(array_unique($slugs))===$expected && !array_diff($slugs,['visible','ordinary','text-only']),'Random selection remains eligible and unique');
+        visibility_check($data['filters']['random']===true && $data['pagination']['page']===1 && $data['pagination']['totalPages']===1,'Random response metadata');
+    }
+    [$status,$data]=visibility_handler(['path'=>'/api/slot-list.php','method'=>'GET','get'=>['random'=>'1','search'=>'visible','page'=>'999']]);
+    visibility_check($status===200 && array_column($data['slots'],'slug')===['visible'],'Random search keeps filters and ignores pagination');
     [$status,$data]=visibility_handler(['path'=>'/api/provider-list.php','method'=>'GET']);
     visibility_check($status===200 && !in_array('blocked',array_column($data['providers'],'slug'),true),'Public providers exclude blocked');
     $approved=array_values(array_filter($data['providers'],static fn($p)=>$p['slug']==='approved'))[0];
@@ -125,6 +135,8 @@ try {
     visibility_check($status===200 && !games_enabled(),'Administrator can disable module');
     [$status,$data]=visibility_handler(['path'=>'/api/slot-list.php','method'=>'GET']);
     visibility_check($status===200 && $data['slots']===[],'Disabled module hides cached game list');
+    [$status,$data]=visibility_handler(['path'=>'/api/slot-list.php','method'=>'GET','get'=>['random'=>'1','count'=>'5']]);
+    visibility_check($status===200 && $data['slots']===[],'Random mode cannot bypass disabled module');
     [$status,$data]=visibility_handler(['path'=>'/api/provider-list.php','method'=>'GET','get'=>['sample'=>'1']]);
     visibility_check($status===200 && $data['providers']===[],'Sample providers cannot bypass disabled module');
     visibility_check(public_game_find('text-only')===null,'Disabled game detail hidden');

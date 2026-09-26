@@ -3,6 +3,7 @@ declare(strict_types=1);
 if (PHP_SAPI!=='cli') { http_response_code(404); exit; }
 $dir=sys_get_temp_dir().'/game-images-'.bin2hex(random_bytes(6)); mkdir($dir,0700);
 putenv('APP_STORAGE_DIR='.$dir.'/data'); putenv('GAME_IMAGE_UPLOAD_DIR='.$dir.'/images'); putenv('SITE_BASE_URL=https://example.test');
+putenv('PROVIDER_IMAGE_UPLOAD_DIR='.$dir.'/providers');
 require_once __DIR__ . '/import-slotslaunch-games.php';
 require_once __DIR__ . '/../includes/game-public.php';
 function gi_check(bool $ok,string $message): void { if (!$ok) throw new RuntimeException($message); }
@@ -59,5 +60,11 @@ try {
     gi_check($result['imported']===100,'100-game default cap across oversized input');
     ob_start(); $result=import_fetched_games($pdo,'file://'.$dir.'/batch.json',null,10000,true); ob_end_clean();
     gi_check($result['imported']===105,'Explicit all mode bypasses the game cap');
-    echo "PASS: image import/validation, local DB paths, list/detail APIs, cache reuse, changed source, remote-record backfill, nonfatal failure/retry, existing-file preservation and URL/log safety.\n";
+    $nested=$input; $nested['provider']=['id'=>99,'name'=>'Nested Provider','thumb'=>'https://assets.example.test/provider.png','thumbnail'=>'https://assets.example.test/wrong.png'];
+    import_game($pdo,$nested,$download);
+    $providerThumb=$pdo->query('SELECT thumbnail FROM game_providers WHERE api_id=99')->fetchColumn();
+    gi_check(provider_image_local_valid($providerThumb) && str_contains($providerThumb,substr(hash('sha256',$nested['provider']['thumb']),0,24)),'Nested provider creation prefers thumb');
+    unset($nested['provider']['thumb'],$nested['provider']['thumbnail']); import_game($pdo,$nested,$download);
+    gi_check($pdo->query('SELECT thumbnail FROM game_providers WHERE api_id=99')->fetchColumn()===$providerThumb,'Missing nested thumb preserves previous image');
+    echo "PASS: image import/validation, local DB paths, list/detail APIs, cache reuse, changed source, remote-record backfill, nonfatal failure/retry, existing-file preservation, URL/log safety and nested provider thumbnails.\n";
 } finally { gi_remove($dir); }

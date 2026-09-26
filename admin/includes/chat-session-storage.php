@@ -42,7 +42,8 @@ function chat_client_ip(): string
 
 function chat_dir(): string
 {
-    return __DIR__ . '/../chats';
+    $directory = getenv('CHAT_STORAGE_DIR');
+    return is_string($directory) && $directory !== '' ? rtrim($directory,'/\\') : __DIR__ . '/../chats';
 }
 
 function chat_is_valid_session_id(string $sessionId): bool
@@ -139,12 +140,15 @@ function chat_update_session(string $sessionId, callable $update, bool $existing
 function chat_preserve_admin_replies(array $incoming, array $existing): array
 {
     foreach ($existing as $message) {
-        if (!is_array($message) || empty($message['adminReplyId'])) continue;
+        if (!is_array($message)) continue;
+        $idField = !empty($message['adminReplyId']) ? 'adminReplyId' : (!empty($message['autoReplyId']) ? 'autoReplyId' : null);
+        if ($idField === null) continue;
         $found = false;
         foreach ($incoming as &$candidate) {
-            if (($candidate['sender'] ?? '') === 'agent' && ($candidate['text'] ?? '') === ($message['text'] ?? '')
+            if (($candidate['sender'] ?? '') === ($message['sender'] ?? '') && ($candidate['text'] ?? '') === ($message['text'] ?? '')
                 && ($candidate['time'] ?? '') === ($message['time'] ?? '')) {
-                $candidate['adminReplyId'] = $message['adminReplyId'];
+                $candidate[$idField] = $message[$idField];
+                if (isset($message['ruleId'])) $candidate['ruleId'] = $message['ruleId'];
                 $found = true;
                 break;
             }
@@ -170,6 +174,11 @@ function chat_admin_reply(string $sessionId, string $text): void
         $data['messages'][] = ['sender'=>'agent','text'=>chat_clean_string($text,5000),'time'=>$now,'type'=>'chat','adminReplyId'=>bin2hex(random_bytes(16))];
         $data['messages'] = array_slice($data['messages'],-200);
         $data['updatedAt'] = $now;
+        $data['pendingSince'] = null;
+        $data['aiLease'] = null;
+        $data['aiRetryAt'] = null;
+        $data['aiFailures'] = 0;
+        $data['revision'] = ($data['revision'] ?? 0) + 1;
         return $data;
     },true);
 }

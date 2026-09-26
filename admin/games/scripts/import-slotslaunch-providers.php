@@ -8,6 +8,7 @@ if (PHP_SAPI !== 'cli') {
 }
 
 require_once __DIR__ . '/../../includes/blog-storage.php';
+require_once __DIR__ . '/../includes/provider-images.php';
 
 const SLOTSLAUNCH_DEFAULT_PROVIDERS_URL = 'https://slotslaunch.com/api/providers';
 
@@ -198,15 +199,16 @@ function next_response_url(array $response, string $currentUrl): ?string
     return null;
 }
 
-function import_provider(PDO $pdo, array $provider): bool
+function import_provider(PDO $pdo, array $provider, ?callable $download = null, ?bool &$imageFailed = null): bool
 {
+    $imageFailed = false;
     $apiId = int_or_null(value_at($provider, ['id', 'api_id', 'provider_id']));
     $name = string_value(value_at($provider, ['name', 'title']));
     if ($apiId === null || $name === '') {
         return false;
     }
 
-    $thumbnail = string_value(value_at($provider, ['thumbnail', 'thumb', 'image', 'logo', 'icon']));
+    $thumbnail = provider_image_from_payload($apiId,$provider,$download,$imageFailed);
     $now = time();
     $stmt = $pdo->prepare(
         'INSERT INTO game_providers (api_id, name, thumbnail, created_at, updated_at)
@@ -232,6 +234,7 @@ function import_providers(PDO $pdo, string $url): array
     $seenUrls = [];
     $imported = 0;
     $skipped = 0;
+    $imageFailures = 0;
     $currentUrl = $url;
 
     while ($currentUrl !== null && !isset($seenUrls[$currentUrl])) {
@@ -242,24 +245,20 @@ function import_providers(PDO $pdo, string $url): array
 
         $pageImported = 0;
         $pageSkipped = 0;
-        $pdo->beginTransaction();
-        try {
-            foreach ($providers as $provider) {
-                if (is_array($provider) && import_provider($pdo, $provider)) {
-                    $imported++;
-                    $pageImported++;
-                } else {
-                    $skipped++;
-                    $pageSkipped++;
-                }
+        // Each upsert is atomic; do not hold a write transaction during downloads.
+        foreach ($providers as $provider) {
+            $imageFailed = false;
+            if (is_array($provider) && import_provider($pdo, $provider, null, $imageFailed)) {
+                $imported++;
+                $pageImported++;
+                if ($imageFailed) $imageFailures++;
+            } else {
+                $skipped++;
+                $pageSkipped++;
             }
-            $pdo->commit();
-        } catch (Throwable $exception) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
-            throw $exception;
         }
+
+        blog_clear_api_cache();
 
         echo 'Saved ' . $pageImported . ' provider(s).';
         if ($pageSkipped > 0) {
@@ -270,9 +269,10 @@ function import_providers(PDO $pdo, string $url): array
         $currentUrl = next_response_url($response, $currentUrl);
     }
 
-    return ['imported' => $imported, 'skipped' => $skipped];
+    return ['imported' => $imported, 'skipped' => $skipped, 'imageFailures' => $imageFailures];
 }
 
+if (defined('PROVIDERS_IMPORT_LIBRARY_ONLY')) return;
 if (!games_enabled()) { echo "Games module disabled; skipping job.\n"; exit(0); }
 $token = providers_token();
 $url = providers_url($token);
@@ -284,3 +284,7 @@ if ($result['skipped'] > 0) {
     echo ' Skipped ' . $result['skipped'] . ' invalid row(s).';
 }
 echo "\n";
+if ($result['imageFailures'] > 0) {
+    fwrite(STDERR, $result['imageFailures'] . " thumbnail(s) could not be downloaded or validated. Previous images were preserved.\n");
+    exit(1);
+}

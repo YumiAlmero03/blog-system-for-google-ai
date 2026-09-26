@@ -8,6 +8,7 @@ This index lives at `admin/README.md`. Start here when looking for project docum
 - [API.md](/admin/API.md) — API routes, methods, access rules, fields, responses, and game-module behavior.
 - [AGENT.md](/admin/AGENT.md) — Project conventions, API inventory, and implementation guidance.
 - [ARCHITECTURE.md](/admin/ARCHITECTURE.md) — Application structure, the Games module, and separate game/blog databases.
+- [Chat integration](/admin/CHAT-INTEGRATION.md) — AI fallback, agent/player presence, WebSocket setup, and frontend integration.
 
 ## Development
 

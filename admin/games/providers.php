@@ -40,7 +40,7 @@ $title = 'Providers Settings'; require __DIR__ . '/../partials/support-head.php'
 <button class="btn btn-secondary btn-sm" type="submit" <?= !$providers ? 'disabled' : '' ?>>Uncheck All Providers</button>
 <span id="provider-bulk-state" role="status"></span>
 </form>
-<div class="support-table"><table><thead><tr><th>Provider</th><th>Games</th><th>Approved</th><th>Save state</th></tr></thead><tbody>
+<div class="support-table"><table data-paginate data-pagination-label="Providers"><thead><tr><th>Provider</th><th>Games</th><th>Approved</th><th>Save state</th></tr></thead><tbody>
 <?php foreach ($providers as $index=>$provider): ?>
 <tr data-provider="<?= h(strtolower($provider['name'] ?: $provider['slug'])) ?>">
 <td><?= h($provider['name'] ?: ($provider['slug'] ?: 'Unspecified provider')) ?></td><td><?= (int)$provider['game_count'] ?></td>

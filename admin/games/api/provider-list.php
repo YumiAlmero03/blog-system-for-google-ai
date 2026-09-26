@@ -45,7 +45,7 @@ function provider_list_use_sample(): bool
 function provider_list_cache_key(?int $limit, bool $sample): string
 {
     $dbMtime = games_cache_version();
-    return hash('sha256', 'provider-list-v5:' . $dbMtime . ':count=' . ($limit ?? 'all') . ':sample=' . ($sample ? '1' : '0'));
+    return hash('sha256', 'provider-list-v7:' . $dbMtime . ':count=' . ($limit ?? 'all') . ':sample=' . ($sample ? '1' : '0'));
 }
 
 function provider_list_cache_path(string $key): string
@@ -104,8 +104,8 @@ function provider_list_rows(PDO $pdo): array
 
     $eligible = game_public_eligibility_sql('g');
     $providerStmt = $pdo->query(
-        'SELECT gp.id, gp.api_id, gp.name, "" AS slug, gp.thumbnail, gp.updated_at,
-                COUNT(g.id) AS game_count
+        'SELECT gp.id, gp.api_id, gp.name, COALESCE(MIN(NULLIF(g.provider_slug,"")),"") AS slug, gp.thumbnail, gp.updated_at,
+                COUNT(DISTINCT g.id) AS game_count
          FROM game_providers gp
          LEFT JOIN games g ON (' . $eligible . ') AND (
             (g.provider_id = gp.id OR LOWER(g.provider) = LOWER(gp.name))
@@ -125,11 +125,14 @@ function provider_list_rows(PDO $pdo): array
     }
 
     $gameProviderStmt = $pdo->query(
-        'SELECT MIN(id) AS id, 0 AS api_id, provider AS name, provider_slug AS slug, "" AS thumbnail,
-                MAX(updated_at) AS updated_at, COUNT(id) AS game_count
+        'SELECT MIN(games.id) AS id, COALESCE(MAX(gp.api_id),0) AS api_id, games.provider AS name, games.provider_slug AS slug,
+                COALESCE(MAX(NULLIF(gp.thumbnail,"")),"") AS thumbnail,
+                MAX(games.updated_at) AS updated_at,
+                COUNT(DISTINCT CASE WHEN (' . game_public_eligibility_sql() . ') THEN games.id END) AS game_count
          FROM games
-         WHERE (' . game_public_eligibility_sql() . ') AND provider <> ""
-         GROUP BY provider_slug, provider'
+         LEFT JOIN game_providers gp ON games.provider_id=gp.id OR LOWER(games.provider)=LOWER(gp.name)
+         WHERE (' . game_provider_approved_sql() . ') AND games.provider <> ""
+         GROUP BY games.provider_slug, games.provider'
     );
 
     foreach ($gameProviderStmt->fetchAll() as $provider) {

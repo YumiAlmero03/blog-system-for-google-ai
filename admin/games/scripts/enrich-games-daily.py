@@ -29,7 +29,7 @@ def main():
                 return 0
             result = subprocess.run(
                 [sys.executable, '-u', str(script), '--only-unprocessed', '--overwrite',
-                 '--limit=20', '--once'],
+                 '--limit=20', '--once', '--model=gemma4:31b-cloud'],
                 cwd=script.parents[3], stdout=log, stderr=subprocess.STDOUT,
             )
             print(f'Daily enrichment finished with exit code {result.returncode}', file=log)

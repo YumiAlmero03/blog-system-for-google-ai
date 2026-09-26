@@ -18,6 +18,12 @@ try {
 } catch (Throwable $e) { http_response_code(500); error_log('Admin chat list failed.'); $error = 'Chats are temporarily unavailable.'; }
 $title = 'Live Chat'; require __DIR__ . '/partials/support-head.php';
 ?>
+<div id="chat-presence" data-csrf="<?= h(csrf_token()) ?>">
+<label><input type="checkbox" id="chat-available" checked> Available for live support</label>
+<span id="chat-presence-status" role="status">Connecting…</span>
+</div>
+<script src="/admin/live-chat.js" defer></script>
+<?php if (auth_can('admin')): ?><p><a class="btn btn-secondary btn-sm" href="/admin/chat-auto-responses.php">Automatic replies</a></p><?php endif; ?>
 <?php if ($error): ?><p role="alert" class="support-error"><?= h($error) ?></p><?php endif; ?>
 <?php if ($chat): ?>
 <p><a href="/admin/live-chat.php">Back to Live Chat</a></p>
@@ -27,8 +33,8 @@ $title = 'Live Chat'; require __DIR__ . '/partials/support-head.php';
 <div id="conversation" data-chat-id="<?= h($id) ?>" data-csrf="<?= h(csrf_token()) ?>">
 <div id="chat-messages" role="log" aria-live="polite"></div><p id="chat-error" role="alert" class="support-error"></p>
 <form id="chat-reply"><label for="reply-message">Reply</label><textarea id="reply-message" name="message" maxlength="5000" required></textarea><div class="support-actions"><button class="btn btn-primary btn-sm">Save reply</button></div></form>
-<p>Replies are saved in the session history. Delivery to customer browsers is not available.</p>
-</div><script src="/admin/live-chat.js" defer></script>
+<p>Replies are delivered to connected customers. AI answers when no agent is available, or after 10 minutes without a reply, while the customer is online.</p>
+</div>
 <?php elseif (!$error): ?>
 <form method="get" class="support-actions"><label>Search <input name="search" value="<?= h($search) ?>" maxlength="120"></label><button class="btn btn-secondary btn-sm">Search</button></form>
 <p>Latest activity first. Refresh for new sessions. Status and unread counts are shown when recorded.</p>
