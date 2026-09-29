@@ -2,6 +2,29 @@
 declare(strict_types=1);
 require_once __DIR__ . '/chat-realtime.php';
 
+/** PHP guard prevents HTTP disclosure even on hosts that ignore .htaccess. */
+function chat_ai_log_error(string $id, Throwable $error, string $operation = 'generate'): void
+{
+    // Only known diagnostic messages are safe: arbitrary exceptions may contain secrets or prompts.
+    $reason = $error->getMessage();
+    if (!preg_match('/^(?:Ollama chat request failed \(HTTP \d{1,3}, cURL \d{1,3}\)\.|Invalid Ollama chat URL\.|Ollama returned no answer\.|Empty AI reply\.)$/D', $reason)) {
+        $reason = $error instanceof JsonException ? 'Invalid AI JSON response.' : 'Internal AI processing failure.';
+    }
+    $line = json_encode(['time'=>gmdate('c'),'session'=>hash('sha256',$id),
+        'operation'=>$operation,'error'=>$reason], JSON_UNESCAPED_SLASHES)."\n";
+    $handle = @fopen(chat_dir().'/ai-errors.php','c+');
+    if (!$handle) return;
+    try {
+        if (!@flock($handle,LOCK_EX)) return;
+        @chmod(chat_dir().'/ai-errors.php',0600);
+        $stat = fstat($handle);
+        if (($stat['size'] ?? 0) === 0) @fwrite($handle,"<?php http_response_code(404); exit; ?>\n");
+        @fseek($handle,0,SEEK_END);
+        @fwrite($handle,$line);
+        @fflush($handle);
+    } finally { fclose($handle); }
+}
+
 function chat_ai_due(array $data, bool $agentsOnline, int $now): bool
 {
     return chat_ai_enabled() && !empty($data['visitorTokenHash']) && ($data['expiresAt'] ?? 0)>$now
@@ -50,7 +73,7 @@ function chat_ollama_reply(array $messages, array $rules): string
         }]);
     try {
         $ok=curl_exec($curl); $status=(int)curl_getinfo($curl,CURLINFO_RESPONSE_CODE);
-        if ($ok===false || $status!==200) throw new RuntimeException('Ollama chat request failed (HTTP '.$status.').');
+        if ($ok===false || $status!==200) throw new RuntimeException('Ollama chat request failed (HTTP '.$status.', cURL '.curl_errno($curl).').');
     } finally { unset($curl); }
     $decoded=json_decode($raw,true,512,JSON_THROW_ON_ERROR);
     $reply=$decoded['message']['content'] ?? null;
@@ -76,6 +99,7 @@ function chat_ai_process(string $id, ?callable $generate=null, ?int $now=null): 
         $text=($generate ?? 'chat_ollama_reply')($job['messages'],chat_auto_rules());
         if (!is_string($text) || trim($text)==='') throw new RuntimeException('Empty AI reply.');
     } catch (Throwable $error) {
+        chat_ai_log_error($id,$error);
         chat_update_session($id,static function(array $row) use ($lease): array {
             if (($row['aiLease']['id'] ?? '')!==$lease) return $row;
             $row['aiLease']=null;
@@ -83,7 +107,6 @@ function chat_ai_process(string $id, ?callable $generate=null, ?int $now=null): 
             $row['aiRetryAt']=time()+min(900,30*(2**$row['aiFailures']));
             return $row;
         },true);
-        error_log('Chat AI request failed; retry scheduled.');
         return false;
     }
     // Recheck real presence after network latency; injected generators use the test clock.

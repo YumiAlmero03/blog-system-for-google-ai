@@ -27,6 +27,8 @@ if (($_SESSION['user']['role'] ?? '') === 'editor') {
 }
 ?>
 <script src="/admin/table-pagination.js" defer></script>
+<span id="admin-session-config" hidden data-csrf="<?= h(csrf_token()) ?>" data-idle-timeout="<?= AUTH_INACTIVITY_TIMEOUT ?>"></span>
+<script src="/admin/session-renew.js" defer></script>
 <header class="site-header">
   <div class="header-inner">
     <a href="/admin/blogs.php" class="brand-logo">

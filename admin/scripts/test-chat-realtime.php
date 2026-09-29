@@ -35,9 +35,16 @@ try {
     rt_check(end(chat_read_session($id)['messages'])['sender']==='agent','No late AI saved');
     chat_realtime_action(array_replace($request,['client_message_id'=>'message-test-3','message'=>'More help']));
     $calls=0;
-    chat_ai_process($id,static function() use (&$calls) { $calls++; throw new RuntimeException('429'); });
+    $beforeFailure=chat_read_session($id)['messages'];
+    chat_ai_process($id,static function() use (&$calls) { $calls++; throw new RuntimeException('Ollama chat request failed (HTTP 429, cURL 0).'); });
     chat_ai_process($id,static function() use (&$calls) { $calls++; return 'Unexpected'; });
     rt_check($calls===1 && chat_read_session($id)['aiRetryAt']>time(),'Failed AI backs off');
+    $public=chat_realtime_action($auth+['action'=>'poll']);
+    rt_check($public['ok'] && $public['messages']===$beforeFailure && !array_key_exists('aiRetryAt',$public['status']) && !isset($public['error']),'AI failure stays out of public responses and transcripts');
+    $log=file_get_contents(chat_dir().'/ai-errors.php');
+    rt_check(str_starts_with($log,'<?php http_response_code(404); exit; ?>') && str_contains($log,'HTTP 429'),'Protected file records AI failure');
+    chat_ai_log_error($id,new RuntimeException('secret-token and private chat text'));
+    rt_check(!str_contains(file_get_contents(chat_dir().'/ai-errors.php'),'secret-token'),'Unexpected exception details are not logged');
     chat_update_session($id,static function(array $row): array { $row['aiRetryAt']=0; return $row; },true);
     rt_check(!chat_ai_process($id,static function() use ($auth) { chat_realtime_action($auth+['action'=>'disconnect']); return 'Offline answer'; }),'Disconnect during generation discards answer');
     chat_realtime_action($auth+['action'=>'heartbeat']);

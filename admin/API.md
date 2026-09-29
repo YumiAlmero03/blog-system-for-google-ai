@@ -1,6 +1,6 @@
 # API reference
 
-Source inventory reviewed on 2026-09-24. This documents the 13 public-facing PHP entrypoints under `/api/`, plus related authenticated admin handlers. It is not a claim that every route has been tested on your production server.
+Source inventory reviewed on 2026-09-24. This documents the 14 public-facing PHP entrypoints under `/api/`, plus related authenticated admin handlers. It is not a claim that every route has been tested on your production server.
 
 Use your site's origin as the base URL, for example `http://localhost:8082` locally. Configure `SITE_BASE_URL` for absolute public URLs.
 
@@ -207,6 +207,8 @@ Saves replace all editable fields of the selected rule; send the flags explicitl
 
 ### Continuous chat and AI fallback
 
+Admin Live Chat shows a player Online/Offline indicator in the list and conversation. Authenticated `GET /api/chat-session.php?admin_action=player_presence&session_ids[]=...` (requires `chat.view`) accepts up to 25 session IDs and returns `{"ok":true,"players":{"<session-id>":true}}`. Values are true (heartbeat within 75 seconds), false (offline), or null (legacy/missing session with no presence tracking). Invalid IDs or more than 25 entries return 422. The admin `messages` action also returns nullable `playerOnline`, including when `unchanged` is true. Presence polling is read-only and never marks a player online. Both the list and conversation refresh every four seconds while visible. Green dots mean online, red dots mean offline, and gray means unavailable. Presence reads time out after ten seconds and refresh when the admin reconnects.
+
 JSON POST `/api/chat-session.php` now accepts `action=start|send|poll|heartbeat|disconnect`. `start` issues a random `sessionId` and secret `sessionToken`; all other actions require `session_id` and `session_token`. Send uses `message`, stable `client_message_id`, and per-tab `client_id`; heartbeat/disconnect also require `client_id`. Heartbeat accepts boolean `online` (default true); poll accepts optional `version`. Responses return server-owned `messages`, monotonic message `revision`, `version`, and presence/AI `status`. No new public PHP endpoint or database table is introduced.
 
 Enabled keyword rules answer first. Otherwise the Ollama worker answers immediately when agents are offline, or after 600 seconds without an answer while an agent is online, provided the player's heartbeat is fresh (75 seconds). Human replies cancel pending AI; stale generation results are discarded. Responses from AI use `sender=bot`, `type=ai`. New protected sessions retain 200 messages, require a session token, and reject legacy writes. AI is not enabled for legacy sessions without tokens/presence.
@@ -217,8 +219,11 @@ WebSocket `/chat-ws` delivers snapshots through the Node relay with token authen
 
 These are application endpoints, not public management APIs. POSTs below require authentication, the appropriate capability, and CSRF.
 
+Admin pages load an activity-aware heartbeat from `/admin/session-renew.js`. It calls `POST /admin/session-renew.php` once per minute while the last browser activity is within the 30-minute inactivity window. It renews only still-valid login tokens; an expired token requires sign-in. Heartbeats alone do not advance the session's last-activity time, and the eight-hour maximum remains. Suspended browsers may miss renewal; failures display a notice instead of navigating away from unsaved work.
+
 | Endpoint | Methods | Permissions and request |
 | --- | --- | --- |
+| `/admin/session-renew.php` | POST | Requires `session.renew` (all authenticated admin/editor roles) and form `csrf_token`, `idle_seconds` (required integer 0–1800; no default). Returns `ok`, `csrfToken`, `idleTimeout` (1800), `absoluteExpiresAt` (Unix seconds). Invalid input returns 422; invalid CSRF or expired/invalid authentication returns 403. |
 | `/api/settings/seo.php` | GET, POST | GET returns `ok` and public `settings`. POST requires admin/super-user, form settings fields and `csrf_token`; returns saved settings and rotated `csrfToken`. |
 | `/admin/blog-category-list.php`, `/admin/blog-tag-list.php` | POST | Editors may read taxonomy lists/counts. |
 | `/admin/blog-category-save.php`, `/admin/blog-tag-save.php` | POST | Admin/super-user; `action=save/delete`, `id`, `name`, `slug`; categories also accept `parent_id`. |
@@ -242,3 +247,36 @@ curl 'http://localhost:8082/api/blog-post-list.php?count=10&page=1'
 curl 'http://localhost:8082/api/blog-category-list.php'
 curl 'http://localhost:8082/api/settings/seo.php'
 ```
+
+- AI chat failure handling: `/api/chat-session.php` realtime POST responses and WebSocket snapshots omit `status.aiRetryAt`; failure counts, upstream errors and retry details stay internal. No failure message is saved to the transcript; normal chat reads/sends continue and the worker retries with backoff. Sanitized diagnostics are written only to the protected `CHAT_STORAGE_DIR/ai-errors.php` log (default `admin/chats/ai-errors.php`), with timestamp, hashed session reference, operation and safe reason/HTTP/cURL codes. No new inputs, flags, permissions or database tables.
+
+## Game player counter
+
+`POST /api/game-play.php` accepts JSON or form fields. Call when the user starts the game demo, not when loading cards or reading game details. No authentication is required. Counts represent unique browsers per game since deployment, not verified people, concurrent players, bets, or historical activity. Reusing the same visitor ID is idempotent; clearing browser storage or using a different device creates another visitor. Client-reported analytics can be manipulated.
+
+| Parameter | Required | Default | Meaning |
+| --- | --- | --- | --- |
+| `slug` | Yes | None | Publicly eligible game's exact slug. |
+| `visitor_id` | Yes | None | Random browser identifier, 32–80 letters/digits/hyphens/underscores. Persist and reuse it in localStorage; do not send a username. |
+
+Returns `{"ok":true,"counted":true,"uniquePlayers":1}`. `counted` is false for an already counted browser/game pair. Errors: 405 wrong method, 422 invalid fields, 404 unavailable game, 429 over 60 requests/minute per direct client IP, 500 storage failure. Responses use no-store. Only hashed visitor identifiers are retained. Counts appear in the existing paginated admin game list. No changes to game-list/detail response shapes.
+
+Frontend: run this inside the demo launch handler; a tracking failure must not prevent launching the game:
+
+```js
+try {
+  let visitor = localStorage.getItem('game-visitor-id');
+  if (!visitor) {
+    visitor = crypto.randomUUID();
+    localStorage.setItem('game-visitor-id', visitor);
+  }
+  fetch('/api/game-play.php', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({slug: game.slug, visitor_id: visitor}),
+    keepalive: true
+  }).catch(() => {});
+} catch (_) { /* Storage unavailable: continue launching the game. */ }
+```
+
+Blog editor: new/reset forms and omitted `status` in `/admin/blog-save.php` default to `draft`. Explicit publishing/scheduling remains available. Editing a published post shows **Update**; saving as published updates the same live record and clears API caches immediately. **Save as Draft** explicitly unpublishes it. Existing open frontend pages must fetch again to display saved edits; this is not browser autosave or push refresh.

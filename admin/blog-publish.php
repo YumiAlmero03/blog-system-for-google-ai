@@ -1968,6 +1968,7 @@ $writerOptions = writer_options();
       let draggedEditorBlock = null;
       let editorDropMarker = null;
       let pendingSaveStatus = '';
+      let savedBlogStatus = 'draft';
       let tablePickerRows = 1;
       let tablePickerCols = 1;
       let isChoosingTableSize = false;
@@ -2159,7 +2160,7 @@ $writerOptions = writer_options();
 
       function updateViewPageButton() {
         if (!viewBlogPageBtn) return;
-        const status = blogStatus ? blogStatus.value : 'published';
+        const status = blogStatus ? blogStatus.value : 'draft';
         const publicUrl = currentBlogPublicUrl();
         const href = status === 'published' ? publicUrl : currentBlogPreviewUrl();
         const canView = Boolean(href);
@@ -2174,6 +2175,8 @@ $writerOptions = writer_options();
       }
 
       function updateSaveState(status) {
+        const publishButton = document.getElementById('publish-blog-btn');
+        if (publishButton) publishButton.textContent = savedBlogStatus === 'published' ? 'Update' : 'Publish';
         if (status === 'scheduled') {
           ensurePublishDateValue();
         }
@@ -5032,18 +5035,19 @@ $writerOptions = writer_options();
       function resetForm() {
         form.reset();
         if (editingId) editingId.value = '';
+        savedBlogStatus = 'draft';
         manualSlug = false;
         manualSeoTitle = false;
         setText(slugPreview, 'blog-article');
         setImage('/uploads/blogs/default-featured.svg');
         setUploadStatus('');
         setArticleImageStatus('');
-        if (blogStatus) blogStatus.value = 'published';
+        if (blogStatus) blogStatus.value = 'draft';
         if (publishedAtField) publishedAtField.value = currentDateTimeInput();
         if (scheduledAtField) scheduledAtField.value = '';
         if (focusKeyphrase) focusKeyphrase.value = '';
         if (keyphraseSynonyms) keyphraseSynonyms.value = '';
-        updateSaveState(blogStatus ? blogStatus.value : 'published');
+        updateSaveState(blogStatus ? blogStatus.value : 'draft');
         setEditorMarkdown('');
         resetEditorHistory('');
         pendingSaveStatus = '';
@@ -5058,18 +5062,19 @@ $writerOptions = writer_options();
       on(form, 'reset', () => {
         window.setTimeout(() => {
           if (editingId) editingId.value = '';
+          savedBlogStatus = 'draft';
           manualSlug = false;
           manualSeoTitle = false;
           setText(slugPreview, 'blog-article');
           setImage('/uploads/blogs/default-featured.svg');
           setUploadStatus('');
           setArticleImageStatus('');
-          if (blogStatus) blogStatus.value = 'published';
+          if (blogStatus) blogStatus.value = 'draft';
           if (publishedAtField) publishedAtField.value = currentDateTimeInput();
           if (scheduledAtField) scheduledAtField.value = '';
           if (focusKeyphrase) focusKeyphrase.value = '';
           if (keyphraseSynonyms) keyphraseSynonyms.value = '';
-          updateSaveState(blogStatus ? blogStatus.value : 'published');
+          updateSaveState(blogStatus ? blogStatus.value : 'draft');
           setEditorMarkdown('');
           resetEditorHistory('');
           pendingSaveStatus = '';
@@ -5088,8 +5093,8 @@ $writerOptions = writer_options();
         }
         updateWordCounter();
         const saveButton = event.submitter && event.submitter.dataset ? event.submitter : null;
-        const requestedStatus = saveButton && saveButton.dataset.saveStatus ? saveButton.dataset.saveStatus : ((blogStatus ? blogStatus.value : '') || 'published');
-        const normalizedStatus = ['draft', 'published', 'scheduled'].includes(requestedStatus) ? requestedStatus : 'published';
+        const requestedStatus = saveButton && saveButton.dataset.saveStatus ? saveButton.dataset.saveStatus : ((blogStatus ? blogStatus.value : '') || 'draft');
+        const normalizedStatus = ['draft', 'published', 'scheduled'].includes(requestedStatus) ? requestedStatus : 'draft';
         if (blogStatus) blogStatus.value = normalizedStatus;
         const currentStatus = blogStatus ? blogStatus.value : normalizedStatus;
         if (currentStatus !== 'draft') ensurePublishDateValue();
@@ -5103,7 +5108,7 @@ $writerOptions = writer_options();
         data.set('focus_keyphrase', focusKeyphrase ? focusKeyphrase.value.trim() : '');
         data.set('csrf_token', csrfToken);
         const savedSlug = String(data.get('slug') || '').trim();
-        const shouldOpenPublicPage = saveButton && saveButton.id === 'publish-blog-btn' && currentStatus === 'published' && savedSlug;
+        const shouldOpenPublicPage = saveButton && saveButton.id === 'publish-blog-btn' && savedBlogStatus !== 'published' && currentStatus === 'published' && savedSlug;
         const publicUrl = savedSlug ? '/blog/' + encodeURIComponent(savedSlug) + '/' : '';
         const publicWindow = shouldOpenPublicPage ? window.open('', '_blank', 'noopener') : null;
 
@@ -5117,13 +5122,14 @@ $writerOptions = writer_options();
           updateCsrf(result.csrfToken);
           if (!response.ok || !result.ok) throw new Error((result.errors || [result.error || 'Blog post could not be saved.']).join(' '));
           if (result.blog) {
+            savedBlogStatus = result.blog.status || currentStatus;
             if (editingId) editingId.value = result.blog.id || result.blog.slug || savedSlug;
             if (slug && result.blog.slug) slug.value = result.blog.slug;
             if (blogStatus) blogStatus.value = result.blog.status || currentStatus;
           }
           pendingSaveStatus = '';
-          updateViewPageButton();
-          showNotice(currentStatus === 'draft' ? 'Draft saved.' : (currentStatus === 'scheduled' ? 'Post scheduled.' : 'Post published.'), 'ok');
+          updateSaveState(currentStatus);
+          showNotice(currentStatus === 'draft' ? 'Draft saved.' : (currentStatus === 'scheduled' ? 'Post scheduled.' : 'Published post saved. Changes are live.'), 'ok');
           if (publicWindow && publicUrl) {
             publicWindow.location.href = publicUrl;
           } else if (shouldOpenPublicPage && publicUrl) {
@@ -5150,6 +5156,7 @@ $writerOptions = writer_options();
           throw new Error(result.error || 'Blog post could not be loaded.');
         }
         const blog = result.blog;
+        savedBlogStatus = blog.status || 'draft';
         if (editingId) editingId.value = blog.id || blog.slug || '';
         if (title) title.value = blog.title || '';
         if (seoTitle) seoTitle.value = blog.seoTitle || (blog.title ? blog.title + ' | ' + websiteTitle : '');
@@ -5158,11 +5165,11 @@ $writerOptions = writer_options();
         setText(slugPreview, slug && slug.value ? slug.value : 'blog-article');
         if (categoryField) categoryField.value = blog.categoryId || '';
         document.querySelectorAll('#blog-tags input').forEach(input => { input.checked = (blog.tagIds || []).includes(input.value); });
-        if (blogStatus) blogStatus.value = blog.status || 'published';
+        if (blogStatus) blogStatus.value = blog.status || 'draft';
         if (publishedAtField) publishedAtField.value = blog.scheduledAtInput || blog.publishedAtInput || currentDateTimeInput();
         if (scheduledAtField) scheduledAtField.value = blog.scheduledAtInput || '';
         if (focusKeyphrase) focusKeyphrase.value = blog.focusKeyphrase || '';
-        updateSaveState(blogStatus ? blogStatus.value : (blog.status || 'published'));
+        updateSaveState(blogStatus ? blogStatus.value : (blog.status || 'draft'));
         if (authorField) authorField.value = blog.author || ' Editorial Team';
         const writerId = blog.writerId == null ? '' : String(blog.writerId);
         if (writerId && !Array.from(writerField.options).some(option => option.value === writerId)) writerField.add(new Option(blog.writer?.name || 'Assigned writer',writerId));

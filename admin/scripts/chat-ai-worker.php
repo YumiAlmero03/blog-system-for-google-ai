@@ -8,7 +8,7 @@ do {
         $id=basename($path);
         if (!chat_is_valid_session_id($id)) continue;
         try { if (chat_ai_process($id)) echo "AI reply saved.\n"; }
-        catch (Throwable $e) { error_log('Chat worker could not process a session.'); }
+        catch (Throwable $e) { chat_ai_log_error($id,$e,'worker'); }
     }
     if (!$once) sleep(2);
 } while (!$once);

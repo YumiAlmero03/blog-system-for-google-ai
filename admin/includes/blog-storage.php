@@ -1389,6 +1389,7 @@ function blogs_upsert(array $blog, bool $manageTransaction = true): array
             $pdo->commit();
         }
         blogs_publish_due_scheduled($pdo, $now);
+        blog_clear_api_cache();
     } catch (Throwable $exception) {
         if ($manageTransaction && $pdo->inTransaction()) {
             $pdo->rollBack();
@@ -1469,7 +1470,7 @@ function blog_payload_from_post(): array
     $excerpt = request_string('excerpt', 360);
     $content = request_string('content', 60000);
     $featuredImage = request_string('featured_image', 180) ?? BLOG_DEFAULT_IMAGE;
-    $status = normalize_blog_status($_POST['status'] ?? null);
+    $status = normalize_blog_status($_POST['status'] ?? 'draft');
     $focusKeyphrase = request_string('focus_keyphrase', 160) ?? '';
     $existingId = request_string('id', 110);
     $publishedAt = blog_parse_admin_datetime($_POST['published_at'] ?? null);

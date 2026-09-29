@@ -145,7 +145,7 @@ All actions use JSON POST to `/api/chat-session.php` with `Content-Type: applica
 | `online` | No; heartbeat | `true` | Boolean; false removes this connection's presence. |
 | `version` | No; poll | None | Previous version; unchanged responses contain `unchanged: true` and empty messages. |
 
-Start: `{"action":"start","name":"Player_VIP"}`. Returns `ok`, `sessionId`, secret `sessionToken`, `revision`, `messages`, `version`, and `status`. Later actions return the same public view without `sessionToken`. Status includes `agentOnline`, `playerOnline`, `waitingSince` (Unix seconds or null), `aiPending`, `aiRetryAt`, and `aiEnabled`. Do not clear your UI when `unchanged` is true.
+Start: `{"action":"start","name":"Player_VIP"}`. Returns `ok`, `sessionId`, secret `sessionToken`, `revision`, `messages`, `version`, and `status`. Later actions return the same public view without `sessionToken`. Status includes `agentOnline`, `playerOnline`, `waitingSince` (Unix seconds or null), `aiPending`, and `aiEnabled`. Do not clear your UI when `unchanged` is true.
 
 Send: `{"action":"send","session_id":"...","session_token":"...","client_id":"browser-uuid","client_message_id":"message-uuid","message":"help me"}`. Only player text is accepted; passing `sender` cannot forge an agent message. History retains 200 messages, and deduplication covers retained messages. Protected sessions reject legacy snapshot writes even if their filename is known. Legacy sessions are not eligible for AI because they lack ownership tokens and presence.
 
@@ -177,3 +177,5 @@ node admin/scripts/chat-socket/test.mjs
 ```
 
 Tests use temporary databases/chat files and a local mock Ollama server. They cover session access, legacy-write rejection, origin checks, message retries, AI eligibility and races, retry delays, WebSocket AI/human delivery, and presence expiry. The HTTP/WebSocket test requires permission to bind localhost ports.
+
+AI failures are silent to players: no error message is added to the transcript or returned by the chat API/WebSocket. Retry timestamps and failure counts remain internal. The worker appends timestamped, sanitized diagnostics (HTTP/cURL codes and a hashed session reference) to `CHAT_STORAGE_DIR/ai-errors.php` (default `admin/chats/ai-errors.php`). This is a log file with a PHP guard returning an empty 404 on HTTP access; it has owner-only permissions. Read it from the server filesystem and include it in server log rotation. Credentials, upstream response bodies and conversation text are never logged. Existing retry backoff continues. Restart the worker after deploying this change.

@@ -9,6 +9,7 @@ function games_schema(PDO $pdo): void
             return;
         }
     }
+    $pdo->exec('CREATE TABLE IF NOT EXISTS game_players (game_id INTEGER NOT NULL, visitor_hash TEXT NOT NULL, PRIMARY KEY(game_id, visitor_hash))');
     $pdo->exec("CREATE TABLE IF NOT EXISTS game_module_settings (id INTEGER PRIMARY KEY CHECK(id=1), enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0,1)))");
     $pdo->exec('INSERT OR IGNORE INTO game_module_settings(id,enabled) VALUES(1,1)');
     $pdo->exec(

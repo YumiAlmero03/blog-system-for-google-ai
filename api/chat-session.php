@@ -17,13 +17,24 @@ if ($adminAction !== null) {
     require_auth();
     try {
         $method = $_SERVER['REQUEST_METHOD'] ?? '';
-        if (!(($adminAction === 'messages' && $method === 'GET') || (in_array($adminAction,['reply','presence'],true) && $method === 'POST'))) {
+        if (!((in_array($adminAction,['messages','player_presence'],true) && $method === 'GET') || (in_array($adminAction,['reply','presence'],true) && $method === 'POST'))) {
             http_response_code(405);
             echo json_encode(['ok'=>false,'error'=>'Method not allowed.']);
             exit;
         }
         if ($method === 'POST') require_valid_csrf();
         $input = $method === 'POST' ? $_POST : $_GET;
+        if ($adminAction === 'player_presence') {
+            $ids=$input['session_ids'] ?? [];
+            if (!is_array($ids) || count($ids)>25) throw new InvalidArgumentException('Provide up to 25 session IDs.');
+            $players=[];
+            foreach ($ids as $id) {
+                if (!is_string($id) || !chat_is_valid_session_id($id)) throw new InvalidArgumentException('Invalid session ID.');
+                $row=chat_read_session($id);
+                $players[$id]=$row===null ? null : chat_player_presence($row);
+            }
+            echo json_encode(['ok'=>true,'players'=>(object)$players]); exit;
+        }
         if ($adminAction === 'presence') {
             $client=$input['client_id'] ?? '';
             if (!is_string($client) || !preg_match('/^[a-zA-Z0-9_-]{8,80}$/D',$client)) throw new InvalidArgumentException('Invalid client ID.');
@@ -52,6 +63,7 @@ if ($adminAction !== null) {
             $version = hash('sha256', json_encode($data['messages'] ?? []));
             $unchanged = is_string($input['version'] ?? null) && hash_equals($version,$input['version']);
             echo json_encode(['ok'=>true,'version'=>$version,'unchanged'=>$unchanged,
+                'playerOnline'=>chat_player_presence($data),
                 'messages'=>$unchanged ? [] : ($data['messages'] ?? [])], JSON_INVALID_UTF8_SUBSTITUTE);
         }
     } catch (InvalidArgumentException $e) {

@@ -76,6 +76,12 @@ try {
   assert.equal((await presence('1')).status, 200, 'Authenticated presence');
   assert.equal((await post({ ...auth, action: 'poll' })).data.status.agentOnline, true);
   await presence('0');
+  const adminGet = async fields => {
+    const response = await fetch(api + '?' + new URLSearchParams(fields), { headers: { Accept: 'application/json', Cookie: admin.cookie } });
+    assert.equal(response.status,200); return response.json();
+  };
+  const playerQuery = { admin_action: 'player_presence', 'session_ids[]': session.sessionId };
+  assert.equal((await adminGet(playerQuery)).players[session.sessionId],false);
   const rejected = new WebSocket(`ws://127.0.0.1:${wsPort}/chat-ws`, { origin: 'https://untrusted.test' });
   await new Promise(resolve => rejected.once('error', resolve));
   const ws = new WebSocket(`ws://127.0.0.1:${wsPort}/chat-ws`, { origin }); sockets.push(ws);
@@ -83,6 +89,10 @@ try {
   ws.send(JSON.stringify({ type: 'auth', sessionId: session.sessionId, sessionToken: session.sessionToken }));
   const until = async predicate => { for (let i=0; i<120; i++) { if (predicate()) return; await delay(50); } throw new Error('Timed out waiting for chat event'); };
   await until(() => events.some(e => e.type === 'snapshot' && e.status.playerOnline));
+  assert.equal((await adminGet(playerQuery)).players[session.sessionId],true);
+  const adminMessages = await adminGet({ admin_action: 'messages', session_id: session.sessionId });
+  const unchangedMessages = await adminGet({ admin_action: 'messages', session_id: session.sessionId, version: adminMessages.version });
+  assert.equal(unchangedMessages.unchanged,true); assert.equal(unchangedMessages.playerOnline,true);
   ws.send(JSON.stringify({ type: 'message', text: 'Help with my account', clientMessageId: 'socket-message-1' }));
   await until(() => events.some(e => e.type === 'ack'));
   await run('php', ['admin/scripts/chat-ai-worker.php', '--once'], env);
@@ -97,6 +107,7 @@ try {
   ws.close(); await once(ws, 'close');
   await post({ ...auth, action: 'disconnect' }); await delay(100);
   const offline = await post({ ...auth, action: 'poll' }); assert.equal(offline.data.status.playerOnline, false);
+  assert.equal((await adminGet(playerQuery)).players[session.sessionId],false);
   const invalid = new WebSocket(`ws://127.0.0.1:${wsPort}/chat-ws`, { origin }); sockets.push(invalid);
   await once(invalid, 'open'); invalid.send(JSON.stringify({ type: 'auth', sessionId: session.sessionId, sessionToken: 'wrong' }));
   const [code] = await once(invalid, 'close'); assert.equal(code, 1008);

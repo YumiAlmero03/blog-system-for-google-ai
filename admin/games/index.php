@@ -148,6 +148,13 @@ $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 $stmt->execute();
 $slots = $stmt->fetchAll();
 
+$playerCounts = [];
+if ($slots) {
+    $ids = array_map(static fn(array $slot): int => (int)$slot['id'], $slots);
+    $counts = $pdo->query('SELECT game_id, COUNT(*) AS total FROM game_players WHERE game_id IN ('.implode(',', $ids).') GROUP BY game_id');
+    foreach ($counts as $row) $playerCounts[(int)$row['game_id']] = (int)$row['total'];
+}
+
 $providers = $pdo->query('SELECT provider, provider_slug, COUNT(*) AS total FROM games WHERE provider_slug <> "" GROUP BY provider_slug, provider ORDER BY provider ASC')->fetchAll();
 $types = $pdo->query('SELECT type, type_slug, COUNT(*) AS total FROM games WHERE type_slug <> "" GROUP BY type_slug, type ORDER BY type ASC')->fetchAll();
 $publishedCount = (int) $pdo->query('SELECT COUNT(*) FROM games WHERE published = 1')->fetchColumn();
@@ -423,6 +430,7 @@ $featuredCount = (int) $pdo->query('SELECT COUNT(*) FROM games WHERE featured = 
                 </div>
                 <div class="slot-meta">
                   <span>ID: <?= (int) $slot['api_id'] ?></span>
+                  <span>Players (unique browsers): <?= number_format($playerCounts[(int)$slot['id']] ?? 0) ?></span>
                   <span>Slug: <?= h($slot['slug']) ?></span>
                   <span>Provider: <?= h($slot['provider'] ?: '-') ?></span>
                   <span>Type: <?= h($slot['type'] ?: '-') ?></span>

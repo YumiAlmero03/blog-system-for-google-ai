@@ -1,3 +1,4 @@
 User-agent: *
 Disallow: *
 Sitemap: https://freecasinogames.ph/sitemap-index.xml
+Sitemap: [insert_domain_here]/sitemap-index.xml

@@ -40,6 +40,11 @@ function chat_player_online(array $data, ?int $now = null): bool
     return false;
 }
 
+function chat_player_presence(array $data): ?bool
+{
+    return empty($data['visitorTokenHash']) ? null : chat_player_online($data);
+}
+
 function chat_realtime_authorize(array $data, mixed $token): void
 {
     if (!is_string($token) || !preg_match('/^[a-f0-9]{64}$/D',$token)
@@ -54,7 +59,7 @@ function chat_realtime_view(array $data, bool $agentsOnline): array
     $messages = $data['messages'] ?? [];
     $status = ['agentOnline'=>$agentsOnline,'playerOnline'=>chat_player_online($data),
         'waitingSince'=>$data['pendingSince'] ?? null,'aiPending'=>!empty($data['aiLease']),
-        'aiRetryAt'=>$data['aiRetryAt'] ?? null,'aiEnabled'=>chat_ai_enabled()];
+        'aiEnabled'=>chat_ai_enabled()];
     return ['ok'=>true,'sessionId'=>$data['sessionId'],'revision'=>$data['revision'] ?? 0,'messages'=>$messages,'status'=>$status,
         'version'=>hash('sha256',json_encode([$messages,$status],JSON_THROW_ON_ERROR))];
 }
