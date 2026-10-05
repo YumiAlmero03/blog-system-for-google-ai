@@ -9,6 +9,7 @@ This index lives at `admin/README.md`. Start here when looking for project docum
 - [AGENT.md](/admin/AGENT.md) — Project conventions, API inventory, and implementation guidance.
 - [ARCHITECTURE.md](/admin/ARCHITECTURE.md) — Application structure, the Games module, and separate game/blog databases.
 - [Chat integration](/admin/CHAT-INTEGRATION.md) — AI fallback, agent/player presence, WebSocket setup, and frontend integration.
+- [Odds API](/admin/odds-api/README.md) — API settings, sports list, bookmaker odds iframe, caching, and deployment guide.
 
 ## Development
 

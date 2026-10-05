@@ -196,11 +196,12 @@ function blog_render_slot_demo_block(string $content): string
   $label = (string)$game['name'] . ' Demo';
   $url = blog_safe_block_url(slot_list_iframe_url($game['url'] ?? ''), '');
   if ($url === '') return '<p class="blog-slot-demo-unavailable">Game demo unavailable.</p>';
-  return '<section class="blog-slot-demo-block"><div class="blog-slot-demo-header"><h2>' . blog_h($label) . '</h2><div class="blog-slot-demo-actions">'
+  $fullscreen = 'const frame=this.closest(".blog-slot-demo-frame"); const active=document.fullscreenElement||document.webkitFullscreenElement; const action=active?(document.exitFullscreen||document.webkitExitFullscreen):(frame.requestFullscreen||frame.webkitRequestFullscreen); const status=frame.querySelector(".blog-slot-demo-status"); status.textContent=""; if(!action){status.textContent="Fullscreen is unavailable in this browser.";return;} try{Promise.resolve(action.call(active?document:frame)).catch(()=>{status.textContent="Unable to open fullscreen. Try View Game.";});}catch(error){status.textContent="Unable to open fullscreen. Try View Game.";}';
+  return '<section class="blog-slot-demo-block"><div class="blog-slot-demo-frame"><div class="blog-slot-demo-header"><p class="blog-slot-demo-title">' . blog_h($label) . '</p><div class="blog-slot-demo-actions">'
     . '<a class="blog-slot-demo-link" href="' . blog_h(public_url('/game/' . rawurlencode($slug) . '/')) . '">View Game</a>'
     . '<a class="blog-slot-demo-link blog-slot-demo-real" href="' . blog_h(public_url('/playnow')) . '">Play for Real</a>'
-    . '<button type="button" class="blog-slot-demo-link" onclick="this.closest(&quot;section&quot;).querySelector(&quot;iframe&quot;).requestFullscreen?.()">Fullscreen</button></div></div>'
-    . '<div class="blog-slot-demo-frame"><iframe src="' . blog_h(public_url($url)) . '" title="' . blog_h($label) . '" loading="lazy" allowfullscreen></iframe></div></section>';
+    . '<button type="button" class="blog-slot-demo-link" onclick="' . blog_h($fullscreen) . '"><span class="blog-demo-enter">Fullscreen</span><span class="blog-demo-exit">Exit fullscreen</span></button></div><span class="blog-slot-demo-status" role="status"></span></div>'
+    . '<iframe src="' . blog_h(public_url($url)) . '" title="' . blog_h($label) . '" loading="lazy" allow="fullscreen" allowfullscreen></iframe></div></section>';
 }
 
 function blog_render_table_block(string $content): string
@@ -245,7 +246,7 @@ function blog_render_markdown(string $markdown): string
       'custom-code' => blog_render_custom_code_block($content,count($rendered)),
       'slot-demo' => blog_render_slot_demo_block($content),
       'quote' => '<blockquote>' . blog_render_inline_markdown(blog_h(trim($content))) . '</blockquote>',
-      'faq' => '<section class="blog-faq-block">' . implode('',array_map(static fn(array $item): string => '<div class="blog-faq-item"><h3>' . blog_render_inline_markdown(blog_h($item['question'])) . '</h3><p>' . blog_render_inline_markdown(blog_h($item['answer'])) . '</p></div>',blog_parse_faq_items($content))) . '</section>',
+      'faq' => '<section class="blog-faq-block">' . implode('',array_map(static fn(array $item): string => '<details class="blog-faq-item"><summary>' . blog_render_inline_markdown(blog_h($item['question'])) . '</summary><p>' . blog_render_inline_markdown(blog_h($item['answer'])) . '</p></details>',blog_parse_faq_items($content))) . '</section>',
     };
     $token = $prefix . count($rendered) . '@@';
     $rendered[$token] = $html;
@@ -285,7 +286,7 @@ function blog_render_markdown(string $markdown): string
   }
   $flush();
 
-  return implode("\n", $html);
+  return implode('', $html);
 }
 
 
@@ -299,24 +300,29 @@ function blog_render_content(string $markdown): array
         $doc = new DOMDocument();
         $doc->loadHTML('<?xml encoding="UTF-8"><html><body>' . $html . '</body></html>',LIBXML_NONET);
         $xpath = new DOMXPath($doc);
-        foreach ($xpath->query('//section[contains(concat(" ",normalize-space(@class)," ")," blog-faq-block ")]/div') as $item) {
-            $question = $xpath->query('./h3',$item)->item(0);
+        foreach ($xpath->query('//section[contains(concat(" ",normalize-space(@class)," ")," blog-faq-block ")]/details') as $item) {
+            $question = $xpath->query('./summary',$item)->item(0);
             $answer = $xpath->query('./p',$item)->item(0);
             if ($question && $answer) $faq[] = ['@type'=>'Question','name'=>$question->textContent,
                 'acceptedAnswer'=>['@type'=>'Answer','text'=>$answer->textContent]];
         }
     } finally { libxml_clear_errors(); libxml_use_internal_errors($previous); }
-    return ['content_html'=>'<style>' . file_get_contents(__DIR__ . '/blog-content.css') . '</style>' . $html,
+    // Compact our stylesheet only; author-supplied code may depend on newlines.
+    $css = preg_replace('/\s+/', ' ', (string) file_get_contents(__DIR__ . '/blog-content.css'));
+    return ['content_html'=>'<style>' . trim($css ?? '') . '</style>' . $html,
         'faq_schema'=>$faq ? ['@context'=>'https://schema.org','@type'=>'FAQPage','mainEntity'=>$faq] : null];
 }
 
 function public_blog_payload(array $post): array
 {
     $rendered = blog_render_content($post['content']);
+    $writer = $post['writer'] ?? ['name'=>$post['author'] ?: 'Editorial Team','role_name'=>'','profile_image'=>'','bio'=>'','socials'=>[]];
     return ['ok'=>true,'blog'=>[
         'title'=>$post['title'],'slug'=>$post['slug'],'category'=>$post['categoryHierarchy'] ?? null,'tags'=>blog_public_tags($post),
         'author'=>$post['writer']['name'] ?? $post['author'],
-        'writer'=>$post['writer'] ?? ['name'=>$post['author'] ?: 'Editorial Team','role_name'=>'','profile_image'=>'','bio'=>'','socials'=>[]],'excerpt'=>$post['excerpt'],
+        'writer'=>$writer,
+        'about_author'=>$writer,
+        'excerpt'=>$post['excerpt'],
         'content_html'=>$rendered['content_html'],
         'featuredImage'=>public_detail_url($post['featuredImage']),
         'blogUrl'=>public_url('/blog/' . rawurlencode($post['slug']) . '/'),

@@ -22,10 +22,12 @@
     }
 
     .blog-slot-demo-frame {
+      display: flex;
+      flex-direction: column;
       width: 100%;
       max-width: none;
-      aspect-ratio: 16 / 9;
-      min-height: 320px;
+      min-width: 0;
+      box-sizing: border-box;
       border: 1px solid rgba(245, 158, 11, 0.3);
       border-radius: 0.85rem;
       overflow: hidden;
@@ -33,19 +35,60 @@
     }
 
     .blog-slot-demo-frame iframe {
+      display: block;
       width: 100%;
-      height: 100%;
+      height: auto;
+      aspect-ratio: 16 / 9;
+      min-height: 240px;
       border: 0;
     }
 
+    .blog-slot-demo-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      padding: 0.75rem;
+      color: #e7ded0;
+      background: #140803;
+    }
+
+    .blog-slot-demo-title { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+    .blog-slot-demo-actions .blog-slot-demo-link { border: 0; font: inherit; font-weight: 700; cursor: pointer; min-height: 44px; }
+    .blog-slot-demo-status:not(:empty) { flex-basis: 100%; }
+    .blog-demo-exit { display: none; }
+    .blog-slot-demo-frame:fullscreen { width: 100%; height: 100%; border: 0; border-radius: 0; }
+    .blog-slot-demo-frame:-webkit-full-screen { width: 100%; height: 100%; border: 0; border-radius: 0; }
+    .blog-slot-demo-frame:fullscreen iframe { flex: 1; min-height: 0; aspect-ratio: auto; }
+    .blog-slot-demo-frame:-webkit-full-screen iframe { flex: 1; min-height: 0; aspect-ratio: auto; }
+    .blog-slot-demo-frame:fullscreen .blog-demo-enter { display: none; }
+    .blog-slot-demo-frame:-webkit-full-screen .blog-demo-enter { display: none; }
+    .blog-slot-demo-frame:fullscreen .blog-demo-exit { display: inline; }
+    .blog-slot-demo-frame:-webkit-full-screen .blog-demo-exit { display: inline; }
+    .blog-slot-demo-link:focus-visible, .blog-faq-item summary:focus-visible { outline: 2px solid #fcd34d; outline-offset: 3px; }
+
+    @media (max-width: 600px) {
+      .blog-slot-demo-header { gap: 0.5rem; padding: 0.5rem; }
+      .blog-slot-demo-actions { width: 100%; }
+      .blog-slot-demo-actions .blog-slot-demo-link { flex: 1 1 auto; padding: 0.6rem; font-size: 0.85rem; }
+      .blog-slot-demo-frame iframe { aspect-ratio: 4 / 3; }
+    }
+
     .blog-table-block {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
       overflow-x: auto;
     }
 
     .blog-table-block table {
+      display: table;
       width: 100%;
-      min-width: 560px;
+      max-width: none;
+      border-collapse: collapse;
     }
+    .blog-table-block th, .blog-table-block td { overflow-wrap: anywhere; }
 
     .blog-faq-block {
       display: grid;
@@ -64,16 +107,20 @@
       background: rgba(42, 22, 11, 0.72);
     }
 
-    .blog-faq-item h3 {
-      margin: 0 0 0.45rem;
+    .blog-faq-item summary {
+      cursor: pointer;
       color: #fcd34d;
       font-size: 1rem;
+      font-weight: 700;
+      overflow-wrap: anywhere;
     }
+    .blog-faq-item[open] summary { margin-bottom: 0.65rem; }
 
     .blog-faq-item p {
       margin: 0;
       color: #e7ded0;
       font-size: 0.95rem;
+      overflow-wrap: anywhere;
     }
 .blog-table-block th,.blog-table-block td{padding:.65rem;border:1px solid #ccc;text-align:left}.blog-slot-demo-block{width:100%}
 

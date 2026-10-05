@@ -18,7 +18,7 @@ const mock = http.createServer(async (req, res) => {
   const body = JSON.parse(raw); lastPrompt = body;
   assert.equal(req.url, '/api/chat'); assert.equal(body.stream, false); assert.equal(body.model, 'test-model');
   aiRequests++; res.setHeader('Content-Type', 'application/json');
-  res.end(JSON.stringify({ message: { role: 'assistant', content: 'I am the AI support assistant. How can I help?' } }));
+  res.end(JSON.stringify({ message: { role: 'assistant', content: 'How can I help?' } }));
 });
 const freePort = async () => {
   const server = http.createServer(); server.listen(0, '127.0.0.1'); await once(server, 'listening');
@@ -54,6 +54,12 @@ try {
   const post = async body => {
     const response = await fetch(api, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     return { status: response.status, data: await response.json() };
+  };
+  const expireWait = sessionId => {
+    const file = path.join(dir, 'chats', sessionId);
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    data.pendingSince = Math.floor(Date.now() / 1000) - 180;
+    fs.writeFileSync(file, JSON.stringify(data));
   };
   const { data: session } = await post({ action: 'start', name: 'Realtime Test' });
   assert(session.sessionToken); const auth = { session_id: session.sessionId, session_token: session.sessionToken, client_id: 'http-browser' };
@@ -96,8 +102,14 @@ try {
   ws.send(JSON.stringify({ type: 'message', text: 'Help with my account', clientMessageId: 'socket-message-1' }));
   await until(() => events.some(e => e.type === 'ack'));
   await run('php', ['admin/scripts/chat-ai-worker.php', '--once'], env);
+  assert.equal(aiRequests, 0, 'First reply waits even when agents are offline');
+  expireWait(session.sessionId);
+  await run('php', ['admin/scripts/chat-ai-worker.php', '--once'], env);
   await until(() => events.some(e => e.messages?.some(m => m.type === 'ai')));
   assert.equal(aiRequests, 1); assert(lastPrompt.messages.some(m => m.role === 'user' && m.content === 'Help with my account'));
+  assert(lastPrompt.messages[0].content.includes('"Alex"'));
+  assert(lastPrompt.messages[0].content.includes('Do not announce an AI handoff'));
+  assert(events.some(e => e.messages?.some(m => m.name === 'Alex')));
   await run('php', ['admin/scripts/chat-ai-worker.php', '--once'], env); assert.equal(aiRequests, 1);
   const retry = await post({ ...auth, action: 'send', message: 'Help with my account', client_message_id: 'socket-message-1' });
   assert.equal(retry.data.messages.length, 2);
@@ -124,6 +136,7 @@ try {
   browserClient = new SupportChat({ apiUrl: api, wsUrl: `ws://127.0.0.1:${wsPort}/chat-ws`, onUpdate: data => updates.push(data) });
   await browserClient.start(); await until(() => browserClient.socketReady);
   await browserClient.send('Browser question', 'browser-message-1');
+  expireWait(browserClient.session.sessionId);
   await run('php', ['admin/scripts/chat-ai-worker.php', '--once'], env);
   await until(() => updates.some(e => e.messages.some(m => m.type === 'ai')));
   document.hidden = true; document.dispatchEvent(new Event('visibilitychange'));

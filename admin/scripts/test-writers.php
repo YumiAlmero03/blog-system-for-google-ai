@@ -45,7 +45,9 @@ try {
     writer_check(blogs_find('writer-post')['writerId']===17,'Current editor default attribution');
     $_SESSION['user']=$admin; blogs_upsert($base);
     writer_check(blogs_find('writer-post')['writerId']===17,'Other admin preserves omitted attribution');
-    $public = public_blog_payload(public_blog_find('writer-post'))['blog']['writer'];
+    $publicBlog = public_blog_payload(public_blog_find('writer-post'))['blog'];
+    $public = $publicBlog['writer'];
+    writer_check($publicBlog['about_author']===$public && $publicBlog['about_author']['bio']==="First line\nSecond line safe text",'About author includes selected writer full public profile');
     writer_check($public['name']==='Public Pen Name' && count($public['socials'])===2,'Public name and multiple socials');
     writer_check(array_keys($public)===['name','role_name','profile_image','bio','socials'] && array_keys($public['socials'][0])===['platform','url','label'],'Public field whitelist');
     writer_check($public['role_name']==='Super User' && $public['profile_image']==='', 'New public writer fields');
@@ -61,8 +63,12 @@ try {
     $profile['socials']=[$profile['socials'][1]]; $profile['written_name']=''; writer_profile_save($profile);
     writer_check(count(writer_socials($pdo,17))===1,'Remove social link');
     writer_check(public_blog_find('writer-post')['writer']['name']==='Existing Writer','Display name fallback');
+    $about = public_blog_payload(public_blog_find('writer-post'))['blog']['about_author'];
+    writer_check($about['name']==='Existing Writer' && count($about['socials'])===1,'About author reflects current profile changes');
     blogs_upsert($base+['writerId'=>'']);
     writer_check(public_blog_find('writer-post')['writer']['name']==='Legacy author','Legacy fallback');
+    $about = public_blog_payload(public_blog_find('writer-post'))['blog']['about_author'];
+    writer_check($about===['name'=>'Legacy author','role_name'=>'','profile_image'=>'','bio'=>'','socials'=>[]],'About author without selected writer uses legacy fallback');
     writer_reject(fn()=>blogs_upsert($base+['writerId'=>999999]),InvalidArgumentException::class);
     writer_reject(fn()=>blogs_upsert($base+['writerId'=>['17']]),InvalidArgumentException::class);
     writer_reject(fn()=>admin_user_save(['id'=>$adminId,'role'=>'super_user']),DomainException::class);

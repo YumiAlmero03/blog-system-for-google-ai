@@ -31,7 +31,7 @@ function chat_auto_change(string $action, array $input): void
         $keywords = array_values(array_unique(array_filter(array_map('chat_auto_text', preg_split('/\R/u', $input['keywords'])))));
         if (!$keywords) throw new InvalidArgumentException('Enter at least one matching phrase.');
         $rule = ['id'=>$id ?: bin2hex(random_bytes(12)), 'label'=>trim($input['label']),
-            'response'=>chat_clean_string($input['response'],5000), 'keywords'=>$keywords,
+            'response'=>chat_clean_message($input['response']), 'keywords'=>$keywords,
             'suggested'=>in_array($input['suggested'] ?? '0', ['1',1,true], true),
             'enabled'=>in_array($input['enabled'] ?? '0', ['1',1,true], true)];
     } elseif ($action !== 'delete') {

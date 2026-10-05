@@ -143,7 +143,7 @@ def ollama_search_reference(game: sqlite3.Row, timeout: int, retries: int) -> st
             if not isinstance(payload, dict) or not isinstance(payload.get('results'), list):
                 raise ValueError('Invalid search response')
             results = []
-            for item in payload['results'][:5]:
+            for item in payload['results'][:3]:
                 if not isinstance(item, dict) or not isinstance(item.get('content'), str):
                     continue
                 results.append({'title': str(item.get('title', ''))[:300],

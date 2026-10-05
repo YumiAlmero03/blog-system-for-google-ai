@@ -1,0 +1,31 @@
+const fs = require('fs');
+const vm = require('vm');
+const assert = require('node:assert/strict');
+const source = fs.readFileSync(require('path').join(__dirname, '../blog-publish.php'), 'utf8');
+const context = {
+  escapeHtml: value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;'}[c])),
+};
+vm.createContext(context);
+vm.runInContext(source.slice(source.indexOf('      function splitCustomCode'), source.indexOf('      function nodeToMarkdown')), context);
+const decode = value => value.replace(/&(?:amp|lt|gt|quot|#039);/g, c => ({'&amp;':'&', '&lt;':'<', '&gt;':'>', '&quot;':'"', '&#039;':"'"}[c]));
+const html = '<button id="demo">Run &amp; play</button>\n<!-- :::faq -->';
+const css = '#demo { color: red; }';
+const js = 'root.querySelector("button").onclick = () => { if (1 < 2 && true) root.textContent = "Done"; };';
+const markdown = `Before\n:::custom-code\n---html\n${html}\n---css\n${css}\n---js\n${js}\n:::\nAfter`;
+const editor = context.parseMarkdown(markdown);
+const values = [...editor.matchAll(/<textarea[^>]*>([\s\S]*?)<\/textarea>/g)].map(match => decode(match[1]));
+assert.deepEqual(values, [html, css, js], 'Code must survive textarea parsing without double escaping');
+assert(editor.startsWith('<p>Before</p>'));
+assert(editor.endsWith('<p>After</p>'));
+assert.equal(context.parseMarkdown(markdown.replace(/\n/g, '\r\n')), editor);
+const preview = context.parseMarkdown(markdown, true);
+assert(preview.includes('sandbox="allow-scripts"'));
+assert(!preview.includes('allow-same-origin'));
+assert(!preview.includes('<textarea'));
+const documentHtml = decode(preview.match(/srcdoc="([^"]*)"/)[1]);
+assert(documentHtml.includes(html));
+assert(documentHtml.includes(`<style>${css}</style>`));
+assert(documentHtml.includes(js));
+assert(documentHtml.includes('</script>'));
+assert(!context.parseMarkdown('<script>alert(1)</script>', true).includes('<script>'));
+console.log('Custom code editor regression checks passed.');

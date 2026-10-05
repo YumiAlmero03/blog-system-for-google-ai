@@ -1,3 +1,5 @@
+import { renderChatMessage } from '/chat-message.js';
+
 (() => {
   const presence = document.getElementById('chat-presence');
   const available = document.getElementById('chat-available');
@@ -74,7 +76,10 @@
           row.className = 'support-message support-text';
           const timestamp = new Date(message.time || '');
           const displayTime = Number.isNaN(timestamp.getTime()) ? (message.time || '') : timestamp.toLocaleString();
-          row.textContent = `${message.sender === 'agent' ? 'Admin' : message.type === 'ai' ? 'AI assistant' : message.sender === 'bot' ? 'Bot' : 'Customer'} · ${displayTime}\n${message.text || ''}`;
+          row.append(document.createTextNode(`${message.sender === 'agent' ? 'Admin' : message.type === 'ai' ? (message.name || 'Alex') : message.sender === 'bot' ? 'Bot' : 'Customer'} · ${displayTime}\n`));
+          const body = document.createElement('div');
+          renderChatMessage(body, message.text);
+          row.append(body);
           fragment.append(row);
         }
         document.getElementById('chat-messages').replaceChildren(fragment);

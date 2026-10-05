@@ -4,7 +4,12 @@ require_once __DIR__ . '/chat-auto-responses.php';
 require_once __DIR__ . '/api-rate-limit.php';
 
 const CHAT_ONLINE_TTL = 75;
-const CHAT_AGENT_WAIT = 600;
+const CHAT_AGENT_WAIT = 180;
+
+function chat_ai_name(): string
+{
+    return chat_clean_string(blog_setting_get('chat_ai_name', 'Alex'), 80) ?: 'Alex';
+}
 
 function chat_prepare_directory(): void
 {
@@ -59,7 +64,7 @@ function chat_realtime_view(array $data, bool $agentsOnline): array
     $messages = $data['messages'] ?? [];
     $status = ['agentOnline'=>$agentsOnline,'playerOnline'=>chat_player_online($data),
         'waitingSince'=>$data['pendingSince'] ?? null,'aiPending'=>!empty($data['aiLease']),
-        'aiEnabled'=>chat_ai_enabled()];
+        'aiEnabled'=>chat_ai_enabled(),'supportName'=>chat_ai_name()];
     return ['ok'=>true,'sessionId'=>$data['sessionId'],'revision'=>$data['revision'] ?? 0,'messages'=>$messages,'status'=>$status,
         'version'=>hash('sha256',json_encode([$messages,$status],JSON_THROW_ON_ERROR))];
 }
@@ -116,10 +121,10 @@ function chat_realtime_action(array $input): array
             if (!is_string($text) || trim($text)==='' || strlen($text)>5000) throw new InvalidArgumentException('Enter a message of up to 5,000 bytes.');
             if (!is_string($requestId) || !preg_match('/^[a-zA-Z0-9_-]{8,80}$/D',$requestId)) throw new InvalidArgumentException('A stable client_message_id is required.');
             foreach ($row['messages'] as $message) if (($message['clientMessageId'] ?? '') === $requestId) {
-                if ($message['text'] !== chat_clean_string($text,5000)) throw new InvalidArgumentException('Message ID was already used.');
+                if ($message['text'] !== chat_clean_message($text)) throw new InvalidArgumentException('Message ID was already used.');
                 $data=$row; return $row;
             }
-            $row['messages'][] = ['id'=>bin2hex(random_bytes(16)),'sender'=>'user','text'=>chat_clean_string($text,5000),
+            $row['messages'][] = ['id'=>bin2hex(random_bytes(16)),'sender'=>'user','text'=>chat_clean_message($text),
                 'time'=>date('c',$now),'type'=>'chat','clientMessageId'=>$requestId];
             $row['pendingSince'] ??= $now;
             $row['revision'] = ($row['revision'] ?? 0)+1;

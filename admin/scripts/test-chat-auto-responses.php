@@ -42,6 +42,10 @@ try {
     check_auto(chat_auto_match('bonus',chat_auto_rules())['response'] === 'Updated','Edit response');
     chat_auto_change('delete',['id'=>$bonus['id']]);
     check_auto(chat_auto_match('bonus',chat_auto_rules()) === null,'Delete response');
+    $formatted = "Step 1\n\nStep 2: https://example.com/register";
+    chat_auto_change('save',['label'=>'Register','keywords'=>'register','response'=>$formatted,'enabled'=>'1']);
+    check_auto(chat_auto_match('register',chat_auto_rules())['response'] === $formatted,'Automatic reply formatting preserved');
+    check_auto(chat_normalize_messages([['text'=>$formatted]])[0]['text'] === $formatted,'Legacy transcript formatting preserved');
     echo "PASS: rule CRUD, five-suggestion limit, unlimited rules, matching, disabled rules, bot replies, retries, history preservation.\n";
 } finally {
     $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir,FilesystemIterator::SKIP_DOTS),RecursiveIteratorIterator::CHILD_FIRST);

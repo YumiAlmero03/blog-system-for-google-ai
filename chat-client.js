@@ -1,4 +1,6 @@
 // Public browser module: credentials stay in sessionStorage, never in WebSocket URLs.
+export { renderChatMessage } from './chat-message.js';
+
 export class SupportChat {
   constructor({ name = 'Guest', apiUrl = '/api/chat-session.php', wsUrl,
     onUpdate = () => {}, onError = () => {} } = {}) {

@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/blog-storage.php';
+require_once __DIR__ . '/includes/chat-realtime.php';
+require_once __DIR__ . '/odds-api/includes/service.php';
 
 require_auth();
 
@@ -143,13 +145,45 @@ $result = null;
 $notice = '';
 $noticeType = '';
 $websiteTitle = blog_website_title();
+$chatAiName = chat_ai_name();
 $ignoredEngagementIps = blog_ignored_engagement_ips();
+$oddsConfig = odds_api_config();
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     require_valid_csrf();
     $action = settings_post_value('action', 20);
 
-    if ($action === 'save_website_title') {
+    if ($action === 'save_odds_api') {
+        try {
+            odds_api_save($_POST);
+            $oddsConfig = odds_api_config();
+            $notice = 'Odds API settings saved.';
+            $noticeType = 'ok';
+            csrf_rotate();
+        } catch (InvalidArgumentException $exception) {
+            $notice = $exception->getMessage(); $noticeType = 'error';
+        } catch (Throwable $exception) {
+            $notice = 'Odds API settings could not be saved.'; $noticeType = 'error';
+        }
+    } elseif ($action === 'save_chat_name') {
+        $chatAiName = chat_clean_string(settings_post_value('chat_ai_name', 80), 80);
+        if ($chatAiName === '') {
+            $notice = 'Chat name is required.';
+            $noticeType = 'error';
+        } else {
+            try {
+                blog_setting_set('chat_ai_name', $chatAiName, 80);
+                $chatAiName = chat_ai_name();
+                $notice = 'Chat name saved.';
+                $noticeType = 'ok';
+                csrf_rotate();
+            } catch (Throwable $exception) {
+                error_log('Settings chat name error: ' . $exception->getMessage());
+                $notice = 'Chat name could not be saved.';
+                $noticeType = 'error';
+            }
+        }
+    } elseif ($action === 'save_website_title') {
         $websiteTitle = settings_post_value('website_title', 120);
         if ($websiteTitle === '') {
             $notice = 'Website title is required.';
@@ -261,7 +295,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
       color: var(--brand-dark);
     }
     .form-row textarea,
-    .form-row input[type="text"] {
+    .form-row input[type="text"],
+    .form-row input[type="password"] {
       width: 100%;
       border: 1px solid var(--border-strong);
       border-radius: var(--radius-sm);
@@ -355,6 +390,33 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         <?php endif; ?>
 
         <div class="settings-grid">
+          <form method="post" class="settings-card" id="odds-api">
+            <?= csrf_input() ?>
+            <h2>Odds API</h2>
+            <input type="hidden" name="enabled" value="0">
+            <label><input type="checkbox" name="enabled" value="1" <?= (int)$oddsConfig['enabled'] ? 'checked' : '' ?>> Enable Odds API</label>
+            <p>Turning this off hides public odds and stops provider requests.</p>
+            <div class="form-row">
+              <label for="odds-api-key">apiKey</label>
+              <input type="password" id="odds-api-key" name="apiKey" maxlength="256" autocomplete="new-password" placeholder="<?= $oddsConfig['api_key'] !== '' ? 'Key saved — leave blank to keep it' : 'Enter The Odds API key' ?>">
+              <label><input type="checkbox" name="clear_api_key" value="1"> Remove saved key (disable Odds API first)</label>
+            </div>
+            <div class="form-row"><label for="odds-regions">regions</label><input id="odds-regions" name="regions" type="text" value="<?= h($oddsConfig['regions']) ?>" maxlength="1000" required><p>Comma-separated: us, us2, uk, au, eu.</p></div>
+            <p>Choose markets and arrange display fields in the <a href="/admin/odds-api/#iframe-editor">iframe editor</a>.</p>
+            <div class="form-row"><label for="odds-bookmakers">bookmakers (optional)</label><input id="odds-bookmakers" name="bookmakers" type="text" value="<?= h($oddsConfig['bookmakers']) ?>" maxlength="1000" placeholder="draftkings,fanduel"><p>Bookmaker keys, separated by commas. When supplied, these take priority over regions.</p></div>
+            <div class="actions"><button type="submit" name="action" value="save_odds_api" class="btn btn-primary btn-sm">Save Odds API Settings</button><a class="btn btn-secondary btn-sm" href="/admin/odds-api/">View sports and iframe</a></div>
+          </form>
+          <form method="post" class="settings-card">
+            <?= csrf_input() ?>
+            <div class="form-row">
+              <label for="chat-ai-name">AI Chat Name</label>
+              <input type="text" id="chat-ai-name" name="chat_ai_name" maxlength="80" required value="<?= h($chatAiName) ?>">
+              <p style="font-size:0.82rem; color:var(--text-muted); margin:0;">Support waits three minutes before replying automatically. Follow-up replies have no added delay until a human agent takes over.</p>
+            </div>
+            <div class="actions">
+              <button type="submit" name="action" value="save_chat_name" class="btn btn-primary btn-sm">Save Chat Name</button>
+            </div>
+          </form>
           <form method="post" class="settings-card">
             <?= csrf_input() ?>
             <div class="form-row">

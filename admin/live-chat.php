@@ -23,7 +23,7 @@ $title = 'Live Chat'; require __DIR__ . '/partials/support-head.php';
 <label><input type="checkbox" id="chat-available" checked> Available for live support</label>
 <span id="chat-presence-status" role="status">Connecting…</span>
 </div>
-<script src="/admin/live-chat.js" defer></script>
+<script src="/admin/live-chat.js" type="module"></script>
 <?php if (auth_can('admin')): ?><p><a class="btn btn-secondary btn-sm" href="/admin/chat-auto-responses.php">Automatic replies</a></p><?php endif; ?>
 <?php if ($error): ?><p role="alert" class="support-error"><?= h($error) ?></p><?php endif; ?>
 <?php if ($chat): ?>

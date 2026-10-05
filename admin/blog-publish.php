@@ -2697,12 +2697,24 @@ $writerOptions = writer_options();
         return `<section class="editor-block editor-slot-demo-block" data-block-type="slot-demo" data-game-slug="${escapeHtml(normalized.slug || '')}" draggable="true"><button type="button" class="editor-block-close" data-remove-block aria-label="Remove demo block" title="Remove demo block">&times;</button><div class="editor-slot-demo-search" contenteditable="false"><h3 class="editor-slot-demo-title" aria-live="polite">${escapeHtml(title)}</h3><input type="search" class="editor-slot-demo-query" placeholder="Search games..." aria-label="Search games" draggable="false"><div class="editor-slot-demo-results" role="listbox"></div></div><div class="editor-slot-demo-frame" contenteditable="false"><iframe src="${escapeHtml(normalized.url || '/playnow')}" title="${escapeHtml(title)}" loading="lazy"></iframe></div></section>`;
       }
 
-      function parseMarkdown(markdown) {
-        let html = escapeHtml(markdown || '');
+      function renderCustomCodePreview(code) {
+        const documentHtml = '<!doctype html><html><head><meta charset="utf-8"><style>' + code.css + '</style></head><body><section id="blog-custom-code-preview" class="blog-custom-code-block">' + code.html + '</section><script>(function(root){' + code.js + '\n})(document.getElementById("blog-custom-code-preview"));<\/script></body></html>';
+        return `<iframe title="Custom code preview" sandbox="allow-scripts" srcdoc="${escapeHtml(documentHtml)}" style="width:100%;min-height:320px;border:0;"></iframe>`;
+      }
+
+      function parseMarkdown(markdown, preview = false) {
+        const customCodeBlocks = [];
+        // Preserve code before escaping or applying Markdown transformations.
+        const source = String(markdown || '').replace(/\r\n?/g, '\n').replace(/^:::custom-code[ \t]*\n([\s\S]*?)^:::[ \t]*$/gm, (match, content) => {
+          const token = `@@CUSTOM_CODE_BLOCK_${customCodeBlocks.length}@@`;
+          const code = splitCustomCode(content);
+          customCodeBlocks.push(preview ? renderCustomCodePreview(code) : renderCustomCodeBlock(code));
+          return '\n\n' + token + '\n\n';
+        });
+        let html = escapeHtml(source);
         const faqBlocks = [];
         const buttonBlocks = [];
         const tableBlocks = [];
-        const customCodeBlocks = [];
         const slotDemoBlocks = [];
         html = html.replace(/:::faq\s*\n?([\s\S]*?)\n?:::/g, (match, content) => {
           const token = `@@FAQ_BLOCK_${faqBlocks.length}@@`;
@@ -2717,11 +2729,6 @@ $writerOptions = writer_options();
         html = html.replace(/:::table\s*\n?([\s\S]*?)\n?:::/g, (match, content) => {
           const token = `@@TABLE_BLOCK_${tableBlocks.length}@@`;
           tableBlocks.push(renderTableBlock(normalizeTableRows(content)));
-          return token;
-        });
-        html = html.replace(/:::custom-code\s*\n?([\s\S]*?)\n?:::/g, (match, content) => {
-          const token = `@@CUSTOM_CODE_BLOCK_${customCodeBlocks.length}@@`;
-          customCodeBlocks.push(renderCustomCodeBlock(splitCustomCode(content)));
           return token;
         });
         html = html.replace(/:::slot-demo\s*\n?([\s\S]*?)\n?:::/g, (match, content) => {
@@ -3075,7 +3082,7 @@ $writerOptions = writer_options();
       }
 
       function renderMarkdownPreview() {
-        const rendered = parseMarkdown(blogContent.value);
+        const rendered = parseMarkdown(blogContent.value, true);
         markdownPreview.innerHTML = rendered || '<p style="color:var(--text-muted); font-style:italic;">Markdown preview will render here.</p>';
       }
 
