@@ -8,7 +8,7 @@ $legacy = new PDO('sqlite:' . $dir . '/odds-api.sqlite');
 $legacy->exec("CREATE TABLE settings (id INTEGER PRIMARY KEY, enabled INTEGER NOT NULL DEFAULT 0, api_key TEXT NOT NULL DEFAULT '', regions TEXT NOT NULL DEFAULT 'us', markets TEXT NOT NULL DEFAULT 'h2h', bookmakers TEXT NOT NULL DEFAULT '')");
 $legacy->exec("INSERT INTO settings(id,markets) VALUES(1,'h2h,spreads')");
 $legacy = null;
-require_once __DIR__ . '/../odds-api/includes/service.php';
+require_once __DIR__ . '/../plugin/odds-api/includes/service.php';
 require_once __DIR__ . '/../includes/admin-permissions.php';
 function odds_check(bool $ok, string $label): void { if (!$ok) throw new RuntimeException($label); }
 $calls = [];
@@ -120,7 +120,7 @@ try {
     odds_check(file_exists($dir.'/sports-livescore.sqlite') && (int)sports_livescore_pdo()->query('SELECT COUNT(*) FROM iframes')->fetchColumn()===2,'Layouts live in sports SQLite iframes table');
     odds_check(odds_api_pdo()->query('SELECT markets FROM iframe_settings WHERE id=1')->fetchColumn()==='h2h,spreads','Legacy iframe source preserved during migration');
     odds_check(!str_contains(file_get_contents($dir.'/sports-livescore.sqlite'),'test-secret-key'),'Credentials stay out of sports layout storage');
-    $_SERVER['SCRIPT_NAME']='/admin/odds-api/index.php'; $_SESSION['user']['role']='editor';
+    $_SERVER['SCRIPT_NAME']='/admin/plugin/odds-api/index.php'; $_SESSION['user']['role']='editor';
     odds_check(auth_route_capability()==='admin' && !auth_can('admin'),'Editors cannot manage odds');
     echo "PASS: settings validation, key retention/removal, disabled behavior, exact provider parameters, active sports, public fields, cache TTL/invalidation, error cooldown, independent storage permissions, sports-table migration, named iframes, removable blocks, roles and custom labels.\n";
 } finally {

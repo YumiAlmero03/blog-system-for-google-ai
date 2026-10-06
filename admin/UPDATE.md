@@ -63,11 +63,11 @@ For Nginx, retain rules blocking private paths such as `admin/storage`, `admin/i
 
 ## Games module database update
 
-This release moves game code into `admin/games/` and the catalogue into `admin/storage/games.sqlite` (or the configured `APP_STORAGE_DIR`). During database initialization, existing game records move automatically from `blogs.sqlite` with a pre-migration SQLite backup. Keep maintenance mode enabled and pause cron jobs until migration finishes. Do not upload local database files.
+This release moves game code into `admin/plugin/games/` and the catalogue into `admin/storage/games.sqlite` (or the configured `APP_STORAGE_DIR`). During database initialization, existing game records move automatically from `blogs.sqlite` with a pre-migration SQLite backup. Keep maintenance mode enabled and pause cron jobs until migration finishes. Do not upload local database files.
 
 The updater now backs up both databases. If rolling back the first split migration to older code, restore the old `blogs.sqlite` backup and remove the newly created `games.sqlite` and its sidecar files while all writers are stopped; `restore-info.json` records whether the game database existed before the update. For later rollbacks, restore both matching database backups.
 
-In Nginx, add private-path rules for `admin/games/includes` and `admin/games/scripts` alongside the existing private folders. Apache receives matching rules in this release.
+In Nginx, add private-path rules for `admin/plugin/games/includes` and `admin/plugin/games/scripts` alongside the existing private folders. Apache receives matching rules in this release.
 
 After deployment, open **Games → Games Settings** to enable/disable all games. Existing API links and cron commands still work through compatibility entrypoints.
 

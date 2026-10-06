@@ -4,7 +4,7 @@ if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 $dir=sys_get_temp_dir().'/provider-images-'.bin2hex(random_bytes(6)); mkdir($dir,0700);
 putenv('APP_STORAGE_DIR='.$dir.'/storage'); putenv('PROVIDER_IMAGE_UPLOAD_DIR='.$dir.'/images');
 define('PROVIDERS_IMPORT_LIBRARY_ONLY',true);
-require __DIR__.'/../games/scripts/import-slotslaunch-providers.php';
+require __DIR__ . '/../plugin/games/scripts/import-slotslaunch-providers.php';
 function pi_check(bool $ok,string $label): void { if (!$ok) throw new RuntimeException($label); }
 try {
     $pdo=blogs_pdo(); $calls=0;

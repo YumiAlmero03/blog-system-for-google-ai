@@ -33,7 +33,7 @@ function index_checker_type(string $url): string
 // A single grouped eligibility snapshot protects against outdated sitemap files.
 function index_checker_eligible_sets(PDO $pdo): array
 {
-    $games=$pdo->query('SELECT DISTINCT slug FROM games WHERE '.game_public_eligibility_sql())->fetchAll(PDO::FETCH_COLUMN);
+    $games=function_exists('games_storage_attach') ? $pdo->query('SELECT DISTINCT slug FROM games WHERE '.game_public_eligibility_sql())->fetchAll(PDO::FETCH_COLUMN) : [];
     $stmt=$pdo->prepare('SELECT slug FROM blog_posts WHERE '.blog_public_visibility_sql()); $stmt->execute([':visibility_now'=>time()]);
     return ['game'=>array_fill_keys($games,true),'blog'=>array_fill_keys($stmt->fetchAll(PDO::FETCH_COLUMN),true)];
 }

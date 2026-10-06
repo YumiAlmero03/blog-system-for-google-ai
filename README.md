@@ -9,10 +9,13 @@ This index lives at `admin/README.md`. Start here when looking for project docum
 - [AGENT.md](/admin/AGENT.md) — Project conventions, API inventory, and implementation guidance.
 - [ARCHITECTURE.md](/admin/ARCHITECTURE.md) — Application structure, the Games module, and separate game/blog databases.
 - [Chat integration](/admin/CHAT-INTEGRATION.md) — AI fallback, agent/player presence, WebSocket setup, and frontend integration.
-- [Odds API](/admin/odds-api/README.md) — API settings, sports list, bookmaker odds iframe, caching, and deployment guide.
+- [Odds API](/admin/plugin/odds-api/README.md) — API settings, sports list, bookmaker odds iframe, caching, and deployment guide.
+
+- [Plugins](/admin/plugin/README.md) — Independent Games and Odds API folders, navigation, removal and retained storage.
 
 ## Development
 
+- [AI llms.txt generator](/admin/scripts/README.md#generate-llmsphp) — Generate or update public `llms.txt` from sitemaps with Ollama.
 - [Scripts guide](/admin/scripts/README.md) — Utility script requirements, commands, and maintenance precautions.
 
 ## Deployment
@@ -24,4 +27,7 @@ This index lives at `admin/README.md`. Start here when looking for project docum
 - [Index Checker setup](/admin/scripts/INDEX-CHECKER.md) — Configure Search Console, IndexNow, daily checks, and sitemap discovery.
 
 ## Starting Guide
-using vs code change [insert_domain_here] to the base url or domain of the website
+- using vs code change [insert_domain_here] to the base url or domain of the website
+
+## Prod deployment
+- [AAPanel setup](/admin/AAPanelHelp.md)

@@ -1671,6 +1671,7 @@ $writerOptions = writer_options();
                     <button type="button" class="wysiwyg-btn" data-command="table" title="Table block">Table</button>
                     <button type="button" class="wysiwyg-btn" data-command="custom-code" title="Custom code block (administrator only)" <?= auth_can('admin') ? '' : 'disabled' ?>>Code</button>
                     <button type="button" class="wysiwyg-btn" data-command="slot-demo" title="Slot demo block">Demo</button>
+                    <button type="button" class="wysiwyg-btn" data-command="countdown" title="Countdown timer block">Timer</button>
                     <button type="button" class="wysiwyg-btn" data-command="link" title="Insert link">Link</button>
                     <button type="button" class="wysiwyg-btn" data-command="clear" title="Clear formatting">Clear</button>
                   </div>
@@ -1715,7 +1716,7 @@ $writerOptions = writer_options();
                 <button type="button" id="apply-image-settings-btn" class="btn btn-primary btn-sm">Apply</button>
                 <button type="button" id="remove-image-link-btn" class="btn btn-secondary btn-sm">Remove Link</button>
               </div>
-              <input type="file" id="article-image-upload" accept="image/jpeg,image/png,image/webp" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;" tabindex="-1">
+              <input type="file" id="article-image-upload" accept="image/jpeg,image/png,image/webp,image/avif,.jpg,.jpeg,.png,.webp,.avif" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;" tabindex="-1">
               <div id="editor-shell" class="editor-shell editor-mode-write">
                 <textarea id="blog-content" name="content" maxlength="60000" aria-label="Markdown article content"></textarea>
                 <div id="wysiwyg-editor" class="wysiwyg-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Write your article here. Use the toolbar for headings, links, lists, quotes, and images."></div>
@@ -1774,6 +1775,30 @@ $writerOptions = writer_options();
                     <input type="hidden" id="blog-scheduled-at" name="scheduled_at" value="">
                   </div>
                 </div>
+                <div class="form-group" style="margin-top:12px; padding:12px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface-soft);">
+                  <div style="display:flex; align-items:center; justify-content:space-between;">
+                    <label for="blog-countdown-enabled" style="font-weight:700; margin:0; cursor:pointer; display:flex; align-items:center; gap:8px;">
+                      <input type="checkbox" id="blog-countdown-enabled" name="countdown_enabled" value="1">
+                      <span>Add Countdown (Optional)</span>
+                    </label>
+                    <span class="badge badge-yellow" id="countdown-active-badge" style="display:none; font-size:0.7rem;">Active</span>
+                  </div>
+                  <div id="countdown-fields-wrapper" style="display:none; margin-top:12px; padding-top:10px; border-top:1px dashed var(--border);">
+                    <div class="form-group" style="margin-bottom:10px;">
+                      <label for="blog-countdown-target" style="font-size:0.82rem;">Target Date &amp; Time *</label>
+                      <input type="datetime-local" id="blog-countdown-target" name="countdown_target" class="form-control">
+                      <span style="font-size:0.75rem; color:var(--text-muted); display:block; margin-top:3px;">Timer counts down to this target date/time.</span>
+                    </div>
+                    <div class="form-group" style="margin-bottom:10px;">
+                      <label for="blog-countdown-title" style="font-size:0.82rem;">Countdown Title / Label</label>
+                      <input type="text" id="blog-countdown-title" name="countdown_title" class="form-control" maxlength="160" placeholder="e.g. Special Promotion Ends In">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                      <label for="blog-countdown-end-text" style="font-size:0.82rem;">Expired Message</label>
+                      <input type="text" id="blog-countdown-end-text" name="countdown_end_text" class="form-control" maxlength="160" placeholder="e.g. This promotion has ended.">
+                    </div>
+                  </div>
+                </div>
                 <div class="form-group">
                   <div class="field-label-row">
                     <label for="blog-excerpt">Meta Description *</label>
@@ -1802,9 +1827,9 @@ $writerOptions = writer_options();
                 <div id="image-dropzone" class="image-dropzone" role="button" tabindex="0" aria-controls="blog-image-upload" style="min-height:120px;">
                   <div class="image-dropzone-icon">+</div>
                   <strong>Drop image to upload</strong>
-                  <span>JPEG, PNG, or WebP up to 3 MB.</span>
+                  <span>JPEG, PNG, WebP, or AVIF up to 10 MB.</span>
                 </div>
-                <input type="file" id="blog-image-upload" accept="image/jpeg,image/png,image/webp" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;" tabindex="-1">
+                <input type="file" id="blog-image-upload" accept="image/jpeg,image/png,image/webp,image/avif,.jpg,.jpeg,.png,.webp,.avif" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;" tabindex="-1">
                 <div id="image-upload-status" class="image-upload-status"></div>
                 <select id="blog-image-preset" class="form-control" style="margin-top:12px;">
                   <option value="/uploads/blogs/default-featured.svg">/uploads/blogs/default-featured.svg</option>
@@ -1884,6 +1909,24 @@ $writerOptions = writer_options();
       const blogStatus = document.getElementById('blog-status-field');
       const publishedAtField = document.getElementById('blog-published-at');
       const scheduledAtField = document.getElementById('blog-scheduled-at');
+      const countdownEnabledCheckbox = document.getElementById('blog-countdown-enabled');
+      const countdownFieldsWrapper = document.getElementById('countdown-fields-wrapper');
+      const countdownActiveBadge = document.getElementById('countdown-active-badge');
+      const countdownTargetField = document.getElementById('blog-countdown-target');
+      const countdownTitleField = document.getElementById('blog-countdown-title');
+      const countdownEndTextField = document.getElementById('blog-countdown-end-text');
+
+      function updateCountdownVisibility() {
+        const isEnabled = countdownEnabledCheckbox && countdownEnabledCheckbox.checked;
+        if (countdownFieldsWrapper) countdownFieldsWrapper.style.display = isEnabled ? 'block' : 'none';
+        if (countdownActiveBadge) countdownActiveBadge.style.display = isEnabled ? 'inline-block' : 'none';
+        if (isEnabled && countdownTargetField && !countdownTargetField.value) {
+          countdownTargetField.value = (publishedAtField && publishedAtField.value) ? publishedAtField.value : currentDateTimeInput();
+        }
+      }
+      if (countdownEnabledCheckbox) {
+        countdownEnabledCheckbox.addEventListener('change', updateCountdownVisibility);
+      }
       const categoryField = document.getElementById('blog-category');
       const writerField = document.getElementById('blog-writer');
       const authorField = document.getElementById('blog-author');
@@ -4330,10 +4373,17 @@ $writerOptions = writer_options();
         }
       }
 
+      function isAllowedBlogImageType(file) {
+        if (!file) return false;
+        const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
+        if (file.type && validTypes.includes(file.type)) return true;
+        return /\.(jpe?g|png|webp|avif)$/i.test(file.name || '');
+      }
+
       async function uploadArticleImage(file) {
         if (!file) return;
-        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-          setArticleImageStatus('Please upload a JPEG, PNG, or WebP image.', 'error');
+        if (!isAllowedBlogImageType(file)) {
+          setArticleImageStatus('Please upload a JPEG, PNG, WebP, or AVIF image.', 'error');
           return;
         }
 
@@ -4500,6 +4550,38 @@ $writerOptions = writer_options();
           return;
         }
 
+        if (command === 'countdown') {
+          const defaultCountdown = ':::countdown\ntitle: Limited Time Offer\ntarget: ' + currentDateTimeInput() + '\ntext: Claim your bonus before the timer runs out!\nlink: /playnow\nbutton: Claim Now\n:::';
+          if (editorShell.classList.contains('editor-mode-markdown') || editorShell.classList.contains('editor-mode-split')) {
+            const start = blogContent.selectionStart || 0;
+            const end = blogContent.selectionEnd || start;
+            const before = blogContent.value.slice(0, start);
+            const after = blogContent.value.slice(end);
+            const prefix = before && !before.endsWith('\n\n') ? '\n\n' : '';
+            const suffix = after && !after.startsWith('\n\n') ? '\n\n' : '';
+            blogContent.value = before + prefix + defaultCountdown + suffix + after;
+            const cursor = (before + prefix + defaultCountdown).length;
+            blogContent.focus();
+            blogContent.setSelectionRange(cursor, cursor);
+            syncEditorFromMarkdown();
+            if (editorShell.classList.contains('editor-mode-split')) renderMarkdownPreview();
+            scheduleEditorHistory(true);
+            return;
+          }
+
+          focusEditor();
+          const wrapper = document.createElement('div');
+          wrapper.innerHTML = `<div class="editor-block editor-countdown-block" contenteditable="false" style="padding:14px; margin:16px 0; border:1px solid #f59e0b; border-radius:8px; background:rgba(20,8,3,0.9); color:#fbbf24; text-align:center;">
+            <div style="font-weight:800; text-transform:uppercase; margin-bottom:6px;">⏳ Countdown: Limited Time Offer</div>
+            <div style="font-size:1.4rem; font-weight:900; letter-spacing:2px; color:#fff; font-family:monospace;">00d : 00h : 00m : 00s</div>
+            <div style="font-size:0.85rem; color:#f59e0b; margin-top:6px;">Target: ${escapeHtml(currentDateTimeInput())}</div>
+          </div>`;
+          insertEditorBlock(wrapper.firstElementChild);
+          syncMarkdownFromEditor();
+          scheduleEditorHistory(true);
+          return;
+        }
+
         if (command === 'link') {
           openLinkToolbox();
           return;
@@ -4540,8 +4622,8 @@ $writerOptions = writer_options();
 
       async function uploadFeaturedImage(file) {
         if (!file) return;
-        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-          setUploadStatus('Please upload a JPEG, PNG, or WebP image.', 'error');
+        if (!isAllowedBlogImageType(file)) {
+          setUploadStatus('Please upload a JPEG, PNG, WebP, or AVIF image.', 'error');
           return;
         }
 
@@ -5079,6 +5161,11 @@ $writerOptions = writer_options();
           if (blogStatus) blogStatus.value = 'draft';
           if (publishedAtField) publishedAtField.value = currentDateTimeInput();
           if (scheduledAtField) scheduledAtField.value = '';
+          if (countdownEnabledCheckbox) countdownEnabledCheckbox.checked = false;
+          if (countdownTargetField) countdownTargetField.value = '';
+          if (countdownTitleField) countdownTitleField.value = '';
+          if (countdownEndTextField) countdownEndTextField.value = '';
+          updateCountdownVisibility();
           if (focusKeyphrase) focusKeyphrase.value = '';
           if (keyphraseSynonyms) keyphraseSynonyms.value = '';
           updateSaveState(blogStatus ? blogStatus.value : 'draft');
@@ -5112,6 +5199,10 @@ $writerOptions = writer_options();
         data.set('status', currentStatus);
         data.set('published_at', publishedAtField ? publishedAtField.value : '');
         data.set('scheduled_at', currentStatus === 'scheduled' && publishedAtField ? publishedAtField.value : '');
+        data.set('countdown_enabled', countdownEnabledCheckbox && countdownEnabledCheckbox.checked ? '1' : '0');
+        data.set('countdown_target', countdownTargetField ? countdownTargetField.value : '');
+        data.set('countdown_title', countdownTitleField ? countdownTitleField.value : '');
+        data.set('countdown_end_text', countdownEndTextField ? countdownEndTextField.value : '');
         data.set('focus_keyphrase', focusKeyphrase ? focusKeyphrase.value.trim() : '');
         data.set('csrf_token', csrfToken);
         const savedSlug = String(data.get('slug') || '').trim();
@@ -5175,6 +5266,11 @@ $writerOptions = writer_options();
         if (blogStatus) blogStatus.value = blog.status || 'draft';
         if (publishedAtField) publishedAtField.value = blog.scheduledAtInput || blog.publishedAtInput || currentDateTimeInput();
         if (scheduledAtField) scheduledAtField.value = blog.scheduledAtInput || '';
+        if (countdownEnabledCheckbox) countdownEnabledCheckbox.checked = Boolean(blog.countdownEnabled || blog.countdown_enabled);
+        if (countdownTargetField) countdownTargetField.value = blog.countdownTargetInput || blog.countdown_target || '';
+        if (countdownTitleField) countdownTitleField.value = blog.countdownTitle || blog.countdown_title || '';
+        if (countdownEndTextField) countdownEndTextField.value = blog.countdownEndText || blog.countdown_end_text || '';
+        updateCountdownVisibility();
         if (focusKeyphrase) focusKeyphrase.value = blog.focusKeyphrase || '';
         updateSaveState(blogStatus ? blogStatus.value : (blog.status || 'draft'));
         if (authorField) authorField.value = blog.author || ' Editorial Team';

@@ -579,7 +579,43 @@ if ($action !== '') {
   }
 
   function renderRows() {
-    window.AdminTables.setRows($('linksBody').closest('table'), state.links, (link) => `
+    const sortedLinks = [...state.links].sort((a, b) => {
+      const aErr = Number(a.status) !== 200;
+      const bErr = Number(b.status) !== 200;
+      if (aErr !== bErr) return aErr ? -1 : 1;
+      const aSeverity = Number(a.status) >= 300 && Number(a.status) < 400 ? 2 : (aErr ? 1 : 3);
+      const bSeverity = Number(b.status) >= 300 && Number(b.status) < 400 ? 2 : (bErr ? 1 : 3);
+      if (aSeverity !== bSeverity) return aSeverity - bSeverity;
+      return (a.redirectLink || '').localeCompare(b.redirectLink || '');
+    });
+
+    const sortedSchemas = [...state.schemas].sort((a, b) => {
+      const rank = (s) => {
+        if (s.status === 'Invalid JSON-LD') return 1;
+        if (s.status === 'Missing') return 2;
+        if (s.status !== 'Valid JSON-LD') return 1;
+        return 3;
+      };
+      const diff = rank(a) - rank(b);
+      if (diff !== 0) return diff;
+      return (a.page || '').localeCompare(b.page || '');
+    });
+
+    const sortedPages = [...state.pages].sort((a, b) => {
+      const rank = (p) => {
+        const status = Number(p.status);
+        const isHttpError = status !== 200;
+        const missingMeta = !p.title || !p.description || !p.canonical;
+        if (isHttpError) return 1;
+        if (missingMeta) return 2;
+        return 3;
+      };
+      const diff = rank(a) - rank(b);
+      if (diff !== 0) return diff;
+      return (a.path || '').localeCompare(b.path || '');
+    });
+
+    window.AdminTables.setRows($('linksBody').closest('table'), sortedLinks, (link) => `
       <tr>
         <td>${esc(link.anchorText || '(empty anchor)')}</td>
         <td class="seo-url">${esc(link.redirectLink)}</td>
@@ -587,7 +623,7 @@ if ($action !== '') {
         <td><span class="seo-pill ${statusClass(link.status)}">${esc(link.errorMessage)}</span></td>
       </tr>
     `);
-    window.AdminTables.setRows($('schemaBody').closest('table'), state.schemas, (schema) => `
+    window.AdminTables.setRows($('schemaBody').closest('table'), sortedSchemas, (schema) => `
       <tr>
         <td class="seo-url">${esc(schema.page)}</td>
         <td>${esc((schema.types || []).join(', ') || 'None')}</td>
@@ -595,7 +631,7 @@ if ($action !== '') {
         <td>${esc(schema.message)}</td>
       </tr>
     `);
-    window.AdminTables.setRows($('pagesBody').closest('table'), state.pages, (page) => `
+    window.AdminTables.setRows($('pagesBody').closest('table'), sortedPages, (page) => `
       <tr>
         <td class="seo-url">${esc(page.path)}</td>
         <td><span class="seo-pill ${statusClass(page.status)}">${esc(page.status)}</span></td>

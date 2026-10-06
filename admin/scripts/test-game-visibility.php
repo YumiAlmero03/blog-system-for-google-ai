@@ -127,11 +127,11 @@ try {
     // The settings primary key supplies an indexed lookup inside the normal SQL query.
     $plan=$pdo->query('EXPLAIN QUERY PLAN SELECT * FROM games WHERE '.game_public_eligibility_sql())->fetchAll();
     visibility_check(str_contains(json_encode($plan),'sqlite_autoindex_game_provider_settings'),'Approval lookup uses indexed key');
-    [$status]=visibility_handler(['path'=>'/admin/games/settings.php','role'=>'editor','post'=>['enabled'=>'0']]);
+    [$status]=visibility_handler(['path'=>'/admin/plugin/games/settings.php','role'=>'editor','post'=>['enabled'=>'0']]);
     visibility_check($status===403 && games_enabled(),'Editors cannot disable module');
-    [$status]=visibility_handler(['path'=>'/admin/games/settings.php','role'=>'admin','bad_csrf'=>true,'post'=>['enabled'=>'0']]);
+    [$status]=visibility_handler(['path'=>'/admin/plugin/games/settings.php','role'=>'admin','bad_csrf'=>true,'post'=>['enabled'=>'0']]);
     visibility_check($status===403 && games_enabled(),'Module switch requires CSRF');
-    [$status]=visibility_handler(['path'=>'/admin/games/settings.php','role'=>'admin','post'=>['enabled'=>'0']]);
+    [$status]=visibility_handler(['path'=>'/admin/plugin/games/settings.php','role'=>'admin','post'=>['enabled'=>'0']]);
     visibility_check($status===200 && !games_enabled(),'Administrator can disable module');
     [$status,$data]=visibility_handler(['path'=>'/api/slot-list.php','method'=>'GET']);
     visibility_check($status===200 && $data['slots']===[],'Disabled module hides cached game list');
@@ -141,9 +141,9 @@ try {
     visibility_check($status===200 && $data['providers']===[],'Sample providers cannot bypass disabled module');
     visibility_check(public_game_find('text-only')===null,'Disabled game detail hidden');
     visibility_check(glob($dir.'/sitemap-games-*.xml')===[],'Disabled module removes game sitemap chunks');
-    [$status,$data,$html]=visibility_handler(['path'=>'/admin/games/index.php','role'=>'editor','method'=>'GET']);
-    visibility_check($status===200 && str_contains($html,'/admin/games/'),'Admin game management remains available');
-    [$status]=visibility_handler(['path'=>'/admin/games/settings.php','role'=>'admin','post'=>['enabled'=>'1']]);
+    [$status,$data,$html]=visibility_handler(['path'=>'/admin/plugin/games/index.php','role'=>'editor','method'=>'GET']);
+    visibility_check($status===200 && str_contains($html,'/admin/plugin/games/'),'Admin game management remains available');
+    [$status]=visibility_handler(['path'=>'/admin/plugin/games/settings.php','role'=>'admin','post'=>['enabled'=>'1']]);
     visibility_check($status===200 && games_enabled() && public_game_find('text-only')!==null,'Reenable restores public eligibility');
     echo "PASS: migration/defaults/import preservation, approval and visibility controls, public API/page 404s, PH/processing/publication rules, filters/pagination, providers/counts, sitemap refresh/cache invalidation, admin/editor permissions, CSRF and indexed approval lookup.\n";
 } finally { visibility_remove($dir); }

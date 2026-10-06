@@ -4,6 +4,15 @@ Options -Indexes
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
+    # Plugin internals stay private, including nested sports storage helpers.
+    RewriteRule ^admin/plugin/[^/]+/(?:.*/)?(?:includes|scripts)(?:/|$) - [F,L]
+    RewriteRule ^admin/plugin/.*\.md$ - [F,L]
+    RewriteRule ^admin/games/(.*)$ admin/plugin/games/$1 [L,QSA]
+    RewriteRule ^admin/odds-api/(.*)$ admin/plugin/odds-api/$1 [L,QSA]
+    RewriteRule ^admin/settings/sports/(.*)$ admin/plugin/odds-api/sports/$1 [L,QSA]
+    RewriteRule ^admin/sports-livescore/(.*)$ admin/plugin/odds-api/livescore/$1 [L,QSA]
+    RewriteRule ^odds-api/(.*\.(?:css|js))$ admin/plugin/odds-api/public/$1 [L]
+
     RewriteRule ^\.(?:git|gitignore|htaccess)(?:/|$) - [F,L]
 
     # Backend runtime/configuration is never served directly.
@@ -16,6 +25,7 @@ Options -Indexes
     RewriteRule ^admin/(?:\.[^/]+|[^/]+\.(?:md|sh))$ - [F,L]
 
     # Preserve existing public upload URLs and root IndexNow verification URLs.
+    RewriteCond %{DOCUMENT_ROOT}/admin/uploads/$1 -f
     RewriteRule ^uploads/(.*)$ admin/uploads/$1 [L]
     RewriteCond %{DOCUMENT_ROOT}/admin/$1.txt -f
     RewriteRule ^([a-zA-Z0-9-]{8,128})\.txt$ admin/$1.txt [L]

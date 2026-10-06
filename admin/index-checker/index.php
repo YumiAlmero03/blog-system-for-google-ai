@@ -19,7 +19,12 @@ if (isset($_SESSION['index_checker_notice'])) { $message=$_SESSION['index_checke
 function checker_filter(string $key): string { return isset($_GET[$key]) && is_string($_GET[$key]) ? substr(trim($_GET[$key]),0,2048) : ''; }
 function checker_date(mixed $time): string { return $time ? gmdate('Y-m-d H:i',(int)$time).' UTC' : '—'; }
 $search=checker_filter('search'); $status=checker_filter('status'); $type=checker_filter('type'); $sitemap=checker_filter('sitemap');
-$order=checker_filter('sort')==='oldest' ? 'ASC' : 'DESC';
+$sort=checker_filter('sort');
+$orderSql = match ($sort) {
+    'errors' => "CASE WHEN check_status='Error' THEN 1 WHEN check_status='Not Indexed' THEN 2 WHEN check_status='Unknown' THEN 3 WHEN check_status='Pending' THEN 4 ELSE 5 END ASC, last_checked_at DESC, id ASC",
+    'oldest' => 'last_checked_at ASC, id ASC',
+    default => 'last_checked_at DESC, id ASC'
+};
 $page=max(1,min(100000,(int)checker_filter('page'))); $size=50; $where=[]; $params=[];
 if (checker_filter('inactive')!=='1') $where[]='in_sitemap=1';
 if ($search!=='') { $where[]="url LIKE ? ESCAPE '\\'"; $params[]=blog_like_term($search); }
@@ -30,7 +35,7 @@ if ($sitemap!=='') { $where[]='sitemap_url=?'; $params[]=$sitemap; }
 $sql=$where ? ' WHERE '.implode(' AND ',$where) : '';
 $stmt=$pdo->prepare('SELECT COUNT(*) FROM index_checks'.$sql); $stmt->execute($params); $total=(int)$stmt->fetchColumn();
 $pages=max(1,(int)ceil($total/$size)); $page=min($page,$pages);
-$stmt=$pdo->prepare('SELECT * FROM index_checks'.$sql.' ORDER BY last_checked_at '.$order.',id ASC LIMIT ? OFFSET ?');
+$stmt=$pdo->prepare('SELECT * FROM index_checks'.$sql.' ORDER BY '.$orderSql.' LIMIT ? OFFSET ?');
 foreach ($params as $i=>$value) $stmt->bindValue($i+1,$value);
 $stmt->bindValue(count($params)+1,$size,PDO::PARAM_INT); $stmt->bindValue(count($params)+2,($page-1)*$size,PDO::PARAM_INT); $stmt->execute(); $rows=$stmt->fetchAll();
 $summary=$pdo->query('SELECT check_status,COUNT(*) FROM index_checks WHERE in_sitemap=1 GROUP BY check_status')->fetchAll(PDO::FETCH_KEY_PAIR);
@@ -47,7 +52,7 @@ $title='Index Checker'; require __DIR__ . '/../partials/support-head.php';
 <label>Status <select name="status"><option value="">All</option><?php foreach ($statuses as $option): ?><option <?= $status===$option ? 'selected' : '' ?>><?= h($option) ?></option><?php endforeach; ?></select></label>
 <label>Type <select name="type"><option value="">All</option><?php foreach ($types as $option): ?><option <?= $type===$option ? 'selected' : '' ?>><?= h($option) ?></option><?php endforeach; ?></select></label>
 <label>Sitemap <select name="sitemap"><option value="">All</option><?php foreach ($sitemaps as $option): ?><option value="<?= h($option) ?>" <?= $sitemap===$option ? 'selected' : '' ?>><?= h(basename($option)) ?></option><?php endforeach; ?></select></label>
-<label>Last checked <select name="sort"><option value="newest">Newest first</option><option value="oldest" <?= $order==='ASC' ? 'selected' : '' ?>>Oldest first</option></select></label>
+<label>Last checked <select name="sort"><option value="newest">Newest first</option><option value="errors" <?= $sort==='errors' ? 'selected' : '' ?>>Errors first</option><option value="oldest" <?= $sort==='oldest' ? 'selected' : '' ?>>Oldest first</option></select></label>
 <label><input type="checkbox" name="inactive" value="1" <?= checker_filter('inactive')==='1' ? 'checked' : '' ?>> Include removed URLs</label>
 <button class="btn btn-secondary btn-sm">Filter</button>
 </form>

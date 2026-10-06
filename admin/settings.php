@@ -4,7 +4,6 @@ declare(strict_types=1);
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/blog-storage.php';
 require_once __DIR__ . '/includes/chat-realtime.php';
-require_once __DIR__ . '/odds-api/includes/service.php';
 
 require_auth();
 
@@ -147,25 +146,12 @@ $noticeType = '';
 $websiteTitle = blog_website_title();
 $chatAiName = chat_ai_name();
 $ignoredEngagementIps = blog_ignored_engagement_ips();
-$oddsConfig = odds_api_config();
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     require_valid_csrf();
     $action = settings_post_value('action', 20);
 
-    if ($action === 'save_odds_api') {
-        try {
-            odds_api_save($_POST);
-            $oddsConfig = odds_api_config();
-            $notice = 'Odds API settings saved.';
-            $noticeType = 'ok';
-            csrf_rotate();
-        } catch (InvalidArgumentException $exception) {
-            $notice = $exception->getMessage(); $noticeType = 'error';
-        } catch (Throwable $exception) {
-            $notice = 'Odds API settings could not be saved.'; $noticeType = 'error';
-        }
-    } elseif ($action === 'save_chat_name') {
+    if ($action === 'save_chat_name') {
         $chatAiName = chat_clean_string(settings_post_value('chat_ai_name', 80), 80);
         if ($chatAiName === '') {
             $notice = 'Chat name is required.';
@@ -380,7 +366,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             <h1 style="font-size:1.6rem; color:var(--brand-dark);">Settings</h1>
             <p style="font-size:0.88rem; color:var(--text-muted);">Find and replace text across blog database fields.</p>
           </div>
-          <a href="/admin/games/settings.php" class="btn btn-secondary btn-sm">Games Settings</a>
           <a href="/admin/settings/seo/" class="btn btn-secondary btn-sm">SEO Settings</a>
           <a href="/admin/blogs.php" class="btn btn-secondary btn-sm">Back to Blogs</a>
         </div>
@@ -390,22 +375,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         <?php endif; ?>
 
         <div class="settings-grid">
-          <form method="post" class="settings-card" id="odds-api">
-            <?= csrf_input() ?>
-            <h2>Odds API</h2>
-            <input type="hidden" name="enabled" value="0">
-            <label><input type="checkbox" name="enabled" value="1" <?= (int)$oddsConfig['enabled'] ? 'checked' : '' ?>> Enable Odds API</label>
-            <p>Turning this off hides public odds and stops provider requests.</p>
-            <div class="form-row">
-              <label for="odds-api-key">apiKey</label>
-              <input type="password" id="odds-api-key" name="apiKey" maxlength="256" autocomplete="new-password" placeholder="<?= $oddsConfig['api_key'] !== '' ? 'Key saved — leave blank to keep it' : 'Enter The Odds API key' ?>">
-              <label><input type="checkbox" name="clear_api_key" value="1"> Remove saved key (disable Odds API first)</label>
-            </div>
-            <div class="form-row"><label for="odds-regions">regions</label><input id="odds-regions" name="regions" type="text" value="<?= h($oddsConfig['regions']) ?>" maxlength="1000" required><p>Comma-separated: us, us2, uk, au, eu.</p></div>
-            <p>Choose markets and arrange display fields in the <a href="/admin/odds-api/#iframe-editor">iframe editor</a>.</p>
-            <div class="form-row"><label for="odds-bookmakers">bookmakers (optional)</label><input id="odds-bookmakers" name="bookmakers" type="text" value="<?= h($oddsConfig['bookmakers']) ?>" maxlength="1000" placeholder="draftkings,fanduel"><p>Bookmaker keys, separated by commas. When supplied, these take priority over regions.</p></div>
-            <div class="actions"><button type="submit" name="action" value="save_odds_api" class="btn btn-primary btn-sm">Save Odds API Settings</button><a class="btn btn-secondary btn-sm" href="/admin/odds-api/">View sports and iframe</a></div>
-          </form>
+
           <form method="post" class="settings-card">
             <?= csrf_input() ?>
             <div class="form-row">

@@ -232,13 +232,68 @@ function blog_render_table_block(string $content): string
   return '<div class="blog-table-block"><table>' . $body . '</table></div>';
 }
 
+function blog_render_countdown_banner(array $options): string
+{
+    $title = trim((string)($options['title'] ?? 'Limited Time Offer'));
+    $target = trim((string)($options['target'] ?? ''));
+    $endText = trim((string)($options['end_text'] ?? 'This promotion has ended.'));
+    $link = trim((string)($options['link'] ?? ''));
+    $button = trim((string)($options['button'] ?? ''));
+    if ($target === '') {
+        return '';
+    }
+    $id = 'blog-countdown-' . bin2hex(random_bytes(4));
+    $escapedTitle = blog_h($title);
+    $escapedTarget = blog_h($target);
+    $escapedEndText = blog_h($endText);
+
+    $ctaHtml = '';
+    if ($link !== '') {
+        $btnLabel = $button !== '' ? blog_h($button) : 'Claim Now';
+        $btnUrl = str_starts_with($link, '/') ? public_url($link) : $link;
+        $ctaHtml = '<div class="blog-countdown-cta"><a class="blog-button-link" href="' . blog_h($btnUrl) . '" target="_blank" rel="noopener noreferrer">' . $btnLabel . '</a></div>';
+    }
+
+    $js = '(()=>{const r=document.getElementById(' . json_encode($id) . ');if(!r)return;const t=new Date(r.dataset.target).getTime();if(isNaN(t))return;const d=r.querySelector(".cd-d"),h=r.querySelector(".cd-h"),m=r.querySelector(".cd-m"),s=r.querySelector(".cd-s"),exp=r.querySelector(".blog-countdown-expired"),timer=r.querySelector(".blog-countdown-timer");function u(){const diff=t-Date.now();if(diff<=0){if(timer)timer.style.display="none";if(exp)exp.style.display="block";return;}const days=Math.floor(diff/86400000),hours=Math.floor((diff%86400000)/3600000),mins=Math.floor((diff%3600000)/60000),secs=Math.floor((diff%60000)/1000);if(d)d.textContent=String(days).padStart(2,"0");if(h)h.textContent=String(hours).padStart(2,"0");if(m)m.textContent=String(mins).padStart(2,"0");if(s)s.textContent=String(secs).padStart(2,"0");}u();setInterval(u,1000);})();';
+
+    return '<section id="' . blog_h($id) . '" class="blog-countdown-block blog-countdown-banner" data-target="' . $escapedTarget . '">'
+        . '<div class="blog-countdown-inner">'
+        . ($title !== '' ? '<p class="blog-countdown-title">' . $escapedTitle . '</p>' : '')
+        . '<div class="blog-countdown-timer">'
+        . '<div class="cd-box"><span class="cd-num cd-d">00</span><span class="cd-lbl">DAYS</span></div>'
+        . '<span class="cd-sep">:</span>'
+        . '<div class="cd-box"><span class="cd-num cd-h">00</span><span class="cd-lbl">HOURS</span></div>'
+        . '<span class="cd-sep">:</span>'
+        . '<div class="cd-box"><span class="cd-num cd-m">00</span><span class="cd-lbl">MINS</span></div>'
+        . '<span class="cd-sep">:</span>'
+        . '<div class="cd-box"><span class="cd-num cd-s">00</span><span class="cd-lbl">SECS</span></div>'
+        . '</div>'
+        . '<div class="blog-countdown-expired" style="display:none;"><p class="cd-expired-text">' . $escapedEndText . '</p></div>'
+        . $ctaHtml
+        . '</div>'
+        . '<script>' . $js . '</script>'
+        . '</section>';
+}
+
+function blog_render_countdown_block(string $content): string
+{
+    $options = blog_parse_block_options($content);
+    return blog_render_countdown_banner([
+        'title' => $options['title'] ?? $options['label'] ?? 'Limited Time Offer',
+        'target' => $options['target'] ?? $options['date'] ?? $options['time'] ?? '',
+        'end_text' => $options['end_text'] ?? $options['expired'] ?? 'This promotion has ended.',
+        'link' => $options['link'] ?? $options['url'] ?? '',
+        'button' => $options['button'] ?? $options['btn_text'] ?? '',
+    ]);
+}
+
 function blog_render_markdown(string $markdown): string
 {
   $markdown = str_replace(["\r\n", "\r"], "\n", $markdown);
   $rendered = [];
   $prefix = '@@BLOG_BLOCK_' . bin2hex(random_bytes(8)) . '_';
   // Extract once: marker-like text inside trusted custom code is not parsed as Markdown.
-  $markdown = preg_replace_callback('/^:::(button|table|custom-code|slot-demo|faq|quote)[ \t]*\n([\s\S]*?)^:::[ \t]*$/m', static function(array $match) use (&$rendered,$prefix): string {
+  $markdown = preg_replace_callback('/^:::(button|table|custom-code|slot-demo|faq|quote|countdown)[ \t]*\n([\s\S]*?)^:::[ \t]*$/m', static function(array $match) use (&$rendered,$prefix): string {
     $content = $match[2];
     $html = match ($match[1]) {
       'button' => blog_render_button_block($content),
@@ -247,6 +302,7 @@ function blog_render_markdown(string $markdown): string
       'slot-demo' => blog_render_slot_demo_block($content),
       'quote' => '<blockquote>' . blog_render_inline_markdown(blog_h(trim($content))) . '</blockquote>',
       'faq' => '<section class="blog-faq-block">' . implode('',array_map(static fn(array $item): string => '<details class="blog-faq-item"><summary>' . blog_render_inline_markdown(blog_h($item['question'])) . '</summary><p>' . blog_render_inline_markdown(blog_h($item['answer'])) . '</p></details>',blog_parse_faq_items($content))) . '</section>',
+      'countdown' => blog_render_countdown_block($content),
     };
     $token = $prefix . count($rendered) . '@@';
     $rendered[$token] = $html;
@@ -316,6 +372,39 @@ function blog_render_content(string $markdown): array
 function public_blog_payload(array $post): array
 {
     $rendered = blog_render_content($post['content']);
+    $contentHtml = $rendered['content_html'];
+    $countdown = null;
+    $countdownHtml = null;
+    if (!empty($post['countdown_enabled']) && !empty($post['countdown_target'])) {
+        $banner = blog_render_countdown_banner([
+            'title' => (string)($post['countdown_title'] ?? '') ?: 'Limited Time Offer',
+            'target' => (string)($post['countdown_target'] ?? ''),
+            'end_text' => (string)($post['countdown_end_text'] ?? '') ?: 'This promotion has ended.',
+        ]);
+        if ($banner !== '') {
+            $countdownHtml = $banner;
+            $countdown = [
+                'enabled' => true,
+                'target' => (string)($post['countdown_target'] ?? ''),
+                'title' => (string)($post['countdown_title'] ?? '') ?: 'Limited Time Offer',
+                'end_text' => (string)($post['countdown_end_text'] ?? '') ?: 'This promotion has ended.',
+                'html' => $banner,
+            ];
+        }
+    }
+    if (preg_match('/<section[^>]*class="[^"]*blog-countdown-block[^"]*"[^>]*>[\s\S]*?<\/section>/i', $contentHtml, $cdMatch)) {
+        if (!$countdownHtml) {
+            $countdownHtml = $cdMatch[0];
+            $countdown = [
+                'enabled' => true,
+                'target' => (string)($post['countdown_target'] ?? ''),
+                'title' => (string)($post['countdown_title'] ?? '') ?: 'Limited Time Offer',
+                'end_text' => (string)($post['countdown_end_text'] ?? '') ?: 'This promotion has ended.',
+                'html' => $countdownHtml,
+            ];
+        }
+        $contentHtml = str_replace($cdMatch[0], '', $contentHtml);
+    }
     $writer = $post['writer'] ?? ['name'=>$post['author'] ?: 'Editorial Team','role_name'=>'','profile_image'=>'','bio'=>'','socials'=>[]];
     return ['ok'=>true,'blog'=>[
         'title'=>$post['title'],'slug'=>$post['slug'],'category'=>$post['categoryHierarchy'] ?? null,'tags'=>blog_public_tags($post),
@@ -323,10 +412,12 @@ function public_blog_payload(array $post): array
         'writer'=>$writer,
         'about_author'=>$writer,
         'excerpt'=>$post['excerpt'],
-        'content_html'=>$rendered['content_html'],
+        'content_html'=>$contentHtml,
+        'countdown'=>$countdown,
+        'countdown_html'=>$countdownHtml,
         'featuredImage'=>public_detail_url($post['featuredImage']),
         'blogUrl'=>public_url('/blog/' . rawurlencode($post['slug']) . '/'),
         'publishedAt'=>$post['publishedAt'] ?? $post['scheduledAt'], 'updatedAt'=>$post['updatedAt'],
         'readTime'=>blog_read_minutes($post['content']),
-    ],'faq_schema'=>$rendered['faq_schema']];
+    ],'countdown'=>$countdown,'countdown_html'=>$countdownHtml,'faq_schema'=>$rendered['faq_schema']];
 }

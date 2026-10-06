@@ -13,11 +13,13 @@ $adminNavItems = [
     ['/admin/live-chat.php', 'Live Chat', str_ends_with($adminCurrentPath, '/admin/live-chat.php')],
     ['/admin/users.php', 'Users', str_ends_with($adminCurrentPath, '/admin/users.php')],
     ['/admin/index-checker/', 'Index Checker', str_starts_with($adminCurrentPath, '/admin/index-checker/')],
-    ['/admin/odds-api/', 'Odds API', str_starts_with($adminCurrentPath, '/admin/odds-api/')],
-    ['/admin/settings.php', 'Settings', (str_ends_with($adminCurrentPath, '/admin/settings.php') || str_starts_with($adminCurrentPath, '/admin/settings/'))],
+    ['/admin/settings.php', 'Settings', (str_ends_with($adminCurrentPath, '/admin/settings.php') || (str_starts_with($adminCurrentPath, '/admin/settings/') && !str_starts_with($adminCurrentPath, '/admin/plugin/odds-api/sports/')))],
     ['/admin/blog-publish.php', 'Publish Post', str_ends_with($adminCurrentPath, '/admin/blog-publish.php')],
     ['/blog/', 'View Blog Hub', false],
 ];
+if (is_dir(__DIR__ . '/../plugin/odds-api') && auth_can('admin')) {
+    array_splice($adminNavItems, -3, 0, [[ '/admin/plugin/odds-api/', 'Odds API', str_starts_with($adminCurrentPath, '/admin/plugin/odds-api/') ], [ '/admin/plugin/odds-api/settings.php', 'Odds API Settings', str_ends_with($adminCurrentPath, '/odds-api/settings.php') ]]);
+}
 if (($_SESSION['user']['role'] ?? '') === 'editor') {
     $adminNavItems = array_values(array_filter($adminNavItems,static fn(array $item): bool => in_array($item[1],['Blogs','Slots','Contacts','Live Chat'],true)));
     foreach ($adminNavItems as &$item) {
@@ -36,14 +38,14 @@ if (($_SESSION['user']['role'] ?? '') === 'editor') {
       <span class="badge-tag" style="background-color: var(--brand); color:#fff;"><?= h(strtoupper(str_replace('_',' ',$_SESSION['user']['role'] ?? 'admin'))) ?></span>
     </a>
     <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-      <?php if (auth_can('slots.view')): ?>
+      <?php if (is_dir(__DIR__ . '/../plugin/games') && auth_can('slots.view')): ?>
       <details class="games-nav" style="position:relative;">
-        <summary class="btn <?= str_starts_with($adminCurrentPath, '/admin/games/') ? 'btn-primary' : 'btn-secondary' ?> btn-sm">Games ▾</summary>
+        <summary class="btn <?= str_starts_with($adminCurrentPath, '/admin/plugin/games/') ? 'btn-primary' : 'btn-secondary' ?> btn-sm">Games ▾</summary>
         <div style="position:absolute;z-index:20;min-width:180px;padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);display:grid;gap:6px;">
-          <a class="btn btn-secondary btn-sm" href="/admin/games/">All Games</a>
+          <a class="btn btn-secondary btn-sm" href="/admin/plugin/games/">All Games</a>
           <?php if (auth_can('admin')): ?>
-          <a class="btn btn-secondary btn-sm" href="/admin/games/providers.php">Providers</a>
-          <a class="btn btn-secondary btn-sm" href="/admin/games/settings.php">Games Settings</a>
+          <a class="btn btn-secondary btn-sm" href="/admin/plugin/games/providers.php">Providers</a>
+          <a class="btn btn-secondary btn-sm" href="/admin/plugin/games/settings.php">Games Settings</a>
           <?php endif; ?>
         </div>
       </details>

@@ -13,6 +13,7 @@ function indexing_schema(PDO $pdo): void
 
 function indexing_reconcile(PDO $pdo, string $kind): int
 {
+    if ($kind === 'game' && !function_exists('games_storage_attach')) return 0;
     indexing_schema($pdo);
     $own = !$pdo->inTransaction();
     if ($own) $pdo->beginTransaction();
@@ -73,6 +74,7 @@ function indexing_google_events(PDO $pdo): void
 function indexing_google_sitemap_job(PDO $pdo): void
 {
     require_once __DIR__ . '/index-checker-client.php';
+    if (!function_exists('games_storage_attach')) return;
     require_once __DIR__ . '/../scripts/generate-game-sitemaps.php';
     $state=google_state();
     if (!empty($state['submission_pending'])) $pdo->prepare("INSERT OR IGNORE INTO indexing_jobs(name,version) VALUES('google-sitemap',?)")->execute([bin2hex(random_bytes(12))]);

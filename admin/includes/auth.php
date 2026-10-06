@@ -242,7 +242,7 @@ function require_post(): void
 
 function require_valid_csrf(): void
 {
-    $token = request_string('csrf_token', 128);
+    $token = request_string('csrf_token', 128) ?? (isset($_SERVER['HTTP_X_CSRF_TOKEN']) && is_string($_SERVER['HTTP_X_CSRF_TOKEN']) ? trim($_SERVER['HTTP_X_CSRF_TOKEN']) : null);
     if (csrf_validate($token)) {
         return;
     }

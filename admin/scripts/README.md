@@ -30,6 +30,37 @@ Use `--dry-run` when available before running data imports or enrichment on prod
 
 ## Script Reference
 
+### `generate-llms.php`
+
+Create or replace the public site-root `llms.txt` using the existing Ollama configuration. The script reads `sitemap.xml`; if no local file exists it uses local `sitemap-index.xml`, otherwise the configured site's `/sitemap.xml`. `--sitemap` explicitly selects a local XML file or an HTTP(S) sitemap URL. Sitemap indexes are followed recursively, duplicate URLs are removed, and only URLs on the configured site's origin are accepted. All sitemap URLs must be real absolute URLs: replace `[insert_domain_here]` and example/test hosts before a production run.
+
+```sh
+# Preview generated text without writing (still calls AI).
+php admin/scripts/generate-llms.php --base-url=https://your-domain.com --dry-run
+
+# Create/update www/llms.txt using the configured site and Ollama service.
+php admin/scripts/generate-llms.php
+
+# Explicit remote sitemap and optional model/output overrides.
+php admin/scripts/generate-llms.php --sitemap=https://your-domain.com/sitemap.xml --base-url=https://your-domain.com --model=gemma4:31b-cloud --max-pages=40 --output=/path/to/www/llms.txt
+```
+
+Options: `--sitemap=PATH_OR_URL`, `--base-url=URL`, `--output=PATH.txt`, `--model=NAME`, `--max-pages=N` (1–100, default 40), `--dry-run`, `--help`. Relative paths resolve from the current working directory. Requires PHP CLI with cURL, DOM/libxml and mbstring. No Games or Odds API plugin is required.
+
+Environment: `SITE_BASE_URL` (or stored SEO site URL), `OLLAMA_GENERATE_URL` (preferred over `OLLAMA_HOST` plus `/api/generate`), optional `OLLAMA_API_KEY`, and model priority `--model`, `LLMS_AI_MODEL`, `OLLAMA_MODEL`, then `gemma4:31b-cloud`. The normal `admin/.env` loader is reused. Local Ollama defaults to `http://127.0.0.1:11434`. The AI key is sent only to the configured AI endpoint, never to sitemap/page requests.
+
+The generator scans up to 100 sitemap documents and 50,000 unique URLs, then fetches up to `--max-pages` pages, prioritizing short, shallow paths. This is a curated overview, not a copy of every sitemap entry. It excludes admin/API/login routes, query/fragment URLs, and pages with HTML noindex directives. Public titles, descriptions and short body excerpts are sent to the configured AI service. Navigation, scripts and forms are stripped. Model-generated page IDs are validated against the supplied pages; URLs are assembled by the script. No page or sitemap PHP is executed locally: dynamic sitemaps are fetched over HTTP. Remote redirects are not followed; use canonical URLs returning HTTP 200.
+
+The generated Markdown uses the [llms.txt format](https://llmstxt.org/), with a site heading, summary and grouped links; AI generation uses the [Ollama generate API](https://docs.ollama.com/api/generate). Output replaces the file atomically only after successful fetching, generation and validation. Errors exit 1 and preserve any existing file; an empty/invalid sitemap does not erase it. An adjacent `.lock` file prevents overlapping write runs. `admin/llms.txt`, the existing legacy file, is not modified; the default output is `/llms.txt` at the public site root. No database writes occur.
+
+Optional daily cron (adjust PHP, paths and server timezone; scheduling is not installed automatically):
+
+```cron
+15 3 * * * /usr/bin/php /path/to/www/admin/scripts/generate-llms.php >> /path/to/private-storage/llms-generation.log 2>&1
+```
+
+Regression checks: `php admin/scripts/test-generate-llms.php`. Fixtures cover sitemap recursion/cycles, deduplication, private/noindex exclusions, HTML extraction, AI IDs/format, first creation, replacement, dry run, failed-generation preservation, locking and unsafe/malformed XML. Tests make no live AI requests.
+
 ### Continuous chat services
 
 See [Chat integration](../CHAT-INTEGRATION.md) for the complete deployment and frontend guide.
@@ -148,7 +179,7 @@ Environment variables:
 Refresh provider metadata and download thumbnails into `uploads/providers`:
 
 ```sh
-php admin/games/scripts/sync-providers.php
+php admin/plugin/games/scripts/sync-providers.php
 ```
 
 Uses the same token and API settings as `import-slotslaunch-providers.php`. Optional `--page=N` starts at that page and follows remaining pagination; `--url=...` overrides the provider API source. The Games module must be enabled. This is a CLI command, not a public HTTP write API.

@@ -121,8 +121,12 @@ function writer_validate_image(mixed $path): string
     $path = trim($path);
     if ($path === '') return '';
     if (!preg_match('~^/uploads/blogs/[a-f0-9]{32}\.(?:jpg|png|webp|avif)$~D',$path)) throw new InvalidArgumentException('Select an uploaded profile image.');
-    $root = realpath(__DIR__ . '/../uploads/blogs');
-    $file = realpath(dirname(__DIR__) . $path);
+    $rootAdmin = realpath(__DIR__ . '/../uploads/blogs');
+    $rootWeb = realpath(__DIR__ . '/../../uploads/blogs');
+    $fileAdmin = $rootAdmin ? realpath($rootAdmin . '/' . basename($path)) : false;
+    $fileWeb = $rootWeb ? realpath($rootWeb . '/' . basename($path)) : false;
+    $file = ($fileAdmin && is_file($fileAdmin)) ? $fileAdmin : (($fileWeb && is_file($fileWeb)) ? $fileWeb : false);
+    $root = ($file === $fileAdmin) ? $rootAdmin : $rootWeb;
     if (!$root || !$file || dirname($file) !== $root || !is_file($file) || filesize($file)>3*1024*1024) throw new InvalidArgumentException('Profile image is unavailable.');
     require_once __DIR__ . '/image-validation.php';
     $validation = validate_blog_image_file($file,pathinfo($file,PATHINFO_EXTENSION));
