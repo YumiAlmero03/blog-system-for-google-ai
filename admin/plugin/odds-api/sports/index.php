@@ -43,7 +43,7 @@ try {
 $title='Sport / Competition';require __DIR__ . '/../../../partials/support-head.php';
 ?>
 <link rel="stylesheet" href="/admin/plugin/odds-api/sports/editor.css"><link rel="stylesheet" href="/admin/plugin/odds-api/public/layout.css">
-<p><a href="/admin/plugin/odds-api/">Odds API</a> / Sport / Competition · <a href="?new=1">New layout</a> · <a href="/admin/plugin/odds-api/settings.php">Provider credentials</a></p>
+<p><a href="/admin/plugin/odds-api/">Odds API</a> / Sport / Competition · <a href="/admin/plugin/odds-api/registry/">Sports Registry</a> · <a href="?new=1">New layout</a> · <a href="/admin/plugin/odds-api/settings.php">Provider credentials</a></p>
 <?php if($error):?><p role="alert"><?=h($error)?></p><?php endif ?>
 <?php if(isset($_GET['saved'])):?><p role="status">Layout saved.</p><?php endif ?>
 <?php if(isset($_GET['duplicated'])):?><p role="status">Layout duplicated. The copy is switched off until you turn it on and save.</p><?php endif ?>
@@ -53,7 +53,7 @@ $title='Sport / Competition';require __DIR__ . '/../../../partials/support-head.
 <input type="hidden" name="layout_config" id="layout-json" value="<?=h(json_encode($config['layout_config'],JSON_THROW_ON_ERROR))?>">
 <input type="hidden" name="item_limit" id="item-limit-input" value="<?=(int)($config['item_limit']??2)?>">
 <div class="api-settings">
-<label>Name<input name="name" required maxlength="200" value="<?=h($config['title'])?>"></label>
+<label class="<?=empty($config['catalog_url']) ? 'api-field-span-2' : ''?>">Name<input name="name" required maxlength="200" value="<?=h($config['title'])?>"></label>
 <label><span>Sport <span style="color:#ef4444">*</span></span>
   <select name="sport" id="sport-select" required>
     <option value="" disabled <?=empty($config['sport'])?'selected':''?>>Select a sport…</option>
@@ -71,12 +71,45 @@ $title='Sport / Competition';require __DIR__ . '/../../../partials/support-head.
       </optgroup>
     <?php endforeach ?>
   </select>
+  <div id="sport-image-preview-wrap" style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+    <img id="sport-image-preview-img" src="" alt="Sport" style="width:32px;height:32px;border-radius:4px;object-fit:contain;background:#1e293b;border:1px solid #334155;display:none;">
+    <span id="sport-image-preview-label" style="font-size:0.75rem;color:#94a3b8;"></span>
+  </div>
 </label>
+<?php
+$registeredSportsList = sports_registry_get_all();
+foreach ($registeredSportsList as &$sp) {
+    $sp['image_url'] = $sp['image_path'] ?? '';
+}
+unset($sp);
+$registeredSportsMap = array_column($registeredSportsList, null, 'slug');
+foreach (tournament_get_all(null, true) as $tournament) {
+    $key = $tournament['odds_sport_key'];
+    $registeredSportsMap[$key] = ['name'=>$tournament['title'],'slug'=>$key,'image_url'=>sports_registry_resolve_sport_image($key, false)];
+}
+
+$registeredTeamsMap = [];
+try {
+    $allTeams = sports_registry_pdo()->query('SELECT id, sports_category_id AS sport_id, name, slug, NULL AS code, image_path, image_key FROM participants WHERE enabled = 1')->fetchAll();
+    foreach ($allTeams as $t) {
+        if (!empty($t['image_path'])) {
+            $u = $t['image_path'];
+            $registeredTeamsMap[$t['slug']] = $u;
+            $registeredTeamsMap[strtolower($t['name'])] = $u;
+            if (!empty($t['code'])) {
+                $registeredTeamsMap[strtoupper($t['code'])] = $u;
+            }
+        }
+    }
+} catch (Throwable) {}
+?>
+<script id="registered-sports-data" type="application/json"><?= json_encode($registeredSportsMap, JSON_UNESCAPED_SLASHES) ?></script>
+<script id="registered-teams-data" type="application/json"><?= json_encode($registeredTeamsMap, JSON_UNESCAPED_SLASHES) ?></script>
+<?php if($config['catalog_url']):?><label>Markets<input name="markets" value="<?=h($config['markets'])?>"></label><?php endif ?>
 <label class="api-url-field">API URL<input name="api_url" required maxlength="4096" value="<?=h($config['api_url'])?>" autocomplete="off" spellcheck="false"></label>
-<label>Root / data path<input name="root_path" value="<?=h($config['root_path'])?>" required></label>
 <label>Status<select name="enabled"><option value="0">Off</option><option value="1" <?=$config['enabled']?'selected':''?>>On</option></select></label>
 <label>Columns per row<select name="columns_per_row" id="columns-select"><?php for($i=1;$i<=4;$i++):?><option value="<?=$i?>" <?=$i==(int)$config['columns_per_row']?'selected':''?>><?=$i?></option><?php endfor ?></select></label>
-<?php if($config['catalog_url']):?><label>Markets<input name="markets" value="<?=h($config['markets'])?>"></label><?php endif ?>
+<label>Root / data path<input name="root_path" value="<?=h($config['root_path'])?>" required></label>
 </div>
 <div class="support-actions"><button type="button" id="load-api" class="btn btn-secondary">Test / Load API</button><button type="button" id="undo">Undo</button><button type="button" id="redo">Redo</button><button type="submit" class="btn btn-primary">Save layout</button></div>
 <p id="builder-status" role="status" aria-live="polite">Load an API to discover fields and preview your layout.</p>
@@ -84,7 +117,7 @@ $title='Sport / Competition';require __DIR__ . '/../../../partials/support-head.
 <!-- Wireframe Odds Layout Builder Window -->
 <div class="wireframe-window">
   <div class="wireframe-titlebar">
-    <h3>Window Title — Odds Layout Builder</h3>
+    <p class="wireframe-window-title">Window Title — Odds Layout Builder</p>
     <div class="wireframe-controls">
       <span class="wireframe-dot wireframe-dot-red" title="Close"></span>
       <span class="wireframe-dot wireframe-dot-yellow" title="Minimize"></span>
@@ -105,7 +138,10 @@ $title='Sport / Competition';require __DIR__ . '/../../../partials/support-head.
           <button type="button" class="component-btn" id="btn-add-text" draggable="true">📝 Text</button>
           <button type="button" class="component-btn" id="btn-add-button" draggable="true">🔘 Button</button>
           <button type="button" class="component-btn" id="btn-add-container" draggable="true">📦 Container</button>
-          <button type="button" class="component-btn" id="btn-add-image" draggable="true">🖼 Image</button>
+          <button type="button" class="component-btn" id="btn-add-image" draggable="true">🖼 Custom Image</button>
+          <button type="button" class="component-btn" id="btn-add-sport-img" draggable="true">🏀 Sport Image</button>
+          <button type="button" class="component-btn" id="btn-add-home-img" draggable="true">🏠 Home Team Logo</button>
+          <button type="button" class="component-btn" id="btn-add-away-img" draggable="true">✈️ Away Team Logo</button>
         </div>
       </div>
 
@@ -142,7 +178,7 @@ $title='Sport / Competition';require __DIR__ . '/../../../partials/support-head.
       <!-- Title Section -->
       <section class="canvas-section">
         <div class="canvas-section-header">
-          <h4 class="canvas-section-title">Title Section</h4>
+          <p class="canvas-section-title">Title Section</p>
           <span class="canvas-section-badge">Header / Static</span>
         </div>
         <div class="title-dropzone" id="title-section-canvas"></div>
@@ -151,7 +187,7 @@ $title='Sport / Competition';require __DIR__ . '/../../../partials/support-head.
       <!-- Loop section -->
       <section class="canvas-section">
         <div class="canvas-section-header">
-          <h4 class="canvas-section-title">Loop section</h4>
+          <p class="canvas-section-title">Loop section</p>
           <span class="canvas-section-badge">Event Card Template</span>
         </div>
 
@@ -166,14 +202,14 @@ $title='Sport / Competition';require __DIR__ . '/../../../partials/support-head.
 
       <!-- Inspector Panel for Selected Block -->
       <div class="wireframe-inspector" id="inspector-panel" hidden>
-        <h4>Block Settings</h4>
+        <p class="inspector-title">Block Settings</p>
         <div id="inspector-content"></div>
       </div>
 
       <!-- View section (Live Preview) -->
       <section class="canvas-section">
         <div class="canvas-section-header">
-          <h4 class="canvas-section-title">View section</h4>
+          <p class="canvas-section-title">View section</p>
           <span class="canvas-section-badge">Live Preview Output</span>
         </div>
         <div class="view-section-canvas" id="layout-preview"></div>

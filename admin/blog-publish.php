@@ -1524,6 +1524,11 @@ $writerOptions = writer_options();
     .yoast-check-list .dot.ok {
       background: #00a32a;
     }
+    .yoast-check-list .dot.neutral { background:#98a2b3; }
+    .yoast-highlight-check { display:block; margin-top:6px; }
+    .yoast-highlight-check[aria-pressed="true"] { outline:2px solid var(--brand); }
+    ::highlight(blog-readability) { background-color:#ffe08a; color:#271c00; text-decoration:underline #b45309; }
+    .yoast-analysis-icon.warn { background:#dba617; }
     .yoast-check-list .dot.warn {
       background: #dba617;
     }
@@ -1883,6 +1888,8 @@ $writerOptions = writer_options();
             </div>
             <div class="yoast-panel">
               <div class="yoast-accordion-title"><span><span id="readability-analysis-icon" class="yoast-analysis-icon ok">!</span>Readability analysis</span><span>&#8964;</span></div>
+              <button type="button" id="readability-highlight-toggle" class="btn btn-secondary btn-sm" aria-pressed="false" style="margin-top:12px;">Highlight readability issues</button>
+              <p id="readability-highlight-status" class="yoast-help" role="status" aria-live="polite">Highlighting is off.</p>
               <ul id="readability-check-list" class="yoast-check-list"></ul>
             </div>
           </div>
@@ -1891,6 +1898,7 @@ $writerOptions = writer_options();
     </form>
   </div>
 
+  <script src="/admin/yoast-analysis.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       let csrfToken = document.getElementById('csrf-token').value;
@@ -1999,6 +2007,10 @@ $writerOptions = writer_options();
       const readabilityAnalysisIcon = document.getElementById('readability-analysis-icon');
       const seoCheckList = document.getElementById('seo-check-list');
       const readabilityCheckList = document.getElementById('readability-check-list');
+      const readabilityHighlightToggle = document.getElementById('readability-highlight-toggle');
+      const readabilityHighlightStatus = document.getElementById('readability-highlight-status');
+      let readabilityHighlightMode = null;
+      let currentReadabilityChecks = [];
       const yoastBottomScore = document.getElementById('yoast-bottom-score');
       const saveState = document.querySelector('.wp-save-state');
       const hasLinkToolbox = linkToolbox && linkTextInput && linkUrlInput && linkNofollowInput && linkToolboxStatus && applyLinkBtn && cancelLinkBtn;
@@ -2311,7 +2323,7 @@ $writerOptions = writer_options();
       }
 
       function checkItem(label, state) {
-        const dotClass = state === 'good' ? 'ok' : (state === 'warn' ? 'warn' : '');
+        const dotClass = state === 'good' ? 'ok' : (state === 'warn' ? 'warn' : state === 'neutral' ? 'neutral' : '');
         return `<li><span class="dot ${dotClass}"></span><span>${escapeHtml(label)}</span></li>`;
       }
 
@@ -2333,52 +2345,77 @@ $writerOptions = writer_options();
         setClassName(seoMeterStatus, 'seo-meter-status ' + state.className);
         setText(seoMeterHelp, result.help);
         setText(yoastBottomScore, state.label + ' · ' + result.seoScore + '/100');
-        setClassName(seoAnalysisIcon, 'yoast-analysis-icon ' + (result.seoScore >= 80 ? 'ok' : ''));
-        setClassName(readabilityAnalysisIcon, 'yoast-analysis-icon ' + (result.readabilityScore >= 75 ? 'ok' : ''));
+        setClassName(seoAnalysisIcon, 'yoast-analysis-icon ' + (result.seoScore >= 80 ? 'ok' : result.seoScore >= 55 ? 'warn' : ''));
+        setClassName(readabilityAnalysisIcon, 'yoast-analysis-icon ' + (result.readabilityScore >= 75 ? 'ok' : result.readabilityScore >= 50 ? 'warn' : ''));
+        readabilityAnalysisIcon.title = 'Readability: ' + (result.readabilityScore >= 75 ? 'Good' : result.readabilityScore >= 50 ? 'OK' : 'Needs improvement');
         setHtml(seoCheckList, result.seoChecks.map((check) => checkItem(check.label, check.state)).join(''));
-        setHtml(readabilityCheckList, result.readabilityChecks.map((check) => checkItem(check.label, check.state)).join(''));
+        currentReadabilityChecks = result.readabilityChecks;
+        renderReadabilityChecks();
+        updateReadabilityHighlights();
       }
 
       function normalizeYoastScore(score) {
         if (typeof score !== 'number' || !Number.isFinite(score)) return 0;
-        return Math.max(0, Math.min(100, Math.round(score <= 10 ? score * 10 : score)));
-      }
-
-      function yoastCheckState(score) {
-        if (score >= 8 || score >= 80) return 'good';
-        if (score >= 5 || score >= 50) return 'warn';
-        return 'bad';
-      }
-
-      function getYoastResultValue(result, methodName, propertyName, fallback) {
-        if (!result) return fallback;
-        if (typeof result[methodName] === 'function') return result[methodName]();
-        return result[propertyName] ?? fallback;
+        return Math.max(0, Math.min(100, Math.round(score)));
       }
 
       function normalizeYoastChecks(results) {
-        if (!Array.isArray(results)) return [];
-        return results
-          .map((result) => {
-            const score = Number(getYoastResultValue(result, 'getScore', 'score', 0));
-            const rawText = getYoastResultValue(result, 'getText', 'text', '');
-            const label = String(rawText || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-            return {
-              label: label || 'Yoast assessment completed.',
-              state: yoastCheckState(score),
-            };
-          })
-          .filter((check) => check.label);
+        return window.BlogYoastAnalysis.checks(results);
       }
 
       function getYoastAssessorResults(assessor) {
-        if (!assessor) return [];
-        if (Array.isArray(assessor.results)) return assessor.results;
-        if (typeof assessor.getValidResults === 'function') return assessor.getValidResults();
-        if (typeof assessor.getAllResults === 'function') return assessor.getAllResults();
-        if (typeof assessor.getResults === 'function') return assessor.getResults();
-        return [];
+        return window.BlogYoastAnalysis.results(assessor);
       }
+
+      function renderReadabilityChecks() {
+        setHtml(readabilityCheckList, currentReadabilityChecks.map((check, index) => {
+          const item = checkItem(check.label, check.state);
+          if (!['bad', 'warn'].includes(check.state) || !check.passages?.length) return item;
+          const active = readabilityHighlightMode === 'all' || readabilityHighlightMode === check.id;
+          const button = `<button type="button" class="btn btn-secondary btn-sm yoast-highlight-check" data-readability-check="${index}" aria-pressed="${active}">${active ? 'Hide highlights' : 'Highlight passages'}</button>`;
+          return item.replace('</span></li>', button + '</span></li>');
+        }).join(''));
+      }
+
+      function updateReadabilityHighlights() {
+        window.CSS?.highlights?.delete('blog-readability');
+        readabilityHighlightToggle.setAttribute('aria-pressed', String(readabilityHighlightMode !== null));
+        readabilityHighlightToggle.textContent = readabilityHighlightMode === null ? 'Highlight readability issues' : 'Hide readability highlights';
+        if (readabilityHighlightMode === null) {
+          setText(readabilityHighlightStatus, 'Highlighting is off.');
+          return;
+        }
+        if (!window.CSS?.highlights || !window.Highlight) {
+          setText(readabilityHighlightStatus, 'This browser does not support text highlighting. The findings are listed below.');
+          return;
+        }
+        if (editorShell.classList.contains('editor-mode-markdown')) {
+          setText(readabilityHighlightStatus, 'Switch to Write, Preview or Split to see highlighted passages.');
+          return;
+        }
+        const root = editorShell.classList.contains('editor-mode-write') ? wysiwygEditor : markdownPreview;
+        const passages = currentReadabilityChecks.filter(check => ['bad', 'warn'].includes(check.state)
+          && (readabilityHighlightMode === 'all' || check.id === readabilityHighlightMode)).flatMap(check => check.passages || []);
+        const ranges = window.BlogYoastAnalysis.ranges(root, passages);
+        window.CSS.highlights.set('blog-readability', new Highlight(...ranges));
+        setText(readabilityHighlightStatus, ranges.length ? `${ranges.length} passage${ranges.length === 1 ? '' : 's'} highlighted. Highlights are not saved.`
+          : 'No matching passages to highlight. Some checks apply to the whole article.');
+      }
+
+      readabilityHighlightToggle.addEventListener('click', () => {
+        readabilityHighlightMode = readabilityHighlightMode === null ? 'all' : null;
+        renderReadabilityChecks();
+        updateReadabilityHighlights();
+      });
+      readabilityCheckList.addEventListener('click', event => {
+        const button = event.target.closest('[data-readability-check]');
+        if (!button) return;
+        const check = currentReadabilityChecks[Number(button.dataset.readabilityCheck)];
+        if (!check) return;
+        readabilityHighlightMode = readabilityHighlightMode === 'all' || readabilityHighlightMode === check.id ? null : check.id;
+        renderReadabilityChecks();
+        updateReadabilityHighlights();
+      });
 
       function getYoastOverallScore(assessor) {
         if (!assessor) return 0;
@@ -3127,6 +3164,7 @@ $writerOptions = writer_options();
       function renderMarkdownPreview() {
         const rendered = parseMarkdown(blogContent.value, true);
         markdownPreview.innerHTML = rendered || '<p style="color:var(--text-muted); font-style:italic;">Markdown preview will render here.</p>';
+        updateReadabilityHighlights();
       }
 
       function setEditorMode(mode) {
@@ -3149,6 +3187,7 @@ $writerOptions = writer_options();
         }
         closeLinkToolbox();
         closeTablePicker();
+        updateReadabilityHighlights();
         scheduleFloatingEditorTabs();
       }
 
@@ -4015,7 +4054,7 @@ $writerOptions = writer_options();
         }
         results.innerHTML = '<div class="editor-slot-demo-status">Searching...</div>';
         try {
-          const request = new URL('/api/slot-list.php', window.location.origin);
+          const request = new URL('/game-api/slot-list.php', window.location.origin);
           request.searchParams.set('search', cleanQuery);
           request.searchParams.set('count', '5');
           request.searchParams.set('published', '1');

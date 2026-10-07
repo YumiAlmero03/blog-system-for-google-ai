@@ -20,25 +20,27 @@ Whenever an API is added, changed, renamed, or removed, update **both [AGENT.md]
 
 ## Endpoint inventory
 
-| Endpoint | Methods | Access | Purpose |
-| --- | --- | --- | --- |
-| `/api/slot-list.php` | GET, POST | Public | Paginated eligible games of all supported types. |
-| `/api/provider-list.php` | GET | Public | Providers and eligible game counts. |
-| `/api/game.php` | GET | Public | One eligible game by slug. |
-| `/api/blog-post-list.php` | GET, POST | Public | Published blog list. |
-| `/api/blog-category-list.php` | GET, POST | Public | Blog category hierarchy and counts. |
-| `/api/blog.php` | GET | Public | Published blog detail and rendered content. |
-| `/api/blog-public-token.php` | GET, POST | Public | Short-lived public blog JWT. |
-| `/api/blog-engagement.php` | POST | Public | Record a view, like, or dislike. |
-| `/api/playnow-click.php` | POST | Public | Record a Play Now click. |
-| `/api/chat-session.php` | POST; GET for admin messages | Public transcript save; authenticated admin actions | Save transcripts, read messages, or reply. |
-| `/api/chat-auto-responses.php` | GET; POST for admin changes | Public suggestions; admin/super-user management | List up to five suggestions and manage unlimited automatic reply rules. |
-| `/api/customer-ticket.php` | POST | Public | Save a support ticket and attempt email delivery. |
-| `/api/settings/seo.php` | GET, POST | Public GET; admin/super-user POST | Read or update site SEO settings. |
+Response outputs below list the returned field names and nested structures. Every value uses `[...]` as a placeholder (including strings, numbers, booleans, arrays of scalar values, and nullable values); these are schema illustrations, not executable JSON. Arrays of objects show one item schema and can contain zero or more items. Nullable objects such as `category`, `parent`, `reply`, `countdown`, and `faq_schema` may be absent in value (`null`). Conditional response variants are listed separately. `<session-id>` denotes a dynamic object key. Unless otherwise noted, JSON errors use `{"ok": [...], "error": [...]}`; some unsupported-method responses have no body.
+
+| Endpoint | Methods | Access | Parameters | Response output | Purpose |
+| --- | --- | --- | --- | --- | --- |
+| `/game-api/slot-list.php` | GET, POST | Public | Optional: `count`, `page`, `random`, `search`, `provider`, `type`, `types`, `featured`, `progressive`, `upcoming`, `megaways`, `published`, `sort`. | `{"ok": [...], "slots": [{"id": [...], "apiId": [...], "name": [...], "slug": [...], "gameUrl": [...], "iframeUrl": [...], "thumbnail": [...], "shortDescription": [...], "longDescription": [...], "provider": {"name": [...], "slug": [...]}, "type": {"name": [...], "slug": [...]}, "themes": [...], "rtp": [...], "volatility": [...], "featured": [...], "progressive": [...], "published": [...], "upcoming": [...], "release": [...], "paylines": [...], "minBet": [...], "maxBet": [...], "maxWinPerSpin": [...], "updatedAt": [...]}], "pagination": {"total": [...], "count": [...], "page": [...], "totalPages": [...]}, "filters": {"search": [...], "provider": [...], "types": [...], "featured": [...], "progressive": [...], "megaways": [...], "upcoming": [...], "published": [...], "sort": [...], "random": [...]}}` | Paginated eligible games of all supported types. |
+| `/game-api/provider-list.php` | GET | Public | Optional: `count` or `limit`; `sample` or `dev`. | `{"ok": [...], "providers": [{"id": [...], "apiId": [...], "name": [...], "slug": [...], "thumbnail": [...], "gameCount": [...], "updatedAt": [...]}], "total": [...], "count": [...], "limit": [...], "sample": [...]}` | Providers and eligible game counts. |
+| `/game-api/game.php` | GET | Public | Required: `slug`. | `{"ok": [...], "game": {"id": [...], "apiId": [...], "name": [...], "slug": [...], "gameUrl": [...], "iframeUrl": [...], "thumbnail": [...], "shortDescription": [...], "longDescription": [...], "provider": {"name": [...], "slug": [...]}, "type": {"name": [...], "slug": [...]}, "themes": [...], "rtp": [...], "volatility": [...], "featured": [...], "progressive": [...], "published": [...], "upcoming": [...], "release": [...], "paylines": [...], "minBet": [...], "maxBet": [...], "maxWinPerSpin": [...], "updatedAt": [...]}}` | One eligible game by slug. |
+| `/api/blog-post-list.php` | GET, POST | Public | Optional: `count`, `page`, `category`. | `{"ok": [...], "blogs": [{"id": [...], "slug": [...], "title": [...], "writer": {"name": [...], "role_name": [...], "profile_image": [...]}, "seoTitle": [...], "category": {"name": [...], "slug": [...], "parent_name": [...]}, "tags": [{"name": [...], "slug": [...]}], "author": [...], "excerpt": [...], "featuredImage": [...], "status": [...], "date": [...], "publishedAt": [...], "scheduledAt": [...], "isPublic": [...], "createdAt": [...], "updatedAt": [...], "views": [...], "likes": [...], "dislikes": [...], "readTime": [...]}], "pagination": {"total": [...], "count": [...], "page": [...], "category": [...], "totalPages": [...]}}` | Published blog list. |
+| `/api/blog-category-list.php` | GET, POST | Public | None. | `{"ok": [...], "categories": [{"id": [...], "name": [...], "slug": [...], "parent_id": [...], "parent_name": [...], "description": [...], "postCount": [...]}], "total": [...]}` | Blog category hierarchy and counts. |
+| `/api/blog.php` | GET | Public | Required: `slug`. | `{"ok": [...], "blog": {"title": [...], "slug": [...], "category": {"name": [...], "slug": [...], "parent": {"name": [...], "slug": [...]}}, "tags": [{"name": [...], "slug": [...]}], "author": [...], "writer": {"name": [...], "role_name": [...], "profile_image": [...], "bio": [...], "socials": [{"platform": [...], "url": [...], "label": [...]}]}, "about_author": {"name": [...], "role_name": [...], "profile_image": [...], "bio": [...], "socials": [{"platform": [...], "url": [...], "label": [...]}]}, "excerpt": [...], "content_html": [...], "countdown": {"enabled": [...], "target": [...], "title": [...], "end_text": [...], "html": [...]}, "countdown_html": [...], "featuredImage": [...], "blogUrl": [...], "publishedAt": [...], "updatedAt": [...], "readTime": [...]}, "countdown": {"enabled": [...], "target": [...], "title": [...], "end_text": [...], "html": [...]}, "countdown_html": [...], "faq_schema": {"@context": [...], "@type": [...], "mainEntity": [{"@type": [...], "name": [...], "acceptedAnswer": {"@type": [...], "text": [...]}}]}}` | Published blog detail and rendered content. |
+| `/api/blog-public-token.php` | GET, POST | Public | None. | `{"ok": [...], "token": [...], "expiresIn": [...]}` | Short-lived public blog JWT. |
+| `/api/blog-engagement.php` | POST | Public | Required: `postId`, `action` (`view`, `like`, `dislike`). | `{"ok": [...], "ignored": [...], "counts": {"views": [...], "likes": [...], "dislikes": [...]}}`<br>Error: `{"ok": [...], "error": [...], "counts": {"views": [...], "likes": [...], "dislikes": [...]}}`; storage errors omit `counts`. | Record a view, like, or dislike. |
+| `/api/playnow-click.php` | POST | Public | Optional: `pageUrl`, `pagePath`, `pageTitle`, `referrer`, `targetUrl`, `buttonText`, `buttonClass`, `buttonId`, `buttonTag`, `buttonName`, `section`, `selector`, `location`, `x`, `y`. | `{"ok": [...], "totalClicks": [...], "locationClicks": [...]}` | Record a Play Now click. |
+| `/api/chat-session.php` | POST; GET for admin messages | Public transcript save; authenticated admin actions | Legacy save: required `messages[].text`; optional `name`, `contact`, `page_url`, `session_id`, `messages[].sender`, `messages[].time`, `messages[].type`. Realtime: `action`, plus action-specific `session_id`, `session_token`, `message`, `client_message_id`, `client_id`, `online`, `version`; see [chat contract](CHAT-INTEGRATION.md#http-contract). Admin: `admin_action`, action-specific `session_id`, `session_ids[]`, `message`, `client_id`, `online`, `version`; POST requires `csrf_token`. | Legacy save: `{"ok": [...], "sessionId": [...], "path": [...], "messageCount": [...], "reply": {"sender": [...], "text": [...], "time": [...], "type": [...], "autoReplyId": [...], "ruleId": [...]}}`<br>Realtime: `{"ok": [...], "sessionId": [...], "revision": [...], "messages": [{"sender": [...], "text": [...], "time": [...], "type": [...], "id": [...], "name": [...], "clientMessageId": [...], "adminReplyId": [...], "autoReplyId": [...], "ruleId": [...]}], "status": {"agentOnline": [...], "playerOnline": [...], "waitingSince": [...], "aiPending": [...], "aiEnabled": [...], "supportName": [...]}, "version": [...]}`<br>Start additionally returns `{"sessionToken": [...]}`. Unchanged poll additionally returns `{"unchanged": [...]}` and an empty `messages` array.<br>Admin messages: `{"ok": [...], "version": [...], "unchanged": [...], "playerOnline": [...], "messages": [{"sender": [...], "text": [...], "time": [...], "type": [...], "id": [...], "name": [...], "clientMessageId": [...], "adminReplyId": [...], "autoReplyId": [...], "ruleId": [...]}]}`<br>Admin reply: `{"ok": [...]}`<br>Admin presence: `{"ok": [...], "agentOnline": [...]}`<br>Player presence: `{"ok": [...], "players": {"<session-id>": [...]}}`. Message IDs, `name`, `clientMessageId`, `adminReplyId`, `autoReplyId`, and `ruleId` are conditional on sender/message type. | Save transcripts, read messages, or reply. |
+| `/api/chat-auto-responses.php` | GET; POST for admin changes | Public suggestions; admin/super-user management | Public GET: none. Admin GET: `admin_action=list`. Admin POST: `admin_action` (`save` or `delete`), `csrf_token`; save requires `label`, `keywords`, `response`, with optional `id`, `enabled`, `suggested`; delete requires `id`. | Public GET: `{"ok": [...], "suggestions": [{"id": [...], "label": [...], "message": [...]}]}`<br>Admin list/save/delete: `{"ok": [...], "rules": [{"id": [...], "label": [...], "response": [...], "keywords": [...], "suggested": [...], "enabled": [...]}]}` | List up to five suggestions and manage unlimited automatic reply rules. |
+| `/api/customer-ticket.php` | POST | Public | Required: `full_name`, `contact`, `topic`, `problem`. Optional: `page_url`. | Delivered: `{"ok": [...], "emailSent": [...], "mailer": [...]}`<br>Delivery unavailable: `{"ok": [...], "emailSent": [...], "warning": [...]}` | Save a support ticket and attempt email delivery. |
+| `/api/settings/seo.php` | GET, POST | Public GET; admin/super-user POST | GET: none. POST: required `csrf_token`; settings fields: `website_name`, `website_url`, `google_analytics_id`, `google_search_console_verification`, `default_seo_title`, `default_meta_description`, `default_og_image`. | GET: `{"ok": [...], "settings": {"website_name": [...], "website_url": [...], "google_analytics_id": [...], "google_search_console_verification": [...], "default_seo_title": [...], "default_meta_description": [...], "default_og_image": [...], "indexnow_enabled": [...], "indexnow_configured": [...], "indexnow_key_location": [...], "indexnow_status": [...]}}`<br>POST: `{"ok": [...], "settings": {"website_name": [...], "website_url": [...], "google_analytics_id": [...], "google_search_console_verification": [...], "default_seo_title": [...], "default_meta_description": [...], "default_og_image": [...], "indexnow_enabled": [...], "indexnow_configured": [...], "indexnow_key_location": [...], "indexnow_status": [...]}, "csrfToken": [...]}` | Read or update site SEO settings. |
 
 ## Games
 
-Game API implementations live under `admin/plugin/games/api/`; continue using the stable `/api/` URLs above. Game data lives in `APP_STORAGE_DIR/games.sqlite`, defaulting to `admin/storage/games.sqlite`.
+Game API implementations live under `game-api/`; use the `/game-api/` URLs above (the previous `/api/` paths remain compatible). Game data lives in `APP_STORAGE_DIR/games.sqlite`, defaulting to `admin/storage/games.sqlite`.
 
 Public games require the Games module to be enabled, `published=1`, `done_processing=1`, `is_viewable=1`, an approved provider, a valid public slug, and no exact PH/PHILIPPINES restriction. Filters cannot bypass these rules.
 
@@ -46,7 +48,7 @@ Disabling **Games → Games Settings** makes game/provider lists empty and game 
 
 ### Game list
 
-`GET` or form `POST /api/slot-list.php`
+`GET` or form `POST /game-api/slot-list.php`
 
 | Field | Meaning |
 | --- | --- |
@@ -63,11 +65,11 @@ Disabling **Games → Games Settings** makes game/provider lists empty and game 
 
 Returns `ok`, `slots`, `pagination` (`total`, `count`, `page`, `totalPages`), and `filters`. Each game includes identity, URLs, descriptions, provider/type objects, themes, statistics, flags, bet limits, paylines, and update time. Local list thumbnails use `/uploads/games/...`; resolve these against the API site's origin if your frontend is hosted elsewhere. Cache TTL: 60 seconds; `X-API-Cache` indicates HIT or MISS.
 
-Random examples: `/api/slot-list.php?random=1` returns one random game by default; `/api/slot-list.php?random=1&count=5` returns up to five. Random mode preserves all eligibility and search/provider/type filters, selects without replacement within one response, ignores `page` and `sort`, and returns `filters.random=true` with `filters.sort="random"`. The response keeps the usual `slots` array and pagination structure; `page` and `totalPages` are 1, while `total` is the number of matching eligible games. Empty matches return `slots: []`. Results can repeat across requests. Random requests bypass the file cache and send `Cache-Control: no-store` and `X-API-Cache: BYPASS`. Normal listing defaults and caching remain unchanged. The flag also works with form POST.
+Random examples: `/game-api/slot-list.php?random=1` returns one random game by default; `/game-api/slot-list.php?random=1&count=5` returns up to five. Random mode preserves all eligibility and search/provider/type filters, selects without replacement within one response, ignores `page` and `sort`, and returns `filters.random=true` with `filters.sort="random"`. The response keeps the usual `slots` array and pagination structure; `page` and `totalPages` are 1, while `total` is the number of matching eligible games. Empty matches return `slots: []`. Results can repeat across requests. Random requests bypass the file cache and send `Cache-Control: no-store` and `X-API-Cache: BYPASS`. Normal listing defaults and caching remain unchanged. The flag also works with form POST.
 
 ### Providers
 
-`GET /api/provider-list.php`
+`GET /game-api/provider-list.php`
 
 Optional `count` or `limit`: 1–1000. `sample` or `dev` enables sample rows when Games is enabled. Returns `ok`, `providers`, `total`, `count`, `limit`, and `sample`. Provider records include ID/slug, API ID, name, thumbnail, eligible game count, and update time. Cache TTL: 300 seconds.
 
@@ -81,7 +83,7 @@ Run `php admin/plugin/games/scripts/sync-providers.php` to refresh provider meta
 
 ### Game detail
 
-`GET /api/game.php?slug=example-game`
+`GET /game-api/game.php?slug=example-game`
 
 Returns `{"ok":true,"game":{...}}` using the shared game fields. Detail page, iframe, and thumbnail URLs are formatted as absolute URLs using site configuration. Invalid, hidden, unfinished, restricted, or disabled games return 404. Response is not cached.
 
@@ -246,9 +248,9 @@ Other authenticated admin page/form flows are described in [AGENT.md](AGENT.md).
 ## Read examples
 
 ```sh
-curl 'http://localhost:8082/api/slot-list.php?count=20&page=1'
-curl 'http://localhost:8082/api/game.php?slug=starlight-princess'
-curl 'http://localhost:8082/api/provider-list.php?count=20'
+curl 'http://localhost:8082/game-api/slot-list.php?count=20&page=1'
+curl 'http://localhost:8082/game-api/game.php?slug=starlight-princess'
+curl 'http://localhost:8082/game-api/provider-list.php?count=20'
 curl 'http://localhost:8082/api/blog-post-list.php?count=10&page=1'
 curl 'http://localhost:8082/api/blog-category-list.php'
 curl 'http://localhost:8082/api/settings/seo.php'
@@ -258,7 +260,7 @@ curl 'http://localhost:8082/api/settings/seo.php'
 
 ## Game player counter
 
-`POST /api/game-play.php` accepts JSON or form fields. Call when the user starts the game demo, not when loading cards or reading game details. No authentication is required. Counts represent unique browsers per game since deployment, not verified people, concurrent players, bets, or historical activity. Reusing the same visitor ID is idempotent; clearing browser storage or using a different device creates another visitor. Client-reported analytics can be manipulated.
+`POST /game-api/game-play.php` accepts JSON or form fields. Call when the user starts the game demo, not when loading cards or reading game details. No authentication is required. Counts represent unique browsers per game since deployment, not verified people, concurrent players, bets, or historical activity. Reusing the same visitor ID is idempotent; clearing browser storage or using a different device creates another visitor. Client-reported analytics can be manipulated.
 
 | Parameter | Required | Default | Meaning |
 | --- | --- | --- | --- |
@@ -276,7 +278,7 @@ try {
     visitor = crypto.randomUUID();
     localStorage.setItem('game-visitor-id', visitor);
   }
-  fetch('/api/game-play.php', {
+  fetch('/game-api/game-play.php', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({slug: game.slug, visitor_id: visitor}),
@@ -299,12 +301,28 @@ Chat message formatting: `POST /api/chat-session.php` preserves internal spaces,
 - Generic fetching validates public HTTP(S) URLs/ports80/443, DNS addresses and pinned resolution; blocks private/reserved networks, redirects and proxies; verifies TLS; caps response2MB with connect5s/transfer15s timeouts. Hashed source cache uses300s successes/60s failures and locked fills; expired entries purge during fetch. Logs contain only a source hash. Discovery unions up to100 sampled items/array, max500 paths/depth12. Projection caps200 root records,100 items/loop and20000 blocks. Missing optional values skip safely; zero/false survive.
 - Migrated Odds layouts retain saved provider URL/catalogue templates and sport metadata; provider Settings still accepts `action=save_odds_api`, `enabled`, `apiKey` (blank retains), `regions`, `bookmakers`, optional `clear_api_key=1` (requires disabled). Both global and per-layout switches gate migrated public output. Markets remain per layout. Saved `{apiKey}` expansion is restricted to the provider host.
 - Compatibility: public GET `/api/odds-api.php?action=sports|odds&iframe=N&sport=KEY` keeps its legacy `{ok,enabled,data,updatedAt,layout}` raw feed and legacy block snapshot for existing integrations; the generic builder/iframe use `/api/sports-layout.php`. Legacy feed caches remain sports3600s/odds300s/failures60s. Do not use the legacy feed as the generic layout API.
-- Guide: [Sport / Competition layouts](settings/sports/README.md). Tests: `php admin/scripts/test-sports-api.php`, `php admin/scripts/test-odds-api.php`.
+- Guide: [Sport / Competition layouts](plugin/odds-api/sports/README.md). Tests: `php admin/scripts/test-sports-api.php`, `php admin/scripts/test-odds-api.php`.
 
 ### Optional plugins
 
 Games lives in `admin/plugin/games/`; Odds API (provider settings, API services, sports editor, saved-layout storage helper and public renderer) lives in `admin/plugin/odds-api/`. Both appear in the admin header only when installed. Provider credentials are managed at `/admin/plugin/odds-api/settings.php` (GET/POST, admin/super-user, CSRF on POST; existing enabled/apiKey/clear_api_key/regions/bookmakers fields). General Settings no longer loads either plugin's settings.
 
-Public API methods, inputs and payloads remain unchanged: game list/detail/provider APIs and POST `/api/game-play.php` delegate to the Games plugin; GET `/api/odds-api.php` and GET `/api/sports-layout.php` delegate to Odds API. Missing plugins return JSON 404 `Plugin unavailable.` at these public adapters. Existing `/odds-api/?iframe=N` embeds remain supported. Apache rewrites retain old `/admin/games/`, `/admin/odds-api/`, `/admin/settings/sports/` and `/admin/sports-livescore/` bookmarks and old public asset URLs. Plugin includes/scripts and Markdown documentation remain blocked over HTTP.
+Public API methods, inputs and payloads remain unchanged: game list/detail/provider APIs and POST `/game-api/game-play.php` delegate to the Games plugin; GET `/api/odds-api.php` and GET `/api/sports-layout.php` delegate to Odds API. Missing plugins return JSON 404 `Plugin unavailable.` at these public adapters. Existing `/odds-api/?iframe=N` embeds remain supported. Apache rewrites retain old `/admin/games/`, `/admin/odds-api/`, `/admin/settings/sports/` and `/admin/sports-livescore/` bookmarks and old public asset URLs. Plugin includes/scripts and Markdown documentation remain blocked over HTTP.
 
 Remove the corresponding plugin folder to uninstall its code; stop its scheduled jobs first. Databases stay in the existing shared storage directory (or `APP_STORAGE_DIR`) for reinstall/backup. No flags, tables, migrations or stored records are added or deleted by this reorganization. Main blog/settings bootstrap and indexing tolerate an absent Games plugin. See [plugin guide](/admin/plugin/README.md).
+
+- Blog image links: public `GET /api/blog.php?slug=...` preserves linked images in `blog.content_html` as `<a href="..."><img ...></a>`, including `rel="noopener noreferrer nofollow"` when the saved Markdown link has `{nofollow}`. Root-relative and absolute HTTP(S) image URLs are supported; relative image/link URLs become absolute as usual. Images without links stay unlinked and follow links do not acquire nofollow. Image attributes are protected from subsequent Markdown formatting; unsafe URL schemes remain unsupported. Methods, permissions, response keys and stored data are unchanged. Regression: `php admin/scripts/test-public-details.php` exercises the API output.
+
+### Root Games API folder
+
+The four public game endpoints now live in root `game-api/`: GET/form POST `slot-list.php`, GET `provider-list.php`, GET `game.php`, and POST `game-play.php`. Inputs, JSON outputs, public eligibility, rate limits and access permissions are unchanged. `/api/slot-list.php`, `/api/provider-list.php`, `/api/game.php` and `/api/game-play.php` are compatibility wrappers; POST bodies and query parameters pass through without HTTP redirects. The API depends on the Games plugin for its catalogue/helpers and returns JSON 404 `Plugin unavailable.` if the plugin is removed. No flags, tables or stored records change.
+
+### Sports image enrichment
+
+- Admin/super-user GET `/admin/plugin/odds-api/registry/images.php?tournament=ID` shows previews, source/attribution records and unresolved matches. Authenticated form POST requires CSRF, `action=preview|enrich`, optional `retry=1`; each batch considers up to five missing images and returns HTML results. Sources: SportsDataverse followed by Wikidata P154 / Commons; no provider key required. Manual and existing images are preserved.
+- CLI: `php admin/plugin/odds-api/scripts/enrich-sports-images.php [--tournament=ID_OR_ODDS_KEY] [--limit=5] [--dry-run] [--retry]`. HTTP access to scripts remains blocked. Tests: `php admin/plugin/odds-api/scripts/test-sports-images.php`.
+- New `sports_image_assets` table in `sports-registry.sqlite` stores status, source and attribution; participant image paths update existing tables. Images live at `/uploads/sports/`. Saved tournament logos take precedence over category fallback in existing iframe image resolution; public JSON fields are unchanged.
+- Public GET `/odds-api/?credits=1&credits_page=1` returns HTML image attribution, 50 entries/page, with source/license links and no credentials. The iframe links to it. See [Odds API image guide](plugin/odds-api/README.md#free-sports-images).
+
+- Daily image runner: `admin/plugin/odds-api/scripts/daily-sports-images.php` (CLI-only), flags `--tournament`, `--max-items=1000`, `--max-seconds=1800`, `--batch-size=25`, `--pause-ms=1000`. Exclusive storage lock and private rotating log; no scheduler is installed automatically. Uses existing image tables and preserves manual/existing logos. See the [aaPanel job guide](plugin/odds-api/README.md#dailybackground-image-job-aapanel).
+- Iframe image fix: existing `/api/sports-layout.php` image blocks now return same-origin local registry paths so a placeholder or different canonical site URL cannot prevent rendering. Missing registry images return an empty URL rather than a team/sport name. The editor uses the primary participant registry and saved tournament logos; iframe CSP permits HTTPS custom images. No new response fields/tables. Tests: `test-sports-images.php`, `test-sports-images-daily.php` and `test-iframe-images.cjs` under the Odds API plugin's scripts folder.

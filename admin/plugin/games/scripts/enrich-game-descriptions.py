@@ -125,6 +125,10 @@ def default_model() -> str:
     return models[0] if models else "qwen3.5:9b"
 
 
+class OllamaSearchRateLimitError(RuntimeError):
+    """Stop the entire enrichment run when web search is rate-limited."""
+
+
 def ollama_search_reference(game: sqlite3.Row, timeout: int, retries: int) -> str:
     api_key = env_value('OLLAMA_API_KEY')
     if not api_key:
@@ -152,7 +156,9 @@ def ollama_search_reference(game: sqlite3.Row, timeout: int, retries: int) -> st
             print(f'Ollama search: {len(results)} source(s) for {game["slug"]}.')
             return json.dumps(results, ensure_ascii=False)
         except urllib.error.HTTPError as exc:
-            if exc.code not in (429, 500, 502, 503, 504) or attempt == retries:
+            if exc.code == 429:
+                raise OllamaSearchRateLimitError('Ollama web search failed (HTTP 429).') from None
+            if exc.code not in (500, 502, 503, 504) or attempt == retries:
                 raise RuntimeError(f'Ollama web search failed (HTTP {exc.code}).') from None
         except (urllib.error.URLError, TimeoutError, ValueError):
             if attempt == retries:
@@ -628,6 +634,8 @@ def process_batch(conn: sqlite3.Connection, args: argparse.Namespace, attempt: i
                 set_rewrite_status(conn, game_id, "failed")
             log_error(f"game enrichment attempt={attempt}", exc, game)
             print(f"Game {game_id} {game['name']} attempt {attempt} failed: {exc}", file=sys.stderr)
+            if isinstance(exc, OllamaSearchRateLimitError):
+                raise
             continue
 
         if args.dry_run:

@@ -6,7 +6,7 @@ $temp = sys_get_temp_dir() . '/plugin-removal-' . bin2hex(random_bytes(6));
 mkdir($temp, 0700);
 try {
     // Copy only PHP source into an isolated installation with neither plugin.
-    foreach (['admin/includes', 'admin/partials', 'api'] as $directory) {
+    foreach (['admin/includes', 'admin/partials', 'api', 'game-api'] as $directory) {
         foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root . '/' . $directory, FilesystemIterator::SKIP_DOTS)) as $file) {
             if ($file->getExtension() !== 'php') continue;
             $relative = substr($file->getPathname(), strlen($root) + 1);
@@ -43,7 +43,15 @@ CODE;
         $json = json_decode(implode("\n", $output), true);
         if ($code !== 0 || ($json['error'] ?? '') !== 'Plugin unavailable.') throw new RuntimeException('Missing plugin response: ' . $endpoint);
     }
-    echo "PASS: absent plugins preserve blog bootstrap/details/indexing; six public adapters return JSON 404.\n";
+    foreach (['game','game-play','slot-list','provider-list'] as $endpoint) {
+        $entry=$temp.'/game-api/'.$endpoint.'.php';
+        $codeText='register_shutdown_function(function(){if(http_response_code()!==404)exit(2);});require '.var_export($entry,true).';';
+        $output=[]; $code=0;
+        exec(escapeshellarg(PHP_BINARY).' -r '.escapeshellarg($codeText).' 2>&1',$output,$code);
+        $json=json_decode(implode("\n",$output),true);
+        if($code!==0 || ($json['error']??'')!=='Plugin unavailable.') throw new RuntimeException('Missing plugin canonical API: '.$endpoint);
+    }
+    echo "PASS: absent plugins preserve blog bootstrap/details/indexing; legacy and root game-api endpoints return JSON 404.\n";
 } finally {
     foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($temp, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST) as $file) {
         if ($file->isDir()) rmdir($file->getPathname()); else unlink($file->getPathname());

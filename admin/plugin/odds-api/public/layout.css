@@ -60,13 +60,79 @@
 /* Title Section */
 header.api-title-section,
 .api-title-section {
-  display: block;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 24px;
   margin-bottom: 16px;
-  padding: 12px 18px;
+  padding: 14px 20px;
   background: linear-gradient(135deg, rgba(20, 8, 4, 0.8), rgba(34, 12, 17, 0.8));
   border: 1px solid rgba(245, 158, 11, 0.3) !important;
   border-radius: 12px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  min-width: 0;
+}
+
+#iframe-title-section,
+.api-title-section {
+  min-width: 0;
+}
+
+#iframe-title-section {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+}
+
+#iframe-title-section .api-field,
+#iframe-title-section .api-text,
+.api-title-section .api-field,
+.api-title-section .api-text {
+  margin: 0;
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+#iframe-title-section .api-field.api-role-title .api-value,
+#iframe-title-section .api-text.api-role-title,
+.api-title-section .api-field.api-role-title .api-value,
+.api-title-section .api-text.api-role-title {
+  font-size: 1.45rem;
+  font-weight: 900;
+  margin: 0;
+  letter-spacing: -0.4px;
+  background: linear-gradient(90deg, #fbbf24, #f59e0b, #f87171);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  line-height: 1.2;
+}
+
+#iframe-title-section .api-label,
+.api-title-section .api-label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #fbbf24;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+  line-height: 1;
+}
+
+#iframe-title-section .api-value,
+.api-title-section .api-value {
+  margin: 0;
+  line-height: 1.2;
+}
+
+#iframe-title-section .api-container,
+.api-title-section .api-container {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px 18px;
 }
 
 .api-layout-root {

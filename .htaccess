@@ -9,7 +9,14 @@ Options -Indexes
     RewriteRule ^admin/plugin/.*\.md$ - [F,L]
     RewriteRule ^admin/games/(.*)$ admin/plugin/games/$1 [L,QSA]
     RewriteRule ^admin/odds-api/(.*)$ admin/plugin/odds-api/$1 [L,QSA]
-    RewriteRule ^admin/settings/sports/(.*)$ admin/plugin/odds-api/sports/$1 [L,QSA]
+    # Preserve existing registry bookmarks and POST bodies after the plugin move.
+    RewriteRule ^admin/settings/sports(?:/(.*))?$ /admin/plugin/odds-api/registry/$1 [R=307,L]
+    RewriteRule ^admin/plugin/odds-api/registry/([A-Za-z0-9_-]+)/registration/?$ admin/plugin/odds-api/registry/registration.php?sport=$1 [L,QSA]
+    RewriteRule ^admin/plugin/odds-api/registry/([A-Za-z0-9_-]+)/teams/?$ admin/plugin/odds-api/registry/teams.php?sport=$1 [L,QSA]
+    RewriteRule ^admin/plugin/odds-api/registry/([A-Za-z0-9_-]+)/teams/([0-9]+)/?$ admin/plugin/odds-api/registry/team-edit.php?sport=$1&id=$2 [L,QSA]
+    RewriteRule ^admin/plugin/odds-api/registry/tournaments/([0-9]+)/edit/?$ admin/plugin/odds-api/registry/tournament-edit.php?id=$1 [L,QSA]
+    RewriteRule ^admin/plugin/odds-api/registry/tournaments/([0-9]+)/?$ admin/plugin/odds-api/registry/tournament-edit.php?id=$1 [L,QSA]
+    RewriteRule ^admin/plugin/odds-api/registry/([A-Za-z0-9_-]+)/edit/?$ admin/plugin/odds-api/registry/edit.php?sport=$1 [L,QSA]
     RewriteRule ^admin/sports-livescore/(.*)$ admin/plugin/odds-api/livescore/$1 [L,QSA]
     RewriteRule ^odds-api/(.*\.(?:css|js))$ admin/plugin/odds-api/public/$1 [L]
 

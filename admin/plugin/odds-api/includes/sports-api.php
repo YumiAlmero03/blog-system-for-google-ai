@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/service.php';
+require_once __DIR__ . '/sports-registry.php';
 
 /** Saved API layouts share the existing sports database and embed IDs. */
 function sports_api_pdo(): PDO
@@ -162,7 +163,8 @@ function sports_api_validate_layout(mixed $nodes): array
                 $alt = isset($node['alt']) && is_string($node['alt']) ? substr($node['alt'], 0, 200) : '';
                 $width = isset($node['width']) && is_string($node['width']) ? substr($node['width'], 0, 20) : '';
                 $height = isset($node['height']) && is_string($node['height']) ? substr($node['height'], 0, 20) : '';
-                $item+=['url'=>$url,'alt'=>$alt,'width'=>$width,'height'=>$height];
+                $imgSrc = isset($node['image_source']) && is_string($node['image_source']) ? substr($node['image_source'], 0, 32) : (isset($node['source_mode']) && is_string($node['source_mode']) ? substr($node['source_mode'], 0, 32) : 'custom');
+                $item+=['url'=>$url,'alt'=>$alt,'width'=>$width,'height'=>$height,'image_source'=>$imgSrc];
             }
             $out[]=$item;
         }
@@ -302,7 +304,7 @@ function sports_api_source(array $config,string $sport='',?callable $transport=n
     return $result+['sports'=>$sports,'sport'=>$sport];
 }
 
-function sports_api_project(mixed $data,array $layout,int $columns,int $limit=0): array
+function sports_api_project(mixed $data,array $layout,int $columns,int $limit=0,string $currentSport=''): array
 {
     $budget=20000;$truncated=false;
     $resolve=static function(string $path,array $contexts,bool $loop):mixed{
@@ -352,7 +354,7 @@ function sports_api_project(mixed $data,array $layout,int $columns,int $limit=0)
             return '';
         }, $template);
     };
-    $walk=static function(array $nodes,array $contexts) use (&$walk,$resolve,$interpolate,&$budget,&$truncated):array{
+    $walk=static function(array $nodes,array $contexts) use (&$walk,$resolve,$interpolate,&$budget,&$truncated,$currentSport):array{
         $out=[];
         foreach($nodes as $node){
             if(!($node['visible']??true))continue;
@@ -385,8 +387,38 @@ function sports_api_project(mixed $data,array $layout,int $columns,int $limit=0)
                 $textVal = is_scalar($value) && (string)$value!=='' ? (string)$value : ($node['text'] ?? $node['label']);
                 $out[]=['type'=>'text','path'=>$node['path'],'label'=>$node['label'],'value'=>$textVal,'role'=>$node['role']??'description','section'=>$node['section']??'loop'];
             }elseif($node['type']==='image'){
-                $imgUrl = is_scalar($value) && (string)$value!=='' ? (string)$value : $interpolate($node['url']??'', $contexts);
-                $out[]=['type'=>'image','path'=>$node['path'],'label'=>$node['label'],'url'=>$imgUrl,'alt'=>$node['alt']??$node['label']??'','width'=>$node['width']??'','height'=>$node['height']??'','section'=>$node['section']??'loop'];
+                $sourceMode = (string)($node['image_source'] ?? $node['source_mode'] ?? 'custom');
+                $imgUrl = '';
+                $sportLookup = $currentSport ?: (string)($resolve('$.sport_key', $contexts, false) ?: ($resolve('$.sport.key', $contexts, false) ?: ''));
+
+                if ($sourceMode === 'sport' || $sourceMode === 'sport_image') {
+                    $imgUrl = sports_registry_resolve_sport_image($sportLookup, false);
+                } elseif ($sourceMode === 'home_team' || $sourceMode === 'home_team_image') {
+                    $homeName = (string)((is_scalar($value) ? $value : '') ?: $resolve('$.home_team', $contexts, false) ?: ($resolve('$.home.name', $contexts, false) ?: ''));
+                    if ($homeName !== '') {
+                        $matched = sports_registry_match_team($sportLookup, $homeName);
+                        $imgUrl = $matched['image_path'] ?? '';
+                    }
+                } elseif ($sourceMode === 'away_team' || $sourceMode === 'away_team_image') {
+                    $awayName = (string)((is_scalar($value) ? $value : '') ?: $resolve('$.away_team', $contexts, false) ?: ($resolve('$.away.name', $contexts, false) ?: ''));
+                    if ($awayName !== '') {
+                        $matched = sports_registry_match_team($sportLookup, $awayName);
+                        $imgUrl = $matched['image_path'] ?? '';
+                    }
+                } elseif ($sourceMode === 'team' || $sourceMode === 'team_image') {
+                    $teamIdentifier = is_scalar($value) && (string)$value !== '' ? (string)$value : (string)$resolve($nodePath ?: '$.name', $contexts, false);
+                    if ($teamIdentifier !== '') {
+                        $matched = sports_registry_match_team($sportLookup, $teamIdentifier);
+                        $imgUrl = $matched['image_path'] ?? '';
+                    }
+                }
+
+                if ($imgUrl === '') {
+                    // Registry values are team names, not URLs. Only custom images use the field value.
+                    $imgUrl = $sourceMode === 'custom' && is_scalar($value) && (string)$value!=='' ? (string)$value : $interpolate($node['url']??'', $contexts);
+                }
+
+                $out[]=['type'=>'image','path'=>$node['path'],'label'=>$node['label'],'url'=>$imgUrl,'alt'=>$node['alt']??$node['label']??'','width'=>$node['width']??'','height'=>$node['height']??'','section'=>$node['section']??'loop','image_source'=>$sourceMode];
             }
         }return $out;
     };
@@ -419,7 +451,7 @@ function sports_api_output(int $id,string $sport='',?callable $transport=null): 
         $sport=$config['sport'];
     }
     $source=sports_api_source($config,$sport,$transport);$root=sports_api_root($source['data'],$config['root_path']);
-    $projection=sports_api_project($root,$config['layout_config'],$config['columns_per_row'],(int)($config['item_limit']??0));
+    $projection=sports_api_project($root,$config['layout_config'],$config['columns_per_row'],(int)($config['item_limit']??0),$sport);
     if(sports_api_get($id)!==$config)throw new RuntimeException('Configuration changed. Reload.');
     return array_replace($result,$projection,['sports'=>$source['sports'],'sport'=>$source['sport'],'updatedAt'=>$source['updatedAt']]);
 }

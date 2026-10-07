@@ -10,11 +10,23 @@ function blog_h(mixed $value): string
 
 function blog_render_inline_markdown(string $text): string
 {
-  $text = preg_replace_callback('/\[!\[([^\]]*)\]\((\/uploads\/blogs\/[A-Za-z0-9._\/-]+)\)\]\((https?:\/\/[^)\s]+|\/[^)\s]*)\)(\{nofollow\})?/', static function (array $matches): string {
+  // Protect complete image markup from the later link/emphasis replacements.
+  $images = [];
+  $prefix = '@@BLOG_IMAGE_' . bin2hex(random_bytes(8)) . '_';
+  $url = '(?:https?:\/\/[^)\s<>]+|\/[^)\s<>]*)';
+  $image = static function (string $src, string $alt): string {
+    return '<img src="' . $src . '" alt="' . $alt . '" width="1200" height="675" loading="lazy" decoding="async">';
+  };
+  $store = static function (string $html) use (&$images, $prefix): string {
+    $token = $prefix . count($images) . '@@';
+    $images[$token] = $html;
+    return $token;
+  };
+  $text = preg_replace_callback('/\[!\[([^\]]*)\]\((' . $url . ')\)\]\((' . $url . ')\)(\{nofollow\})?/i', static function (array $matches) use ($image, $store): string {
     $rel = 'noopener noreferrer' . (!empty($matches[4]) ? ' nofollow' : '');
-    return '<a href="' . $matches[3] . '" target="_blank" rel="' . $rel . '"><img src="' . $matches[2] . '" alt="' . $matches[1] . '" width="1200" height="675" loading="lazy" decoding="async"></a>';
+    return $store('<a href="' . $matches[3] . '" target="_blank" rel="' . $rel . '">' . $image($matches[2], $matches[1]) . '</a>');
   }, $text) ?? $text;
-  $text = preg_replace('/!\[([^\]]*)\]\((\/uploads\/blogs\/[A-Za-z0-9._\/-]+)\)/', '<img src="$2" alt="$1" width="1200" height="675" loading="lazy" decoding="async">', $text) ?? $text;
+  $text = preg_replace_callback('/!\[([^\]]*)\]\((' . $url . ')\)/i', static fn(array $matches): string => $store($image($matches[2], $matches[1])), $text) ?? $text;
   $text = preg_replace_callback('/\[([^\]]+)\]\((https?:\/\/[^)\s]+|\/[^)\s]*)\)(\{nofollow\})?/', static function (array $matches): string {
     $rel = 'noopener noreferrer' . (!empty($matches[3]) ? ' nofollow' : '');
     return '<a href="' . $matches[2] . '" target="_blank" rel="' . $rel . '">' . $matches[1] . '</a>';
@@ -23,7 +35,7 @@ function blog_render_inline_markdown(string $text): string
   $text = preg_replace('/\*([^*]+)\*/', '<em>$1</em>', $text) ?? $text;
   $text = preg_replace('/`([^`]+)`/', '<code>$1</code>', $text) ?? $text;
 
-  return $text;
+  return strtr($text, $images);
 }
 
 function blog_parse_faq_items(string $content): array

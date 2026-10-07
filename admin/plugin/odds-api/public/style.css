@@ -41,6 +41,17 @@ header {
   margin-bottom: 16px;
   padding-bottom: 14px;
   border-bottom: 1px solid rgba(245, 158, 11, 0.2);
+  min-width: 0;
+}
+
+header > div,
+.iframe-header-titles {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 #iframe-title {
@@ -51,6 +62,15 @@ header {
   background: linear-gradient(90deg, #fbbf24, #f59e0b, #f87171);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  line-height: 1.2;
+}
+
+#iframe-title-section {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  min-width: 0;
 }
 
 header p, footer, #status {

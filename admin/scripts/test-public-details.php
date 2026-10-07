@@ -20,6 +20,17 @@ try {
     $markdown = <<<'MD'
 ## Heading
 Paragraph **bold** and *italic* [link](/slots/).
+
+[![Linked local](/uploads/blogs/local.webp)](/offers/){nofollow}
+
+[![External **literal** & "quoted"](https://cdn.example.test/image.webp?x=1&y=2)](https://partner.example.test/deal?x=1&y=2){nofollow}
+
+[![Follow image](https://cdn.example.test/follow.webp)](/about/)
+
+![Standalone](https://cdn.example.test/standalone.webp)
+
+[![Unsafe](/uploads/blogs/unsafe.webp)](javascript:alert)
+
 ### Subheading
 - One
 - Two
@@ -94,6 +105,30 @@ MD;
     foreach ([['public','published',null],['draft','draft',null],['future','scheduled',time()+3600],['due','scheduled',time()-3600]] as [$slug,$status,$schedule]) {
         $insert->execute([$slug,$slug,'Title','Guides','Author','Excerpt',$markdown,'/uploads/blogs/test.webp',$status,'',$schedule,time(),time()]);
     }
+    // Exercise the actual API adapter, not just the shared rendering function.
+    $runner = '$_SERVER["REQUEST_METHOD"]="GET"; $_GET["slug"]="public"; require ' . var_export(dirname(__DIR__,2).'/api/blog.php',true) . ';';
+    $process = proc_open([PHP_BINARY,'-r',$runner],[1=>['pipe','w'],2=>['pipe','w']],$pipes);
+    check_detail(is_resource($process),'Start blog API');
+    $apiOutput = stream_get_contents($pipes[1]); $apiError = stream_get_contents($pipes[2]);
+    fclose($pipes[1]); fclose($pipes[2]);
+    check_detail(proc_close($process)===0 && $apiError==='','Blog API returns without errors');
+    $apiPayload = json_decode($apiOutput,true,512,JSON_THROW_ON_ERROR);
+    check_detail(isset($apiPayload['blog']['content_html']),'Blog API contains rendered content');
+    $imageDoc = new DOMDocument();
+    $previousErrors = libxml_use_internal_errors(true);
+    $imageDoc->loadHTML($apiPayload['blog']['content_html']);
+    libxml_clear_errors(); libxml_use_internal_errors($previousErrors);
+    $images = new DOMXPath($imageDoc);
+    $local = $images->query('//a[img[@alt="Linked local"]]')->item(0);
+    check_detail($local && $local->getAttribute('href')==='https://example.test/offers/' && str_contains($local->getAttribute('rel'),'nofollow'),'API preserves local image link and nofollow');
+    $external = $images->query('//a[img[contains(@src,"cdn.example.test/image.webp")]]')->item(0);
+    check_detail($external && $external->getAttribute('href')==='https://partner.example.test/deal?x=1&y=2' && str_contains($external->getAttribute('rel'),'nofollow'),'API preserves absolute image link, query and nofollow');
+    $externalImage = $external->getElementsByTagName('img')->item(0);
+    check_detail($externalImage->getAttribute('alt')==='External **literal** & "quoted"' && $externalImage->getAttribute('src')==='https://cdn.example.test/image.webp?x=1&y=2','Image attributes remain escaped without Markdown formatting');
+    $follow = $images->query('//a[img[@alt="Follow image"]]')->item(0);
+    check_detail($follow && $follow->getAttribute('href')==='https://example.test/about/' && !str_contains($follow->getAttribute('rel'),'nofollow'),'Follow image does not acquire nofollow');
+    check_detail($images->query('//img[@alt="Standalone" and not(parent::a)]')->length===1,'Standalone image remains unlinked');
+    check_detail($images->query('//a[starts-with(@href,"javascript:")]')->length===0,'Unsafe image link rejected');
     $before = $pdo->query('SELECT * FROM blog_posts ORDER BY id')->fetchAll();
     foreach (['public','due'] as $slug) {
         $post = public_blog_find($slug); check_detail($post!==null,'Public blog '.$slug);

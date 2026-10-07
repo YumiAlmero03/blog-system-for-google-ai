@@ -72,3 +72,24 @@ to create hash password run `` php admin/scripts/generate-password.php `` input 
 | `admin/plugin/odds-api/sports/editor.js` | Sports layout builder |
 | `admin/plugin/odds-api/public/app.js` | Public odds iframe application |
 | `admin/plugin/odds-api/public/render.js` | Public sports layout renderer |
+
+use this for starting
+``
+python3 admin/plugin/games/scripts/enrich-game-descriptions.py \
+  --all-games \
+  --include-unprocessed \
+  --model=gemma4:31b-cloud \
+  --skip-errors \
+  --verbose
+  ``
+## Daily sports images
+
+In **Cron → Add Task**, select **Shell Script**, **Daily** (e.g. 03:00 server time), and the website user. Replace `82` and `YOUR_SITE` with your installed PHP version and website directory:
+
+```sh
+/www/server/php/82/bin/php '/www/wwwroot/YOUR_SITE/admin/plugin/odds-api/scripts/daily-sports-images.php' --max-items=1000 --max-seconds=1800
+```
+
+Requires PHP 8.1+, cURL and PDO SQLite. No `nohup` or `&` is needed in cron. The runner prevents overlaps, fills missing logos, retains manual/existing images, stops on HTTP 429, and records results in aaPanel's task output plus private `sports-images-daily.log` in the app storage directory. Use **Execute** and **Log** to verify the task. See the [daily/background image guide](plugin/odds-api/README.md#dailybackground-image-job-aapanel) for detached terminal runs, limits and tournament filters.
+
+Daily sports images HTTP 429 cooldown: the runner stops and persists a 30-minute pause in private `sports-images-cooldown.json` beside its log. Every rerun checks this before provider requests and reports `retry_at` (UTC) and `wait_seconds`; rerunning does not extend the pause. The next invocation after expiry resumes eligible items. It does not sleep or automatically restart after 30 minutes; cron runs at its configured schedule. Another HTTP 429 starts a fresh cooldown. No new flags or database tables.

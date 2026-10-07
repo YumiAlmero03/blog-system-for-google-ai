@@ -53,35 +53,42 @@ try {
     games_schema($pdo);
     visibility_check((int)$pdo->query('SELECT approved FROM game_provider_settings')->fetchColumn()===0,'Repeated migration preserves approval');
     visibility_check(public_game_find('visible')!==null,'Approved/viewable detail');
+    foreach (['game','slot-list','provider-list'] as $endpoint) {
+        $request=['method'=>'GET','get'=>['slug'=>'visible']];
+        [$newStatus,$newData]=visibility_handler($request+['path'=>'/game-api/'.$endpoint.'.php']);
+        [$oldStatus,$oldData]=visibility_handler($request+['path'=>'/api/'.$endpoint.'.php']);
+        visibility_check($newStatus===$oldStatus && $newData===$oldData,'Legacy API parity: '.$endpoint);
+    }
+
     foreach (['blocked','hidden','ph','unfinished','draft'] as $slug) {
         visibility_check(public_game_find($slug)===null,'Private detail '.$slug);
-        foreach (array_filter(['/api/game.php','/game/index.php'], static fn($path) => is_file(dirname(__DIR__,2).$path)) as $path) {
+        foreach (array_filter(['/game-api/game.php','/game/index.php'], static fn($path) => is_file(dirname(__DIR__,2).$path)) as $path) {
             [$status]=visibility_handler(['path'=>$path,'method'=>'GET','get'=>['slug'=>$slug]]);
             visibility_check($status===404,'Public 404 '.$path.' '.$slug);
         }
     }
     foreach (['GET','POST'] as $method) {
         foreach ([[],['provider'=>'approved'],['search'=>'visible'],['type'=>'slots','megaways'=>'1','featured'=>'1']] as $filters) {
-            [$status,$data]=visibility_handler(['path'=>'/api/slot-list.php','method'=>$method,'get'=>$filters,'post'=>$filters]);
+            [$status,$data]=visibility_handler(['path'=>'/game-api/slot-list.php','method'=>$method,'get'=>$filters,'post'=>$filters]);
             $slugs=array_column($data['slots'],'slug');
             visibility_check($status===200 && in_array('visible',$slugs,true),'Filter keeps eligible game');
             visibility_check(!array_intersect($slugs,['blocked','hidden','ph','unfinished','draft']),'Filters cannot bypass eligibility');
             if (isset($filters['megaways']) || isset($filters['search'])) visibility_check($slugs===['visible'],'Megaways/search exact results');
         }
     }
-    [$status,$data]=visibility_handler(['path'=>'/api/slot-list.php','method'=>'GET','get'=>['count'=>'1','page'=>'2']]);
+    [$status,$data]=visibility_handler(['path'=>'/game-api/slot-list.php','method'=>'GET','get'=>['count'=>'1','page'=>'2']]);
     visibility_check($status===200 && $data['pagination']['total']===3 && count($data['slots'])===1,'Eligible pagination count');
     foreach ([['random'=>'1'], ['random'=>'true','count'=>'2'], ['random'=>'1','count'=>'100']] as $filters) {
-        [$status,$data]=visibility_handler(['path'=>'/api/slot-list.php','method'=>'GET','get'=>$filters]);
+        [$status,$data]=visibility_handler(['path'=>'/game-api/slot-list.php','method'=>'GET','get'=>$filters]);
         $expected=isset($filters['count']) ? min(3,(int)$filters['count']) : 1;
         $slugs=array_column($data['slots'],'slug');
         visibility_check($status===200 && count($slugs)===$expected,'Random count/default');
         visibility_check(count(array_unique($slugs))===$expected && !array_diff($slugs,['visible','ordinary','text-only']),'Random selection remains eligible and unique');
         visibility_check($data['filters']['random']===true && $data['pagination']['page']===1 && $data['pagination']['totalPages']===1,'Random response metadata');
     }
-    [$status,$data]=visibility_handler(['path'=>'/api/slot-list.php','method'=>'GET','get'=>['random'=>'1','search'=>'visible','page'=>'999']]);
+    [$status,$data]=visibility_handler(['path'=>'/game-api/slot-list.php','method'=>'GET','get'=>['random'=>'1','search'=>'visible','page'=>'999']]);
     visibility_check($status===200 && array_column($data['slots'],'slug')===['visible'],'Random search keeps filters and ignores pagination');
-    [$status,$data]=visibility_handler(['path'=>'/api/provider-list.php','method'=>'GET']);
+    [$status,$data]=visibility_handler(['path'=>'/game-api/provider-list.php','method'=>'GET']);
     visibility_check($status===200 && !in_array('blocked',array_column($data['providers'],'slug'),true),'Public providers exclude blocked');
     $approved=array_values(array_filter($data['providers'],static fn($p)=>$p['slug']==='approved'))[0];
     visibility_check($approved['gameCount']===2,'Provider counts only eligible games');
@@ -102,7 +109,7 @@ try {
     [$status]=visibility_handler(['path'=>'/admin/settings/providers/index.php','role'=>'admin','post'=>['provider_key'=>'slug:approved','approved'=>'0']]);
     visibility_check($status===200 && public_game_find('visible')===null,'Admin approval update');
     visibility_check(!str_contains(file_get_contents($dir.'/sitemap-games-1.xml'),'/game/visible/'),'Approval save refreshes sitemap');
-    [$status,$data]=visibility_handler(['path'=>'/api/slot-list.php','method'=>'GET']);
+    [$status,$data]=visibility_handler(['path'=>'/game-api/slot-list.php','method'=>'GET']);
     visibility_check($status===200 && array_column($data['slots'],'slug')===['text-only'],'Approval save clears cached lists');
     game_provider_approval_save($pdo,'slug:approved',1); game_visibility_refresh();
     $id=(int)$pdo->query('SELECT id FROM games WHERE slug="visible"')->fetchColumn();
@@ -133,11 +140,11 @@ try {
     visibility_check($status===403 && games_enabled(),'Module switch requires CSRF');
     [$status]=visibility_handler(['path'=>'/admin/plugin/games/settings.php','role'=>'admin','post'=>['enabled'=>'0']]);
     visibility_check($status===200 && !games_enabled(),'Administrator can disable module');
-    [$status,$data]=visibility_handler(['path'=>'/api/slot-list.php','method'=>'GET']);
+    [$status,$data]=visibility_handler(['path'=>'/game-api/slot-list.php','method'=>'GET']);
     visibility_check($status===200 && $data['slots']===[],'Disabled module hides cached game list');
-    [$status,$data]=visibility_handler(['path'=>'/api/slot-list.php','method'=>'GET','get'=>['random'=>'1','count'=>'5']]);
+    [$status,$data]=visibility_handler(['path'=>'/game-api/slot-list.php','method'=>'GET','get'=>['random'=>'1','count'=>'5']]);
     visibility_check($status===200 && $data['slots']===[],'Random mode cannot bypass disabled module');
-    [$status,$data]=visibility_handler(['path'=>'/api/provider-list.php','method'=>'GET','get'=>['sample'=>'1']]);
+    [$status,$data]=visibility_handler(['path'=>'/game-api/provider-list.php','method'=>'GET','get'=>['sample'=>'1']]);
     visibility_check($status===200 && $data['providers']===[],'Sample providers cannot bypass disabled module');
     visibility_check(public_game_find('text-only')===null,'Disabled game detail hidden');
     visibility_check(glob($dir.'/sitemap-games-*.xml')===[],'Disabled module removes game sitemap chunks');

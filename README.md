@@ -5,11 +5,11 @@ This index lives at `admin/README.md`. Start here when looking for project docum
 ## Core
 
 - [ADMIN_Readme.md](/admin/ADMIN_Readme.md) — Operational rules and shared API guidance for agents working in this repository.
-- [API.md](/admin/API.md) — API routes, methods, access rules, fields, responses, and game-module behavior.
+- [API.md](/admin/API.md) — API routes, including the root `/game-api/` endpoints, methods, access rules, fields, responses, and game-module behavior.
 - [AGENT.md](/admin/AGENT.md) — Project conventions, API inventory, and implementation guidance.
 - [ARCHITECTURE.md](/admin/ARCHITECTURE.md) — Application structure, the Games module, and separate game/blog databases.
 - [Chat integration](/admin/CHAT-INTEGRATION.md) — AI fallback, agent/player presence, WebSocket setup, and frontend integration.
-- [Odds API](/admin/plugin/odds-api/README.md) — API settings, sports list, bookmaker odds iframe, caching, and deployment guide.
+- [Odds API](/admin/plugin/odds-api/README.md) — API settings, sports registry, free logo enrichment and daily aaPanel jobs, bookmaker odds iframe, caching, and deployment guide.
 
 - [Plugins](/admin/plugin/README.md) — Independent Games and Odds API folders, navigation, removal and retained storage.
 

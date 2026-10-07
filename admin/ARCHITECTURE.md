@@ -7,7 +7,7 @@ Server-rendered PHP + HTML5 application using SQLite through PDO.
 /
 ├── admin/
 │   ├── includes/
-│   ├── games/                  # Game pages, API implementations, helpers, and jobs
+│   ├── games/                  # Game pages,  helpers, and jobs
 │   ├── scripts/
 │   ├── storage/
 │   ├── uploads/
@@ -131,7 +131,7 @@ Optional enrichment utility:
 
 ## Games module
 
-`admin/plugin/games/` contains the game listing/editor, provider management, module settings, API implementations, shared game helpers, and import/enrichment/sitemap jobs. Existing `/api/slot-list.php`, `/api/provider-list.php`, `/api/game.php`, old admin URLs, and `admin/scripts/` job paths remain compatibility entrypoints. Use the **Games** dropdown for **All Games**, **Providers**, and **Games Settings**; provider/module settings require an administrator, while editors retain game-edit access.
+`admin/plugin/games/` contains the game listing/editor, provider management, module settings, shared game helpers, and import/enrichment/sitemap jobs. Existing `/api/slot-list.php`, `/api/provider-list.php`, `/api/game.php`, old admin URLs, and `admin/scripts/` job paths remain compatibility entrypoints. Use the **Games** dropdown for **All Games**, **Providers**, and **Games Settings**; provider/module settings require an administrator, while editors retain game-edit access.
 
 The catalogue lives in `APP_STORAGE_DIR/games.sqlite` (default `admin/storage/games.sqlite`). It contains `games`, `game_providers`, `game_types`, `game_themes`, `game_theme_links`, `game_provider_settings`, and `game_module_settings`. Blogs, users, site settings, and shared indexing queues remain in `blogs.sqlite`. The shared PDO connection attaches the game database as `game_store` so blog demo and indexing queries can still resolve game records without duplicating them.
 
@@ -148,3 +148,5 @@ Games lives in `admin/plugin/games/`; Odds API (provider settings, API services,
 Public API methods, inputs and payloads remain unchanged: game list/detail/provider APIs and POST `/api/game-play.php` delegate to the Games plugin; GET `/api/odds-api.php` and GET `/api/sports-layout.php` delegate to Odds API. Missing plugins return JSON 404 `Plugin unavailable.` at these public adapters. Existing `/odds-api/?iframe=N` embeds remain supported. Apache rewrites retain old `/admin/games/`, `/admin/odds-api/`, `/admin/settings/sports/` and `/admin/sports-livescore/` bookmarks and old public asset URLs. Plugin includes/scripts and Markdown documentation remain blocked over HTTP.
 
 Remove the corresponding plugin folder to uninstall its code; stop its scheduled jobs first. Databases stay in the existing shared storage directory (or `APP_STORAGE_DIR`) for reinstall/backup. No flags, tables, migrations or stored records are added or deleted by this reorganization. Main blog/settings bootstrap and indexing tolerate an absent Games plugin. See [plugin guide](/admin/plugin/README.md).
+
+Public Games API implementations live separately in root `game-api/` (game.php, slot-list.php, provider-list.php, game-play.php). Existing `/api/` URLs forward to these endpoints. The Games plugin still supplies catalogue storage and shared helpers.

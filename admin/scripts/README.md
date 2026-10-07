@@ -61,6 +61,12 @@ Optional daily cron (adjust PHP, paths and server timezone; scheduling is not in
 
 Regression checks: `php admin/scripts/test-generate-llms.php`. Fixtures cover sitemap recursion/cycles, deduplication, private/noindex exclusions, HTML extraction, AI IDs/format, first creation, replacement, dry run, failed-generation preservation, locking and unsafe/malformed XML. Tests make no live AI requests.
 
+### Yoast readability checks and highlights
+
+Publish Post shows only meaningful Yoast assessment results; empty/unscored results no longer appear as red “Yoast assessment completed” rows. Intermediate scores use orange indicators. Readability findings with matching passages have individual highlight toggles, plus an overall toggle. Highlights use the browser CSS Highlight API in Write, Preview and Split modes; they do not insert markup into the editor, saved content, or undo history. Source-only Markdown mode directs the user to a rendered mode. Whole-article checks without passage marks remain listed without a passage toggle.
+
+Run `node admin/scripts/test-yoast-analysis.cjs` to test against the bundled Yoast engine in headless Chrome. Requires PHP CLI and an installed Chrome/Chromium browser; set `CHROME_BINARY` if needed (defaults to Google Chrome on macOS and `chromium` elsewhere). The test uses a temporary local server/profile and fixture content; no accounts, provider requests or production data are used.
+
 ### Continuous chat services
 
 See [Chat integration](../CHAT-INTEGRATION.md) for the complete deployment and frontend guide.
@@ -277,6 +283,8 @@ python3 admin/scripts/enrich-game-descriptions.py --fallback-only --once
 
 Options include `--limit`, `--offset`, `--timeout`, `--retries`, `--model`, `--ollama-url`, `--slug`, `--overwrite`, `--dry-run`, `--skip-errors`, `--fallback-only`, `--once`, and `--verbose`.
 
+Ollama web search HTTP 429 immediately stops the entire Python enrichment run with exit status 1, without retrying, sleeping, generating content or advancing to another game/batch. This also applies with `--skip-errors` and `--all-games`. The current game is marked `failed` unless `--dry-run` is active; previously saved games are retained. Other search errors keep their existing retry behavior.
+
 ## Generated Files
 
 Do not edit these manually unless you are intentionally replacing generated output:
@@ -284,3 +292,11 @@ Do not edit these manually unless you are intentionally replacing generated outp
 - Minified files written by `minify-assets.cjs`.
 - Static route `index.html` files written by route sync scripts.
 - `admin/scripts/__pycache__/` Python cache files.
+
+## Sports synchronization
+
+Sports sync utilities now live in `admin/plugin/odds-api/scripts/`: `sync-odds-participants.php` and `sync-api-sports-teams.php`. See the [Odds API guide](../plugin/odds-api/README.md#sports-registry) for commands. Update existing cron paths.
+
+Free image enrichment: `php admin/plugin/odds-api/scripts/enrich-sports-images.php [--tournament=ID_OR_ODDS_KEY] [--limit=5] [--dry-run] [--retry]`. SportsDataverse first, Wikidata/Commons fallback. See [Free sports images](../plugin/odds-api/README.md#free-sports-images).
+
+Daily/background sports logos: `php admin/plugin/odds-api/scripts/daily-sports-images.php [--tournament=ID_OR_ODDS_KEY] [--max-items=1000] [--max-seconds=1800] [--batch-size=25] [--pause-ms=1000]`. Exclusive lock, resumable batches, private rotating log, HTTP 429 stop. See [aaPanel setup](../plugin/odds-api/README.md#dailybackground-image-job-aapanel).

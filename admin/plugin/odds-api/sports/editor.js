@@ -86,6 +86,15 @@ const sampleOddsData = [
   }
 ];
 
+let registeredSportsMap = {};
+let registeredTeamsMap = {};
+try {
+  registeredSportsMap = JSON.parse(document.querySelector('#registered-sports-data')?.textContent || '{}');
+} catch (_) {}
+try {
+  registeredTeamsMap = JSON.parse(document.querySelector('#registered-teams-data')?.textContent || '{}');
+} catch (_) {}
+
 const form = document.querySelector('#layout-form');
 const hidden = document.querySelector('#layout-json');
 const columnsSelect = document.querySelector('#columns-select');
@@ -205,7 +214,7 @@ function makeId(prefix = 'b') {
   return prefix + '_' + Math.random().toString(36).substring(2, 9);
 }
 
-function createBlock(type, path = '', label = '', section = 'loop') {
+function createBlock(type, path = '', label = '', section = 'loop', imageSource = 'custom') {
   const id = makeId(type.charAt(0));
   const cleanLabel = label || (path ? path.split('.').at(-1).replace(/\[\]|\[\d+\]/g, '') : (type === 'button' ? 'Bet Now' : (type === 'container' ? 'Container row' : (type === 'image' ? 'Image' : 'Text'))));
   const base = { id, type, path, label: cleanLabel, section, visible: true };
@@ -223,7 +232,7 @@ function createBlock(type, path = '', label = '', section = 'loop') {
     return { ...base, text: cleanLabel, role: section === 'title' ? 'title' : 'description' };
   }
   if (type === 'image') {
-    return { ...base, url: '', alt: cleanLabel, width: '120px', height: '' };
+    return { ...base, url: '', alt: cleanLabel, width: '48px', height: '', image_source: imageSource };
   }
   return {
     ...base,
@@ -355,12 +364,49 @@ function projectNode(node, record) {
     };
   }
   if (node.type === 'image') {
+    const sourceMode = node.image_source || 'custom';
+    let imgUrl = '';
+
+    const currentSportVal = document.querySelector('#sport-select')?.value || record.sport_key || '';
+
+    if (sourceMode === 'sport' || sourceMode === 'sport_image') {
+      const spKey = (currentSportVal || '').toLowerCase();
+      const spPrefix = spKey.split('_')[0];
+      const foundSport = registeredSportsMap[spKey] || registeredSportsMap[spPrefix] || Object.values(registeredSportsMap).find(s => spKey.includes(s.slug));
+      if (foundSport && (foundSport.image_url || foundSport.image_path)) {
+        imgUrl = foundSport.image_url || foundSport.image_path;
+      }
+    } else if (sourceMode === 'home_team' || sourceMode === 'home_team_image') {
+      const homeName = record.home_team || (record.home && record.home.name) || '';
+      if (homeName) {
+        const slug = homeName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        imgUrl = registeredTeamsMap[slug] || registeredTeamsMap[homeName.toLowerCase()] || '';
+      }
+    } else if (sourceMode === 'away_team' || sourceMode === 'away_team_image') {
+      const awayName = record.away_team || (record.away && record.away.name) || '';
+      if (awayName) {
+        const slug = awayName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        imgUrl = registeredTeamsMap[slug] || registeredTeamsMap[awayName.toLowerCase()] || '';
+      }
+    } else if (sourceMode === 'team' || sourceMode === 'team_image') {
+      const teamIdent = raw || (node.path ? resolvePath(record, node.path) : '') || record.name || '';
+      if (teamIdent) {
+        const slug = String(teamIdent).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        imgUrl = registeredTeamsMap[slug] || registeredTeamsMap[String(teamIdent).toLowerCase()] || '';
+      }
+    }
+
+    if (!imgUrl) {
+      imgUrl = sourceMode === 'custom' && raw ? String(raw) : (node.url || '');
+    }
+
     return {
       type: 'image',
-      url: raw ? String(raw) : (node.url || ''),
+      url: imgUrl,
       alt: node.alt || node.label || '',
-      width: node.width || '120px',
-      height: node.height || ''
+      width: node.width || '48px',
+      height: node.height || '',
+      image_source: sourceMode
     };
   }
   return {
@@ -546,7 +592,7 @@ function renderContainerSample() {
           if (draggedPayload.id === node.id) return;
           moveNode(draggedPayload.id, node.id, 'loop');
         } else if (draggedPayload.source === 'component') {
-          const newBlock = createBlock(draggedPayload.type, '', '', 'loop');
+          const newBlock = createBlock(draggedPayload.type, draggedPayload.path || '', draggedPayload.label || '', 'loop', draggedPayload.imageSource || 'custom');
           insertBlock(newBlock, node.id, 'loop');
         } else if (draggedPayload.source === 'path') {
           const type = draggedPayload.kind === 'button' ? 'button' : 'field';
@@ -575,7 +621,7 @@ function renderContainerSample() {
     if (draggedPayload.source === 'node') {
       moveNode(draggedPayload.id, null, 'loop');
     } else if (draggedPayload.source === 'component') {
-      insertBlock(createBlock(draggedPayload.type, '', '', 'loop'), null, 'loop');
+      insertBlock(createBlock(draggedPayload.type, draggedPayload.path || '', draggedPayload.label || '', 'loop', draggedPayload.imageSource || 'custom'), null, 'loop');
     } else if (draggedPayload.source === 'path') {
       const type = draggedPayload.kind === 'button' ? 'button' : 'field';
       insertBlock(createBlock(type, draggedPayload.path, draggedPayload.label, 'loop'), null, 'loop');
@@ -619,7 +665,7 @@ function renderTitleSection() {
     if (draggedPayload.source === 'node') {
       moveNode(draggedPayload.id, null, 'title');
     } else if (draggedPayload.source === 'component') {
-      insertBlock(createBlock(draggedPayload.type, '', '', 'title'), null, 'title');
+      insertBlock(createBlock(draggedPayload.type, draggedPayload.path || '', draggedPayload.label || '', 'title', draggedPayload.imageSource || 'custom'), null, 'title');
     } else if (draggedPayload.source === 'path') {
       const type = draggedPayload.kind === 'button' ? 'button' : 'field';
       insertBlock(createBlock(type, draggedPayload.path, draggedPayload.label, 'title'), null, 'title');
@@ -772,10 +818,29 @@ function renderInspector(force = false) {
 
   // Image properties
   if (node.type === 'image') {
-    const urlWrap = el('label', 'Image URL:');
+    const srcWrap = el('label', 'Image source:');
+    const srcSel = el('select');
+    srcSel.append(
+      new Option('Sport Image ({slug}_sports)', 'sport'),
+      new Option('Home Team Logo', 'home_team'),
+      new Option('Away Team Logo', 'away_team'),
+      new Option('Team Logo from Path', 'team'),
+      new Option('Custom URL', 'custom')
+    );
+    srcSel.value = node.image_source || 'custom';
+    srcSel.onchange = () => change(() => {
+      node.image_source = srcSel.value;
+      if (node.image_source === 'sport' && !node.path) node.path = '$.sport_title';
+      if (node.image_source === 'home_team' && !node.path) node.path = '$.home_team';
+      if (node.image_source === 'away_team' && !node.path) node.path = '$.away_team';
+    }, true);
+    srcWrap.append(srcSel);
+    grid.append(srcWrap);
+
+    const urlWrap = el('label', 'Custom / Fallback Image URL:');
     const urlInput = el('input');
     urlInput.value = node.url || '';
-    urlInput.placeholder = 'https://... or /logo.png';
+    urlInput.placeholder = 'https://... or /uploads/...';
     urlInput.oninput = () => {
       node.url = urlInput.value;
       onFieldInput();
@@ -783,6 +848,18 @@ function renderInspector(force = false) {
     urlInput.onchange = snapshot;
     urlWrap.append(urlInput);
     grid.append(urlWrap);
+
+    const widthWrap = el('label', 'Image width:');
+    const widthInput = el('input');
+    widthInput.value = node.width || '';
+    widthInput.placeholder = 'e.g. 48px or 100%';
+    widthInput.oninput = () => {
+      node.width = widthInput.value;
+      onFieldInput();
+    };
+    widthInput.onchange = snapshot;
+    widthWrap.append(widthInput);
+    grid.append(widthWrap);
   }
 
   // Actions
@@ -939,10 +1016,13 @@ function updateLivePreview() {
 // Setup Dragging on Sidebar Component Buttons
 function setupComponentDraggables() {
   const components = [
-    { id: '#btn-add-text', type: 'text', label: 'Note' },
-    { id: '#btn-add-button', type: 'button', label: 'Bet Now' },
-    { id: '#btn-add-container', type: 'container', label: 'Container row' },
-    { id: '#btn-add-image', type: 'image', label: 'Team Logo' }
+    { id: '#btn-add-text', type: 'text', label: 'Note', imageSource: 'custom', section: 'loop' },
+    { id: '#btn-add-button', type: 'button', label: 'Bet Now', imageSource: 'custom', section: 'loop' },
+    { id: '#btn-add-container', type: 'container', label: 'Container row', imageSource: 'custom', section: 'loop' },
+    { id: '#btn-add-image', type: 'image', label: 'Custom Image', imageSource: 'custom', section: 'loop' },
+    { id: '#btn-add-sport-img', type: 'image', path: '$.sport_title', label: 'Sport Image', imageSource: 'sport', section: 'title' },
+    { id: '#btn-add-home-img', type: 'image', path: '$.home_team', label: 'Home Team Logo', imageSource: 'home_team', section: 'loop' },
+    { id: '#btn-add-away-img', type: 'image', path: '$.away_team', label: 'Away Team Logo', imageSource: 'away_team', section: 'loop' }
   ];
 
   for (const comp of components) {
@@ -951,11 +1031,19 @@ function setupComponentDraggables() {
     btn.draggable = true;
 
     btn.onclick = () => {
-      insertBlock(createBlock(comp.type, '', comp.label, 'loop'), activeContainerId, 'loop');
+      const targetSec = comp.section || 'loop';
+      insertBlock(createBlock(comp.type, comp.path || '', comp.label, targetSec, comp.imageSource || 'custom'), targetSec === 'title' ? null : activeContainerId, targetSec);
     };
 
     btn.ondragstart = (e) => {
-      draggedPayload = { source: 'component', type: comp.type };
+      draggedPayload = {
+        source: 'component',
+        type: comp.type,
+        path: comp.path || '',
+        label: comp.label,
+        section: comp.section || 'loop',
+        imageSource: comp.imageSource || 'custom'
+      };
       e.dataTransfer.setData('text/plain', JSON.stringify(draggedPayload));
       e.dataTransfer.effectAllowed = 'copy';
     };
@@ -1048,9 +1136,40 @@ document.querySelector('#load-api')?.addEventListener('click', async () => {
   }
 });
 
+function updateSportPreviewBadge() {
+  const sportSel = document.querySelector('#sport-select');
+  const imgEl = document.querySelector('#sport-image-preview-img');
+  const lblEl = document.querySelector('#sport-image-preview-label');
+  if (!sportSel || !imgEl || !lblEl) return;
+
+  const val = (sportSel.value || '').toLowerCase();
+  if (!val) {
+    imgEl.style.display = 'none';
+    lblEl.textContent = '';
+    return;
+  }
+
+  const prefix = val.split('_')[0];
+  const sport = registeredSportsMap[val] || registeredSportsMap[prefix] || Object.values(registeredSportsMap).find(s => val.includes(s.slug));
+
+  if (sport && (sport.image_url || sport.image_path)) {
+    imgEl.src = sport.image_url || sport.image_path;
+    imgEl.style.display = 'inline-block';
+    lblEl.textContent = `${sport.name} (${sport.image_key || sport.slug + '_sports'})`;
+  } else if (sport) {
+    imgEl.style.display = 'none';
+    lblEl.textContent = `${sport.name} — No image uploaded`;
+  } else {
+    imgEl.style.display = 'none';
+    lblEl.textContent = '';
+  }
+}
+
 const sportSelect = document.querySelector('#sport-select');
 if (sportSelect) {
   sportSelect.addEventListener('change', () => {
+    updateSportPreviewBadge();
+    updateLivePreview();
     const b = document.querySelector('#load-api');
     if (b && !b.disabled) b.click();
   });
@@ -1064,5 +1183,6 @@ document.addEventListener('submit', (event) => {
 form?.addEventListener('submit', sync);
 
 setupComponentDraggables();
+updateSportPreviewBadge();
 draw(true);
 updateLivePreview();
