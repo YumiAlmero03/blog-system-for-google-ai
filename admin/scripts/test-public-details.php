@@ -105,6 +105,7 @@ MD;
     foreach ([['public','published',null],['draft','draft',null],['future','scheduled',time()+3600],['due','scheduled',time()-3600]] as [$slug,$status,$schedule]) {
         $insert->execute([$slug,$slug,'Title','Guides','Author','Excerpt',$markdown,'/uploads/blogs/test.webp',$status,'',$schedule,time(),time()]);
     }
+    $pdo->exec("UPDATE blog_posts SET seo_title='SEO title for search', focus_keyphrase='test guide', countdown_title='Offer', countdown_end_text='Ended' WHERE slug='public'");
     // Exercise the actual API adapter, not just the shared rendering function.
     $runner = '$_SERVER["REQUEST_METHOD"]="GET"; $_GET["slug"]="public"; require ' . var_export(dirname(__DIR__,2).'/api/blog.php',true) . ';';
     $process = proc_open([PHP_BINARY,'-r',$runner],[1=>['pipe','w'],2=>['pipe','w']],$pipes);
@@ -114,6 +115,14 @@ MD;
     check_detail(proc_close($process)===0 && $apiError==='','Blog API returns without errors');
     $apiPayload = json_decode($apiOutput,true,512,JSON_THROW_ON_ERROR);
     check_detail(isset($apiPayload['blog']['content_html']),'Blog API contains rendered content');
+    $detail=$apiPayload['blog'];
+    check_detail($detail['seoTitle']==='SEO title for search' && $detail['focusKeyphrase']==='test guide','Blog API includes saved SEO metadata');
+    check_detail($detail['id']==='public' && $detail['content']===$markdown,'Blog API includes ID and original content');
+    foreach (['categoryId','categoryName','categoryLabel','tagIds','writerId','status','isPublic','date','scheduledAt','createdAt','views','likes','dislikes','countdownEnabled','countdownTarget','countdownTitle','countdownEndText'] as $key) check_detail(array_key_exists($key,$detail),'Blog API metadata '.$key);
+    check_detail(is_int($detail['views']) && is_bool($detail['countdownEnabled']) && $detail['status']==='published','Metadata retains JSON types');
+    check_detail(!isset($detail['publishedAtInput'],$detail['scheduledAtInput'],$detail['password_hash']),'Admin-only data excluded');
+    $fallbackPost=public_blog_find('public');$fallbackPost['seoTitle']='';
+    check_detail(public_blog_payload($fallbackPost)['blog']['seoTitle']===$fallbackPost['title'],'Empty SEO title falls back to title');
     $imageDoc = new DOMDocument();
     $previousErrors = libxml_use_internal_errors(true);
     $imageDoc->loadHTML($apiPayload['blog']['content_html']);

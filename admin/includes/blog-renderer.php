@@ -418,7 +418,29 @@ function public_blog_payload(array $post): array
         $contentHtml = str_replace($cdMatch[0], '', $contentHtml);
     }
     $writer = $post['writer'] ?? ['name'=>$post['author'] ?: 'Editorial Team','role_name'=>'','profile_image'=>'','bio'=>'','socials'=>[]];
+    // Explicit public fields: never expose an entire database/admin record.
     return ['ok'=>true,'blog'=>[
+        'id'=>$post['id'],
+        'seoTitle'=>trim((string)($post['seoTitle'] ?? '')) ?: $post['title'],
+        'focusKeyphrase'=>(string)($post['focusKeyphrase'] ?? ''),
+        'content'=>$post['content'],
+        'categoryId'=>$post['categoryId'] ?? null,
+        'categoryName'=>$post['category'] ?? '',
+        'categoryLabel'=>$post['categoryLabel'] ?? $post['category'] ?? '',
+        'tagIds'=>$post['tagIds'] ?? [],
+        'writerId'=>$post['writerId'] ?? null,
+        'status'=>$post['status'] ?? 'published',
+        'isPublic'=>(bool)($post['isPublic'] ?? true),
+        'date'=>$post['date'] ?? '',
+        'scheduledAt'=>$post['scheduledAt'] ?? null,
+        'createdAt'=>$post['createdAt'] ?? null,
+        'views'=>(int)($post['views'] ?? 0),
+        'likes'=>(int)($post['likes'] ?? 0),
+        'dislikes'=>(int)($post['dislikes'] ?? 0),
+        'countdownEnabled'=>!empty($post['countdown_enabled']),
+        'countdownTarget'=>(string)($post['countdown_target'] ?? ''),
+        'countdownTitle'=>(string)($post['countdown_title'] ?? ''),
+        'countdownEndText'=>(string)($post['countdown_end_text'] ?? ''),
         'title'=>$post['title'],'slug'=>$post['slug'],'category'=>$post['categoryHierarchy'] ?? null,'tags'=>blog_public_tags($post),
         'author'=>$post['writer']['name'] ?? $post['author'],
         'writer'=>$writer,
@@ -427,7 +449,7 @@ function public_blog_payload(array $post): array
         'content_html'=>$contentHtml,
         'countdown'=>$countdown,
         'countdown_html'=>$countdownHtml,
-        'featuredImage'=>public_detail_url($post['featuredImage']),
+        'featuredImage'=>public_detail_url(blog_display_image((string)$post['featuredImage'])),
         'blogUrl'=>public_url('/blog/' . rawurlencode($post['slug']) . '/'),
         'publishedAt'=>$post['publishedAt'] ?? $post['scheduledAt'], 'updatedAt'=>$post['updatedAt'],
         'readTime'=>blog_read_minutes($post['content']),

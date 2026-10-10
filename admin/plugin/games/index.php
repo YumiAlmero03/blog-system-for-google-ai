@@ -86,7 +86,8 @@ $page = admin_slots_get_int('page', 1, 1, 1000000);
 $perPage = admin_slots_get_int('count', 25, 5, 100);
 $offset = ($page - 1) * $perPage;
 
-$where = [];
+$eligibleSql = '(' . games_ph_allowed_sql('games.restrictions') . ') AND (' . game_provider_approved_sql() . ')';
+$where = [$eligibleSql];
 $params = [];
 if ($search !== '') {
     $where[] = '(name LIKE :search OR slug LIKE :search OR provider LIKE :search OR type LIKE :search)';
@@ -155,10 +156,11 @@ if ($slots) {
     foreach ($counts as $row) $playerCounts[(int)$row['game_id']] = (int)$row['total'];
 }
 
-$providers = $pdo->query('SELECT provider, provider_slug, COUNT(*) AS total FROM games WHERE provider_slug <> "" GROUP BY provider_slug, provider ORDER BY provider ASC')->fetchAll();
-$types = $pdo->query('SELECT type, type_slug, COUNT(*) AS total FROM games WHERE type_slug <> "" GROUP BY type_slug, type ORDER BY type ASC')->fetchAll();
-$publishedCount = (int) $pdo->query('SELECT COUNT(*) FROM games WHERE published = 1')->fetchColumn();
-$featuredCount = (int) $pdo->query('SELECT COUNT(*) FROM games WHERE featured = 1')->fetchColumn();
+$providers = $pdo->query('SELECT provider, provider_slug, COUNT(*) AS total FROM games WHERE ' . $eligibleSql . ' AND provider_slug <> "" GROUP BY provider_slug, provider ORDER BY provider ASC')->fetchAll();
+$types = $pdo->query('SELECT type, type_slug, COUNT(*) AS total FROM games WHERE ' . $eligibleSql . ' AND type_slug <> "" GROUP BY type_slug, type ORDER BY type ASC')->fetchAll();
+$eligibleCount = (int) $pdo->query('SELECT COUNT(*) FROM games WHERE ' . $eligibleSql)->fetchColumn();
+$publishedCount = (int) $pdo->query('SELECT COUNT(*) FROM games WHERE ' . $eligibleSql . ' AND published = 1')->fetchColumn();
+$featuredCount = (int) $pdo->query('SELECT COUNT(*) FROM games WHERE ' . $eligibleSql . ' AND featured = 1')->fetchColumn();
 ?>
 <!DOCTYPE html>
 <html lang="en-PH">
@@ -365,16 +367,20 @@ $featuredCount = (int) $pdo->query('SELECT COUNT(*) FROM games WHERE featured = 
         <div class="admin-header">
           <div>
             <h1 style="font-size:1.6rem; color:var(--brand-dark);">Games</h1>
-            <p style="font-size:0.88rem; color:var(--text-muted);">Browse imported SlotsLaunch games, providers, and publish status.</p>
+            <p style="font-size:0.88rem; color:var(--text-muted);">Browse games available in PH from approved providers.</p>
           </div>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <?php if (auth_can('admin')): ?>
+            <a href="/admin/plugin/games/providers.php" class="btn btn-secondary btn-sm">Providers</a>
+            <a href="/admin/plugin/games/settings.php" class="btn btn-secondary btn-sm">Games Settings</a>
+            <?php endif; ?>
             <a href="/admin/plugin/games/" class="btn btn-secondary btn-sm">Reset</a>
           </div>
         </div>
 
         <div class="slot-metrics">
           <div class="slot-metric"><strong><?= number_format($total) ?></strong><span>Filtered Games</span></div>
-          <div class="slot-metric"><strong><?= number_format((int) $pdo->query('SELECT COUNT(*) FROM games')->fetchColumn()) ?></strong><span>Total Games</span></div>
+          <div class="slot-metric"><strong><?= number_format($eligibleCount) ?></strong><span>Total Games</span></div>
           <div class="slot-metric"><strong><?= number_format($publishedCount) ?></strong><span>Published</span></div>
           <div class="slot-metric"><strong><?= number_format($featuredCount) ?></strong><span>Featured</span></div>
         </div>
@@ -420,7 +426,7 @@ $featuredCount = (int) $pdo->query('SELECT COUNT(*) FROM games WHERE featured = 
               $themes = is_array($themes) ? array_slice($themes, 0, 4) : [];
             ?>
             <article class="slot-card">
-              <img class="slot-thumb" src="<?= h($slot['thumb'] ?: '/uploads/blogs/default-featured.svg') ?>" alt="<?= h($slot['name']) ?>" loading="lazy" decoding="async">
+              <img class="slot-thumb" src="<?= h($slot['thumb'] ?: site_default_image(BLOG_DEFAULT_IMAGE)) ?>" alt="<?= h($slot['name']) ?>" loading="lazy" decoding="async">
               <div>
                 <div class="slot-title-row">
                   <span class="slot-title"><?= h($slot['name']) ?></span>

@@ -19,6 +19,13 @@ function sports_images_fetch(string $url, int $maxBytes = 8388608, ?callable $tr
         if (!is_string($body) || strlen($body) > $maxBytes) throw new RuntimeException('Invalid image source response.');
         return $body;
     }
+    // Pace Wikimedia requests within a worker; the daily lock prevents overlapping workers.
+    static $lastWikimediaRequest = 0.0;
+    if (in_array($parts['host'], ['www.wikidata.org','commons.wikimedia.org','upload.wikimedia.org','thumb.wikimedia.org'], true)) {
+        $wait = 1.0 - (microtime(true) - $lastWikimediaRequest);
+        if ($wait > 0) usleep((int)($wait * 1000000));
+        $lastWikimediaRequest = microtime(true);
+    }
     if (!function_exists('curl_init')) throw new RuntimeException('PHP cURL is required for image enrichment.');
     $body = '';
     $ch = curl_init($url);
@@ -95,10 +102,11 @@ function sports_images_leagues(array $entity): array
     $keys = explode(',', $entity['tournaments_keys'] ?? $entity['odds_sport_key'] ?? '');
     $map = ['basketball_nba'=>'nba','basketball_wnba'=>'wnba','basketball_ncaab'=>'mbb',
         'basketball_wncaab'=>'wbb','americanfootball_nfl'=>'nfl','americanfootball_ncaaf'=>'cfb',
-        'baseball_mlb'=>'mlb','icehockey_nhl'=>'nhl'];
+        'baseball_mlb'=>'mlb','icehockey_nhl'=>'nhl','icehockey_ahl'=>'ahl','icehockey_ohl'=>'ohl',
+        'icehockey_whl'=>'whl','icehockey_qmjhl'=>'qmjhl','americanfootball_ufl'=>'ufl'];
     $leagues = [];
     foreach ($keys as $key) {
-        $key = trim($key);
+        $key = preg_replace('/_(?:championship_winner|preseason)$/', '', trim($key));
         if (isset($map[$key])) $leagues[] = $map[$key];
         elseif (str_starts_with($key, 'soccer_')) $leagues[] = 'soccer';
         elseif (str_starts_with($key, 'cricket_')) $leagues[] = 'cricket';
@@ -218,7 +226,7 @@ function sports_images_enrich(?int $tournamentId = null, array $options = []): a
     $limit = max(1, min(25, (int)($options['limit'] ?? 5)));
     $dry = !empty($options['dry_run']);
     $transport = $options['transport'] ?? null;
-    $stats = ['enriched'=>0,'sportsdataverse'=>0,'wikimedia'=>0,'image_failures'=>0,'skipped_manual'=>0,'skipped_existing'=>0,'unmatched'=>0,'processed'=>0,'remaining'=>0,'stopped'=>false,'errors'=>[],'results'=>[]];
+    $stats = ['enriched'=>0,'sportsdataverse'=>0,'wikimedia'=>0,'image_failures'=>0,'skipped_manual'=>0,'skipped_existing'=>0,'unmatched'=>0,'processed'=>0,'remaining'=>0,'deferred'=>0,'stopped'=>false,'errors'=>[],'results'=>[]];
     $entities = [];
     $enabledKeys = [];
     foreach (tournament_get_all(null, true, true) as $t) {
@@ -230,7 +238,10 @@ function sports_images_enrich(?int $tournamentId = null, array $options = []): a
     }
     foreach (participant_get_all($tournamentId ? ['tournament_id'=>$tournamentId,'enabled'=>1] : ['enabled'=>1]) as $p) {
         $keys = array_map('trim', explode(',', $p['tournaments_keys'] ?? $p['odds_sport_key']));
-        if (!array_intersect($keys, $enabledKeys)) continue;
+        $eligibleKeys = array_values(array_intersect($keys, $enabledKeys));
+        if (!$eligibleKeys) continue;
+        $p['tournaments_keys'] = implode(',', $eligibleKeys);
+        $p['odds_sport_key'] = $eligibleKeys[0];
         $entities[] = ['participant', $p];
     }
     $records = [];
@@ -241,7 +252,11 @@ function sports_images_enrich(?int $tournamentId = null, array $options = []): a
         $record = $records[$type.':'.$entity['id']] ?? null;
         if (!empty($entity['image_path']) || ($type === 'tournament' && !empty($record['image_path']))) { $stats['skipped_existing']++; continue; }
         if ($record && isset($options['checked_since']) && (int)$record['checked_at'] >= (int)$options['checked_since']) continue;
-        if ($record && empty($options['retry']) && (int)$record['checked_at'] > time() - ($record['status'] === 'error' ? 3600 : 604800)) continue;
+        if ($record && empty($options['retry']) && (int)$record['checked_at'] > time() - ($record['status'] === 'error' ? 3600 : 604800)) {
+            // Newly supported SDV matches can be filled without repeating an unsuccessful Wikimedia search.
+            $newMatch = $record['status'] === 'unmatched' && isset($options['manifest']) && sports_images_sdv($entity,$type,$options['manifest']);
+            if (!$newMatch) { $stats['deferred']++; continue; }
+        }
         $pending[] = [$type,$entity];
     }
     $stats['remaining'] = count($pending);
@@ -250,6 +265,14 @@ function sports_images_enrich(?int $tournamentId = null, array $options = []): a
     try { $index = $options['manifest'] ?? sports_images_manifest($transport); }
     catch (SportsImagesRateLimit $e) { $stats['stopped']=true; $stats['errors'][]=$e->getMessage(); return $stats; }
     catch (Throwable $e) { $stats['errors'][]='SportsDataverse unavailable; trying Wikimedia. '.$e->getMessage(); }
+    // Resolve the whole eligible queue first, so alphabetical athlete searches cannot starve team leagues.
+    $ranked = [];
+    foreach ($pending as $position => [$type,$entity]) {
+        $candidate = sports_images_sdv($entity,$type,$index);
+        $ranked[] = ['entry'=>[$type,$entity], 'candidate'=>$candidate, 'rank'=>$candidate ? 0 : 1, 'position'=>$position];
+    }
+    usort($ranked, static fn($a,$b) => ($a['rank'] <=> $b['rank']) ?: ($a['position'] <=> $b['position']));
+    $pending = array_column($ranked,'entry');
     $start = microtime(true);
     foreach (array_slice($pending, 0, $limit) as [$type,$entity]) {
         if (microtime(true) - $start > 45 || (isset($options['deadline']) && microtime(true) >= $options['deadline'])) break;

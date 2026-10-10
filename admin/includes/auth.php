@@ -1,13 +1,15 @@
 <?php
 declare(strict_types=1);
 
-const AUTH_INACTIVITY_TIMEOUT = 1800;
+const AUTH_INACTIVITY_TIMEOUT = 10800;
 const AUTH_ABSOLUTE_LIFETIME = 28800;
 const AUTH_REGENERATION_INTERVAL = 900;
 const LOGIN_FAILURE_MESSAGE = 'Invalid login credentials or login temporarily unavailable.';
 
 ini_set('session.use_strict_mode', '1');
 ini_set('session.use_only_cookies', '1');
+// Keep PHP session storage for the full authenticated session window.
+ini_set('session.gc_maxlifetime', (string) AUTH_ABSOLUTE_LIFETIME);
 
 require_once __DIR__ . '/env.php';
 
@@ -34,7 +36,7 @@ function auth_is_https_request(): bool
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
     session_set_cookie_params([
-        'lifetime' => 0,
+        'lifetime' => AUTH_ABSOLUTE_LIFETIME,
         'path' => '/',
         'secure' => auth_is_https_request(),
         'httponly' => true,
@@ -48,7 +50,7 @@ require_once __DIR__ . '/jwt.php';
 require_once __DIR__ . '/admin-users.php';
 require_once __DIR__ . '/admin-permissions.php';
 
-const AUTH_ACCESS_TTL = 900;
+const AUTH_ACCESS_TTL = AUTH_INACTIVITY_TIMEOUT;
 const AUTH_ACCESS_COOKIE = 'admin_access';
 
 function h(mixed $value): string
@@ -159,7 +161,7 @@ function auth_is_authenticated(): bool
         } else return false;
     } catch (Throwable $e) { error_log('Authentication account lookup failed.'); return false; }
     // Renew only a still-valid token within the existing session lifetime; no refresh token.
-    if ($claims['exp'] - $now < 300) auth_issue_access_token();
+    if ($claims['exp'] < min($now + AUTH_ACCESS_TTL, $loginTime + AUTH_ABSOLUTE_LIFETIME)) auth_issue_access_token();
 
     $_SESSION['last_activity'] = $now;
 

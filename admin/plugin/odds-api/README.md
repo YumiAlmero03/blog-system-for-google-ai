@@ -46,7 +46,7 @@ Provider references: [SportsDataverse manifest](https://github.com/sportsdataver
 
 `daily-sports-images.php` repeatedly fills missing logos using SportsDataverse then Wikidata/Commons. It uses an exclusive storage lock, skips already attempted items within a run, and resumes the eligible queue next time. It does not refresh existing/manual logos or import new participants; continue using the registry participant sync for newly added teams.
 
-Defaults: at most **1,000 items**, **1,800 seconds**, **25 items per batch**, **1 second between batches**. Time limits are checked between items; an in-flight request can finish after the limit. HTTP 429 stops the whole job immediately. Logs go to stdout and private `sports-images-daily.log` beside `sports-registry.sqlite` (`APP_STORAGE_DIR` when configured), rotating at 10 MB with one retained archive. A concurrent job exits successfully with a skipped message. Provider failures/rate limits exit 1; normal completion, item/time limits and overlap skips exit 0.
+Defaults: target **100 saved images**; at most **1,000 items**, **1,800 seconds**, **25 items per batch**, **1 second between batches**. Time limits are checked between items; an in-flight request can finish after the limit. HTTP 429 waits 30 minutes and retries automatically; waiting does not consume the active time budget. Logs go to stdout and private `sports-images-daily.log` beside `sports-registry.sqlite` (`APP_STORAGE_DIR` when configured), rotating at 10 MB with one retained archive. A concurrent job exits successfully with a skipped message. Provider failures exit 1; normal completion, item/time limits and overlap skips exit 0.
 
 In **aaPanel → Cron → Add Task**, choose **Shell Script**, a **Daily** schedule (for example 03:00 server time), and the site's execution user (`www` where applicable). Replace the site directory and `82` with the installed PHP CLI version (PHP 8.1+ with cURL and PDO SQLite):
 
@@ -62,7 +62,7 @@ For a manual detached terminal run:
 nohup /www/server/php/82/bin/php '/www/wwwroot/YOUR_SITE/admin/plugin/odds-api/scripts/daily-sports-images.php' --max-items=1000 --max-seconds=1800 > /tmp/sports-images-background.log 2>&1 < /dev/null &
 ```
 
-Optional flags: `--tournament=ID_OR_ODDS_KEY`, `--max-items=1..100000`, `--max-seconds=1..86400`, `--batch-size=1..25`, `--pause-ms=0..5000`, `--help`. The daily job respects the normal seven-day unmatched / one-hour error cooldowns. No scheduler is registered automatically by deploying these files.
+Optional flags: `--max-images=100`, `--tournament=ID_OR_ODDS_KEY`, `--max-items=1..100000`, `--max-seconds=1..86400`, `--batch-size=1..25`, `--pause-ms=0..5000`, `--help`. The daily job respects the normal seven-day unmatched / one-hour error cooldowns. No scheduler is registered automatically by deploying these files.
 
 Iframe and editor registry images use same-origin `/uploads/...` paths, including saved tournament logos. This works even before `SITE_BASE_URL` is configured. Missing registry logos remain empty instead of using team names as image URLs; explicit custom-image fallbacks remain supported. HTTPS custom image sources are permitted by the iframe's image CSP. Public registry helper callers retain absolute URLs by default; the iframe opts into local paths.
 
@@ -78,4 +78,14 @@ The browser check requires Chrome (or `CHROME_BINARY`) and uses a temporary regi
 
 Daily image eligibility: both `sports_categories.enabled=1` and `tournaments.enabled=1` are required. The daily runner also ignores provider-inactive tournaments (`active=0`). Participants qualify only through eligible tournaments. `--tournament` does not bypass these filters; interactive enrichment behavior is unchanged.
 
-Daily sports images HTTP 429 cooldown: the runner stops and persists a 30-minute pause in private `sports-images-cooldown.json` beside its log. Every rerun checks this before provider requests and reports `retry_at` (UTC) and `wait_seconds`; rerunning does not extend the pause. The next invocation after expiry resumes eligible items. It does not sleep or automatically restart after 30 minutes; cron runs at its configured schedule. Another HTTP 429 starts a fresh cooldown. No new flags or database tables.
+Daily sports images HTTP 429 behavior: persist the 30-minute cooldown, keep the worker and lock alive, wait in 30-second intervals, and retry automatically. Existing cooldowns are awaited on startup. Waiting time is excluded from the active processing time budget. Repeated 429 responses repeat the wait; progress is retained. Default target is 100 successfully saved images (`--max-images=100`); skipped/unmatched/failed images do not count. Existing item/time safety limits still apply. No database changes.
+
+## Default image
+
+Upload a shared fallback in **Settings → Default fallback image**. Missing sports image blocks display this image; failed image loads switch to it once. The layout editor uses the same fallback. This changes display only: missing team logos remain eligible for enrichment, and actual/manual logos are not overwritten. Removing the setting restores the previous empty-image behavior.
+
+Sports image queue: all enabled/active leagues remain in daily scope unless `--tournament` is supplied. Available exact SportsDataverse matches are processed before Wikidata searches, preventing alphabetical athlete records from delaying team logos. NBA/NCAA/NFL and other mapped preseason/championship-winner keys share their base league mapping; AHL/OHL/WHL/QMJHL/UFL mappings are included. Existing image paths and manual images are skipped. Logs show skipped-existing, skipped-manual and deferred-cooldown counts. New exact SDV matches can bypass a previous unmatched cooldown; uncertain identities are never guessed. Wikimedia requests are paced at least one second apart within a worker; the existing 30-minute HTTP 429 cooldown remains. No new flags or schema changes.
+
+## Sports layout list endpoint
+
+The public sports tree and saved layout list now live at `/odds-api/sports.php`. Use `/odds-api/sports.php?view=layouts` for the flat layout list, optionally `&sport=basketball_nba`. Methods, filters, permissions, CORS and response fields are unchanged. `/api/sports.php` remains a compatibility adapter. Implementation remains inside this plugin at `api/sports.php`; removing the plugin returns JSON 404 from either public route. Individual layout data remains at `/api/sports-layout.php?id=N`.

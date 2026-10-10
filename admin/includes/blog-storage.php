@@ -449,7 +449,7 @@ function blog_row_to_array(array $row): array
         'writerId' => isset($row['writer_id']) ? (int)$row['writer_id'] : null,
         'excerpt' => $row['excerpt'],
         'content' => $row['content'],
-        'featuredImage' => $row['featured_image'],
+        'featuredImage' => blog_display_image((string)$row['featured_image']),
         'status' => $isPublic ? 'published' : $status,
         'focusKeyphrase' => normalize_focus_keyphrase($row['focus_keyphrase'] ?? ''),
         'date' => $row['date_label'],
@@ -538,7 +538,7 @@ function blog_format_date_label(int $timestamp): string
 {
     return (new DateTimeImmutable('@' . $timestamp))
         ->setTimezone(blog_display_timezone())
-        ->format('M j, Y');
+        ->format('F j, Y');
 }
 
 function blog_public_visibility_sql(string $alias = ''): string
@@ -637,6 +637,25 @@ function blog_setting_set(string $key, string $value, int $maxLength = 255): voi
 
     unset($GLOBALS['seo_settings_cache']);
     blog_clear_api_cache();
+}
+
+/** Shared display fallback. Never write fallback paths into sports participant records. */
+function site_default_image(string $fallback = ''): string
+{
+    $path = blog_setting_get('default_image');
+    return preg_match('#^/uploads/blogs/site-default-[a-f0-9]+\.(?:png|jpg|webp|avif)$#D', $path) ? $path : $fallback;
+}
+
+function blog_display_image(string $path): string
+{
+    if (trim($path) === '' || $path === BLOG_DEFAULT_IMAGE || str_starts_with($path, '/uploads/blogs/site-default-')) {
+        return site_default_image(BLOG_DEFAULT_IMAGE);
+    }
+    if (str_starts_with($path, '/uploads/') && !str_contains($path, '..') &&
+        !is_file(dirname(__DIR__,2).$path) && !is_file(dirname(__DIR__).$path)) {
+        return site_default_image($path);
+    }
+    return $path;
 }
 
 function blog_website_title(): string
@@ -1530,6 +1549,26 @@ function blog_payload_from_post(): array
     $slug = $slug !== null ? normalize_slug($slug) : '';
     if ($slug === '' && $title !== null) {
         $slug = normalize_slug($title);
+    }
+    if ($seoTitle === null && $title !== null) {
+        $seoTitle = normalize_seo_title($title . ' | ' . blog_website_title());
+    }
+    if ($category === null) {
+        $cats = blog_categories_all();
+        if (!empty($cats)) {
+            $category = $cats[0]['name'];
+            if ($categoryId === null) $categoryId = $cats[0]['id'];
+        }
+    }
+    if ($excerpt === null && $content !== null) {
+        $cleanContent = trim(strip_tags(preg_replace('/[#*_`~\[\]\(\)>!-]/', ' ', $content)));
+        $excerpt = mb_substr($cleanContent, 0, 160);
+        if ($excerpt === '' && $title !== null) {
+            $excerpt = $title;
+        }
+    }
+    if ($content === null && isset($_POST['autosave'])) {
+        $content = "\n";
     }
 
     $errors = [];

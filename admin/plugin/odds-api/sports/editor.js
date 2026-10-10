@@ -1,10 +1,11 @@
-import {renderLayout} from '/admin/plugin/odds-api/public/render.js';
+import {renderLayout, isDateField} from '/admin/plugin/odds-api/public/render.js';
 
 // Real sample output for The Odds API (2 NBA rows provided by user)
 const sampleOddsData = [
   {
     "id": "26b036ff107f3c658258eaf4a6f26228",
     "sport_key": "basketball_nba",
+    "sport_category": "Basketball",
     "sport_title": "NBA",
     "commence_time": "2026-10-20T19:00:00Z",
     "home_team": "Detroit Pistons",
@@ -28,7 +29,7 @@ const sampleOddsData = [
             "last_update": "2026-10-06T06:12:43Z",
             "outcomes": [
               { "name": "Boston Celtics", "price": 1.99, "point": 1.5 },
-              { "name": "Detroit Pistons", "price": 1.93, "point": -1.5 }
+              { "name": "Detroit Pistons", "price": 1.93, "point": 1.5 }
             ]
           },
           {
@@ -46,6 +47,7 @@ const sampleOddsData = [
   {
     "id": "2b042ddad3d3c6c6fe5b7005dc26c775",
     "sport_key": "basketball_nba",
+    "sport_category": "Basketball",
     "sport_title": "NBA",
     "commence_time": "2026-10-20T23:00:00Z",
     "home_team": "New York Knicks",
@@ -68,7 +70,7 @@ const sampleOddsData = [
             "key": "spreads",
             "last_update": "2026-10-06T06:12:43Z",
             "outcomes": [
-              { "name": "New York Knicks", "price": 1.96, "point": -5.5 },
+              { "name": "New York Knicks", "price": 1.96, "point": 5.5 },
               { "name": "Philadelphia 76ers", "price": 1.96, "point": 5.5 }
             ]
           },
@@ -86,6 +88,166 @@ const sampleOddsData = [
   }
 ];
 
+const sampleOutrightsData = [
+  {
+    "id": "bfb75c30bceadf7a0e5277f59ec11eac",
+    "has_outrights": true,
+    "sport_key": "basketball_nba_championship_winner",
+    "sport_category": "Basketball",
+    "sport_title": "NBA Championship Winner",
+    "commence_time": "2027-06-19T00:40:00Z",
+    "home_team": null,
+    "away_team": null,
+    "bookmakers": [
+      {
+        "key": "fanduel",
+        "title": "FanDuel",
+        "last_update": "2026-10-08T06:05:51Z",
+        "markets": [
+          {
+            "key": "outrights",
+            "last_update": "2026-10-08T06:05:51Z",
+            "outcomes": [
+              { "name": "Oklahoma City Thunder", "price": 3.4 },
+              { "name": "San Antonio Spurs", "price": 3.8 },
+              { "name": "Philadelphia 76ers", "price": 11.0 },
+              { "name": "New York Knicks", "price": 11.0 },
+              { "name": "Boston Celtics", "price": 15.0 },
+              { "name": "Toronto Raptors", "price": 23.0 },
+              { "name": "Cleveland Cavaliers", "price": 26.0 },
+              { "name": "Denver Nuggets", "price": 28.0 },
+              { "name": "Detroit Pistons", "price": 28.0 },
+              { "name": "Houston Rockets", "price": 28.0 },
+              { "name": "Miami Heat", "price": 31.0 },
+              { "name": "Minnesota Timberwolves", "price": 31.0 },
+              { "name": "Atlanta Hawks", "price": 41.0 },
+              { "name": "Orlando Magic", "price": 41.0 },
+              { "name": "Indiana Pacers", "price": 41.0 },
+              { "name": "Los Angeles Lakers", "price": 41.0 },
+              { "name": "Golden State Warriors", "price": 76.0 },
+              { "name": "Portland Trail Blazers", "price": 81.0 },
+              { "name": "Charlotte Hornets", "price": 101.0 },
+              { "name": "Utah Jazz", "price": 126.0 },
+              { "name": "Phoenix Suns", "price": 126.0 },
+              { "name": "Washington Wizards", "price": 176.0 },
+              { "name": "Dallas Mavericks", "price": 401.0 },
+              { "name": "Memphis Grizzlies", "price": 601.0 },
+              { "name": "New Orleans Pelicans", "price": 751.0 },
+              { "name": "Brooklyn Nets", "price": 1001.0 },
+              { "name": "Milwaukee Bucks", "price": 1001.0 },
+              { "name": "Los Angeles Clippers", "price": 1001.0 },
+              { "name": "Sacramento Kings", "price": 1001.0 },
+              { "name": "Chicago Bulls", "price": 1001.0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+];
+
+function mergeBookmakers(data) {
+  if (!data) return;
+  const list = Array.isArray(data) ? data : [data];
+  for (const item of list) {
+    if (!item || !Array.isArray(item.bookmakers) || item.bookmakers.length === 0) continue;
+    // Normalize points on all outcomes in all bookmakers
+    for (const bm of item.bookmakers) {
+      for (const m of (bm.markets || [])) {
+        for (const o of (m.outcomes || [])) {
+          if (o.point !== undefined && o.point !== null && !isNaN(Number(o.point)) && Number(o.point) < 0) {
+            o.point = Math.abs(Number(o.point));
+          }
+        }
+      }
+    }
+    if (item.bookmakers.length > 1) {
+      const primary = item.bookmakers[0];
+      const allMarketKeys = [];
+      for (const bm of item.bookmakers) {
+        for (const m of (bm.markets || [])) {
+          if (m.key && !allMarketKeys.includes(m.key)) allMarketKeys.push(m.key);
+        }
+      }
+      const primaryMarketMap = {};
+      for (const m of (primary.markets || [])) {
+        if (m.key) primaryMarketMap[m.key] = m;
+      }
+      for (const mKey of allMarketKeys) {
+        if (!primaryMarketMap[mKey]) {
+          for (let i = 1; i < item.bookmakers.length; i++) {
+            const other = item.bookmakers[i];
+            const found = (other.markets || []).find(m => m.key === mKey);
+            if (found) {
+              const cloned = JSON.parse(JSON.stringify(found));
+              primaryMarketMap[mKey] = cloned;
+              break;
+            }
+          }
+        } else {
+          const pm = primaryMarketMap[mKey];
+          const outcomesMap = {};
+          (pm.outcomes || []).forEach((o, idx) => {
+            if (o.name) outcomesMap[o.name.trim().toLowerCase()] = idx;
+          });
+          for (let i = 1; i < item.bookmakers.length; i++) {
+            const other = item.bookmakers[i];
+            const found = (other.markets || []).find(m => m.key === mKey);
+            if (found && Array.isArray(found.outcomes)) {
+              for (const oo of found.outcomes) {
+                const nameKey = (oo.name || '').trim().toLowerCase();
+                if (!nameKey) continue;
+                if (outcomesMap[nameKey] === undefined) {
+                  const clonedOutcome = JSON.parse(JSON.stringify(oo));
+                  if (clonedOutcome.point !== undefined && !isNaN(Number(clonedOutcome.point)) && Number(clonedOutcome.point) < 0) {
+                    clonedOutcome.point = Math.abs(Number(clonedOutcome.point));
+                  }
+                  pm.outcomes.push(clonedOutcome);
+                  outcomesMap[nameKey] = pm.outcomes.length - 1;
+                } else {
+                  const targetIdx = outcomesMap[nameKey];
+                  const cur = pm.outcomes[targetIdx];
+                  if ((cur.price === null || cur.price === undefined || cur.price === '' || cur.price === 0) && oo.price) {
+                    cur.price = oo.price;
+                  }
+                  if ((cur.point === null || cur.point === undefined || cur.point === '') && oo.point !== undefined) {
+                    cur.point = Math.abs(Number(oo.point));
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      const priority = { h2h: 1, spreads: 2, totals: 3, outrights: 4 };
+      const sortedKeys = Object.keys(primaryMarketMap).sort((a, b) => (priority[a] || 99) - (priority[b] || 99));
+      primary.markets = sortedKeys.map(k => primaryMarketMap[k]);
+      for (const [k, m] of Object.entries(primaryMarketMap)) {
+        primary[k] = m;
+      }
+    }
+  }
+}
+
+mergeBookmakers(sampleOddsData);
+mergeBookmakers(sampleOutrightsData);
+
+function getActiveSampleData() {
+  let data;
+  if (cachedApiResponse && cachedApiResponse.raw_data && Array.isArray(cachedApiResponse.raw_data) && cachedApiResponse.raw_data.length) {
+    data = cachedApiResponse.raw_data;
+  } else {
+    const marketsVal = document.querySelector('input[name="markets"]')?.value || '';
+    const sportVal = document.querySelector('#sport-select')?.value || '';
+    const hasOutrightsLoop = nodes.some(n => n.type === 'loop' || (n.path && n.path.includes('outcomes')));
+    const isOutrights = marketsVal.includes('outrights') || sportVal.includes('championship') || sportVal.includes('winner') || hasOutrightsLoop;
+    data = isOutrights ? sampleOutrightsData : sampleOddsData;
+  }
+  mergeBookmakers(data);
+  return data;
+}
+
+const defaultImage = JSON.parse(document.querySelector('#default-image-data')?.textContent || '""');
 let registeredSportsMap = {};
 let registeredTeamsMap = {};
 try {
@@ -105,7 +267,20 @@ const titleCanvas = document.querySelector('#title-section-canvas');
 const loopCanvas = document.querySelector('#loop-section-canvas');
 const inspectorPanel = document.querySelector('#inspector-panel');
 const inspectorContent = document.querySelector('#inspector-content');
-const previewContainer = document.querySelector('#layout-preview');
+// Keep the public theme and Tailwind reset out of the admin document.
+const previewHost = document.querySelector('#layout-preview');
+const previewContainer = previewHost ? document.createElement('div') : null;
+if (previewHost) {
+  const shadow = previewHost.attachShadow({mode: 'open'});
+  for (const file of ['index-Iycxdcl7.css', 'tailwind.min.css', 'layout.css']) {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = '/admin/plugin/odds-api/public/' + file;
+    shadow.append(link);
+  }
+  previewContainer.className = 'sports-preview-theme text-white antialiased';
+  shadow.append(previewContainer);
+}
 const fieldsList = document.querySelector('#available-fields');
 const fieldSearch = document.querySelector('#field-search');
 const status = document.querySelector('#builder-status');
@@ -139,6 +314,13 @@ if (!Array.isArray(nodes) || !nodes.length) {
   ];
 } else if (!nodes.some(n => (n.section || 'loop') === 'title')) {
   nodes.unshift({ id: 't_sport', type: 'field', path: '$.sport_title', label: 'sport_title', role: 'title', section: 'title', visible: true, format: 'text', fallback: 'NBA' });
+}
+
+// Sync initial columns from loop if present
+const existingLoop = nodes.find(n => n.type === 'loop') || nodes.flatMap(n => n.children || []).find(c => c && c.type === 'loop');
+if (existingLoop && existingLoop.columns) {
+  if (wireframeColumns) wireframeColumns.value = String(existingLoop.columns);
+  if (columnsSelect) columnsSelect.value = String(existingLoop.columns);
 }
 
 let selected = '';
@@ -226,18 +408,18 @@ function createBlock(type, path = '', label = '', section = 'loop', imageSource 
     return { ...base, columns: 1, direction: 'grid', children: [] };
   }
   if (type === 'button' || type === 'link') {
-    return { ...base, url: '', style: 'gold', target: '_blank' };
+    return { ...base, url: '', style: 'gold', target: '_blank', align: 'center', width: 'auto', btn_width: '' };
   }
   if (type === 'text') {
     return { ...base, text: cleanLabel, role: section === 'title' ? 'title' : 'description' };
   }
   if (type === 'image') {
-    return { ...base, url: '', alt: cleanLabel, width: '48px', height: '', image_source: imageSource };
+    return { ...base, url: '', alt: cleanLabel, width: 'auto', image_width: '48px', height: '', align: section === 'title' ? 'center' : 'left', image_source: imageSource };
   }
   return {
     ...base,
     role: section === 'title' ? 'title' : 'data',
-    format: path.includes('time') || path.includes('date') ? 'datetime' : 'text',
+    format: isDateField(path, cleanLabel) ? 'datetime' : 'text',
     fallback: section === 'title' ? cleanLabel : '—'
   };
 }
@@ -254,7 +436,7 @@ function insertBlock(block, targetContainerId = null, targetSection = 'loop', in
 
     if (targetContainerId) {
       const match = locate(targetContainerId);
-      if (match && match.node.type === 'container') {
+      if (match && (match.node.type === 'container' || match.node.type === 'loop')) {
         const targetList = match.node.children || (match.node.children = []);
         if (insertIndex >= 0) targetList.splice(insertIndex, 0, block);
         else targetList.push(block);
@@ -264,8 +446,8 @@ function insertBlock(block, targetContainerId = null, targetSection = 'loop', in
     }
 
     // Default loop insertion: into active container or last container
-    const loopContainers = nodes.filter(n => n.type === 'container' && (n.section || 'loop') === 'loop');
-    if (loopContainers.length && block.type !== 'container') {
+    const loopContainers = nodes.filter(n => (n.type === 'container' || n.type === 'loop') && (n.section || 'loop') === 'loop');
+    if (loopContainers.length && block.type !== 'container' && block.type !== 'loop') {
       const targetContainer = (activeContainerId && locate(activeContainerId)?.node) || loopContainers[loopContainers.length - 1];
       targetContainer.children || (targetContainer.children = []);
       if (insertIndex >= 0) targetContainer.children.splice(insertIndex, 0, block);
@@ -296,7 +478,7 @@ function moveNode(sourceId, targetContainerId, targetSection, insertIndex = -1) 
 
     if (targetContainerId) {
       const targetMatch = locate(targetContainerId);
-      if (targetMatch && targetMatch.node.type === 'container') {
+      if (targetMatch && (targetMatch.node.type === 'container' || targetMatch.node.type === 'loop')) {
         targetMatch.node.children || (targetMatch.node.children = []);
         if (insertIndex >= 0) targetMatch.node.children.splice(insertIndex, 0, moved);
         else targetMatch.node.children.push(moved);
@@ -315,37 +497,99 @@ function moveNode(sourceId, targetContainerId, targetSection, insertIndex = -1) 
 // Path Resolver for live preview
 function resolvePath(obj, path) {
   if (!path || typeof path !== 'string' || !obj) return null;
+  if (path === '$.sport_category' || path === 'sport_category') {
+    if (obj.sport_category) return obj.sport_category;
+    const sportKey = obj.sport_key || document.querySelector('#sport-select')?.value || '';
+    if (sportKey) {
+      const reg = registeredSportsMap[sportKey] || registeredSportsMap[sportKey.split('_')[0]];
+      if (reg && reg.name) return reg.name;
+    }
+    return 'Basketball';
+  }
+
+  // If resolving inside a loop item context
+  if (obj._loopItem) {
+    const relProp = path.replace(/^\$\.?/, '');
+    if (obj._loopItem[relProp] !== undefined) return obj._loopItem[relProp];
+    if (path.endsWith('.name') && obj._loopItem.name !== undefined) return obj._loopItem.name;
+    if (path.endsWith('.price') && obj._loopItem.price !== undefined) return obj._loopItem.price;
+    if (path.endsWith('.point') && obj._loopItem.point !== undefined) return obj._loopItem.point;
+  }
+
   const clean = path.replace(/^\$\.?/, '');
   const tokens = clean.match(/[^.\[\]]+|\[\d+\]/g) || [];
   let current = obj;
   for (const token of tokens) {
     if (current === null || current === undefined) return null;
-    const key = token.startsWith('[') ? parseInt(token.slice(1, -1), 10) : token;
-    current = current[key];
+    const isIndex = token.startsWith('[');
+    const key = isIndex ? parseInt(token.slice(1, -1), 10) : token;
+    if (!isIndex && Array.isArray(current)) {
+      current = current[0] ? current[0][key] : null;
+    } else {
+      current = current[key];
+    }
   }
   return current;
 }
 
 function projectNode(node, record) {
   if (node.visible === false) return null;
-  const raw = node.path ? resolvePath(record, node.path) : null;
-  const val = raw !== null && raw !== undefined && raw !== '' ? raw : (node.fallback || node.label || '');
+  let raw = node.path ? resolvePath(record, node.path) : null;
+  if ((node.path?.endsWith('.point') || node.path?.endsWith('point')) && raw !== null && raw !== undefined && !isNaN(Number(raw)) && Number(raw) < 0) {
+    raw = Math.abs(Number(raw));
+  }
+  let val = raw !== null && raw !== undefined && raw !== '' ? raw : (node.fallback || node.label || '');
+  if ((node.path?.endsWith('.point') || node.path?.endsWith('point')) && val !== null && val !== undefined && !isNaN(Number(val)) && Number(val) < 0) {
+    val = Math.abs(Number(val));
+  }
 
   if (node.type === 'container') {
     return {
       type: 'container',
       direction: node.direction || 'row',
       label: node.label,
+      width: node.width || '',
+      align: node.align || '',
       blocks: (node.children || []).map(child => projectNode(child, record)).filter(Boolean)
     };
   }
+  if (node.type === 'loop') {
+    let loopItems = [];
+    if (node.path) {
+      const resolvedArray = resolvePath(record, node.path);
+      if (Array.isArray(resolvedArray)) {
+        loopItems = resolvedArray;
+      }
+    }
+    return {
+      type: 'loop',
+      path: node.path,
+      label: node.label,
+      columns: node.columns || 3,
+      direction: node.direction || 'grid',
+      width: node.width || '',
+      items: loopItems.map(item => {
+        const itemRecord = { ...record, ...item, _loopItem: item };
+        return {
+          blocks: (node.children || []).map(child => projectNode(child, itemRecord)).filter(Boolean)
+        };
+      })
+    };
+  }
   if (node.type === 'button') {
+    let btnLabel = raw !== null && raw !== undefined && raw !== '' ? String(raw) : (node.label || 'Bet');
+    if ((node.path?.endsWith('.point') || node.path?.endsWith('point')) && !isNaN(Number(btnLabel)) && Number(btnLabel) < 0) {
+      btnLabel = String(Math.abs(Number(btnLabel)));
+    }
     return {
       type: 'button',
-      label: raw !== null && raw !== undefined && raw !== '' ? String(raw) : (node.label || 'Bet'),
+      label: btnLabel,
       url: node.url || '',
       style: node.style || 'gold',
-      target: node.target || '_blank'
+      target: node.target || '_blank',
+      width: node.width || '',
+      btn_width: node.btn_width || '',
+      align: node.align || 'center'
     };
   }
   if (node.type === 'link') {
@@ -353,14 +597,18 @@ function projectNode(node, record) {
       type: 'link',
       label: raw !== null && raw !== undefined && raw !== '' ? String(raw) : (node.label || 'Link'),
       url: node.url || '',
-      target: node.target || '_blank'
+      target: node.target || '_blank',
+      width: node.width || '',
+      align: node.align || 'left'
     };
   }
   if (node.type === 'text') {
     return {
       type: 'text',
       role: node.role || (node.section === 'title' ? 'title' : 'description'),
-      value: node.text || node.label || String(val)
+      value: node.text || node.label || String(val),
+      width: node.width || '',
+      align: node.align || 'left'
     };
   }
   if (node.type === 'image') {
@@ -402,20 +650,27 @@ function projectNode(node, record) {
 
     return {
       type: 'image',
-      url: imgUrl,
+      url: imgUrl || defaultImage,
+      fallback_url: defaultImage,
       alt: node.alt || node.label || '',
-      width: node.width || '48px',
+      width: node.width || '',
+      image_width: node.image_width || (node.width && !['100%', '50%', '33.3%', '25%'].includes(node.width) ? node.width : (sourceMode === 'team' || sourceMode === 'team_image' ? '36px' : '48px')),
       height: node.height || '',
-      image_source: sourceMode
+      image_height: node.image_height || node.height || '',
+      image_source: sourceMode,
+      align: node.align || (node.section === 'loop' ? 'left' : 'center')
     };
   }
   return {
     type: 'field',
     label: node.label,
+    path: node.path || '',
     value: val,
-    format: node.format || (node.path?.includes('time') || node.path?.includes('date') ? 'datetime' : 'text'),
+    format: node.format || (isDateField(node.path, node.label) ? 'datetime' : 'text'),
     role: node.role || (node.section === 'title' ? 'title' : 'data'),
-    url: node.url || ''
+    url: node.url || '',
+    width: node.width || '',
+    align: node.align || 'left'
   };
 }
 
@@ -447,6 +702,38 @@ function renderPill(node) {
   pill.dataset.id = node.id;
   pill.dataset.selected = String(selected === node.id);
   pill.draggable = true;
+  const w = node.width || 'equal';
+  pill.dataset.width = w;
+  if (w === '100%') pill.classList.add('w-full', 'flex-none');
+  else if (w === '50%') pill.classList.add('w-1/2', 'flex-none');
+  else if (w === '33.3%' || w === '33%') pill.classList.add('w-1/3', 'flex-none');
+  else if (w === '66.7%' || w === '66%') pill.classList.add('w-2/3', 'flex-none');
+  else if (w === '25%') pill.classList.add('w-1/4', 'flex-none');
+  else if (w === '75%') pill.classList.add('w-3/4', 'flex-none');
+  else if (w === 'equal') pill.classList.add('flex-1', 'min-w-0');
+  else if (w === 'auto') pill.classList.add('w-auto', 'flex-initial');
+
+  const match = locate(node.id);
+
+  // Left reorder button
+  const leftBtn = el('button', '←', 'pill-reorder-btn');
+  leftBtn.type = 'button';
+  leftBtn.title = 'Move Left / Up';
+  leftBtn.disabled = !match || match.index === 0;
+  leftBtn.onclick = (e) => {
+    e.stopPropagation();
+    if (match && match.index > 0) {
+      change(() => {
+        match.list.splice(match.index, 1);
+        match.list.splice(match.index - 1, 0, node);
+      }, true);
+    }
+  };
+  pill.append(leftBtn);
+
+  // Drag handle
+  const handle = el('span', '⋮⋮', 'cursor-grab text-slate-400 font-mono text-xs');
+  pill.append(handle);
 
   const icon = node.type === 'button' ? '🔘 ' : (node.type === 'link' ? '🔗 ' : (node.type === 'image' ? '🖼 ' : (node.type === 'text' ? '📝 ' : (node.type === 'container' ? '📦 ' : '📊 '))));
   const labelSpan = el('span', icon + (node.label || node.path || node.id));
@@ -455,13 +742,70 @@ function renderPill(node) {
   }
   pill.append(labelSpan);
 
+  // Image size & align badges
+  if (node.type === 'image') {
+    const imgSizeVal = node.image_width || (node.width && !['100%', '50%', '33.3%', '25%'].includes(node.width) ? node.width : '48px');
+    const imgBadge = el('span', `🖼 ${imgSizeVal}`, 'wireframe-width-badge');
+    imgBadge.title = 'Image size: ' + imgSizeVal;
+    pill.append(imgBadge);
+    if (node.align) {
+      const alignBadge = el('span', node.align, 'wireframe-width-badge');
+      alignBadge.title = 'Image align: ' + node.align;
+      pill.append(alignBadge);
+    }
+  }
+
+  // Button align & width badges
+  if (node.type === 'button') {
+    if (node.align && node.align !== 'center') {
+      const alignBadge = el('span', node.align, 'wireframe-width-badge');
+      alignBadge.title = 'Button align: ' + node.align;
+      pill.append(alignBadge);
+    }
+    if (node.btn_width) {
+      const bwBadge = el('span', node.btn_width, 'wireframe-width-badge');
+      bwBadge.title = 'Button width: ' + node.btn_width;
+      pill.append(bwBadge);
+    }
+  }
+
+  // Field / Text align badge
+  if ((node.type === 'field' || node.type === 'text') && node.align && node.align !== 'left') {
+    const alignBadge = el('span', node.align, 'wireframe-width-badge');
+    alignBadge.title = 'Text align: ' + node.align;
+    pill.append(alignBadge);
+  }
+
+  // Width badge
+  if (w && w !== 'equal') {
+    const widthBadge = el('span', w, 'wireframe-width-badge');
+    widthBadge.title = 'Column width: ' + w;
+    pill.append(widthBadge);
+  }
+
+  // Right reorder button
+  const rightBtn = el('button', '→', 'pill-reorder-btn');
+  rightBtn.type = 'button';
+  rightBtn.title = 'Move Right / Down';
+  rightBtn.disabled = !match || match.index >= match.list.length - 1;
+  rightBtn.onclick = (e) => {
+    e.stopPropagation();
+    if (match && match.index < match.list.length - 1) {
+      change(() => {
+        match.list.splice(match.index, 1);
+        match.list.splice(match.index + 1, 0, node);
+      }, true);
+    }
+  };
+  pill.append(rightBtn);
+
+  // Remove button
   const del = el('button', '×', 'pill-remove-btn');
   del.type = 'button';
   del.title = 'Remove block';
   del.onclick = (e) => {
     e.stopPropagation();
     change(() => {
-      const match = locate(node.id);
       if (match) {
         match.list.splice(match.index, 1);
         if (selected === node.id) selected = '';
@@ -539,69 +883,200 @@ function renderContainerSample() {
     loopCanvas.append(emptyHint);
   }
 
-  for (const node of loopNodes) {
-    if (node.type === 'container') {
-      const containerBox = el('div', '', 'visual-container-' + (node.direction || 'row'));
-      containerBox.dataset.id = node.id;
-      if (activeContainerId === node.id) containerBox.classList.add('container-active-indicator');
+  function renderContainerNode(containerNode) {
+    const isLoop = containerNode.type === 'loop';
+    const boxClass = isLoop ? 'visual-loop-box' : ('visual-container-' + (containerNode.direction || 'row'));
+    const containerBox = el('div', '', boxClass);
+    containerBox.dataset.id = containerNode.id;
+    if (activeContainerId === containerNode.id) containerBox.classList.add('container-active-indicator');
 
-      const tagBadge = el('span', `${node.label || 'Container'} (${node.direction || 'row'})`, 'wireframe-pill-tag');
-      tagBadge.style.cursor = 'pointer';
-      tagBadge.onclick = (e) => {
-        e.stopPropagation();
-        selected = node.id;
-        activeContainerId = node.id;
-        draw(true);
-      };
-      containerBox.append(tagBadge);
+    const match = locate(containerNode.id);
 
-      for (const child of node.children || []) {
+    // WordPress-style header toolbar for rows and loops
+    const header = el('div', '', 'wp-row-header');
+
+    // Left: Drag handle, Up/Down reorder, Icon & Label
+    const leftWrap = el('div', '', 'flex items-center gap-1.5 flex-wrap');
+
+    const handle = el('span', '⋮⋮', 'cursor-grab text-slate-400 font-mono text-xs');
+    leftWrap.append(handle);
+
+    const upBtn = el('button', '↑', 'wp-tool-btn');
+    upBtn.type = 'button';
+    upBtn.title = 'Move Row Up';
+    upBtn.disabled = !match || match.index === 0;
+    upBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (match && match.index > 0) {
+        change(() => {
+          match.list.splice(match.index, 1);
+          match.list.splice(match.index - 1, 0, containerNode);
+        }, true);
+      }
+    };
+
+    const downBtn = el('button', '↓', 'wp-tool-btn');
+    downBtn.type = 'button';
+    downBtn.title = 'Move Row Down';
+    downBtn.disabled = !match || match.index >= match.list.length - 1;
+    downBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (match && match.index < match.list.length - 1) {
+        change(() => {
+          match.list.splice(match.index, 1);
+          match.list.splice(match.index + 1, 0, containerNode);
+        }, true);
+      }
+    };
+    leftWrap.append(upBtn, downBtn);
+
+    const prefixIcon = isLoop ? '🔁 ' : '📦 ';
+    const descText = isLoop ? `${containerNode.label || 'Loop'} (${containerNode.columns || 3} cols)` : `${containerNode.label || 'Row'} (${containerNode.direction || 'row'})`;
+    const tagBadge = el('span', `${prefixIcon}${descText}`, 'wireframe-pill-tag');
+    tagBadge.style.cursor = 'pointer';
+    tagBadge.onclick = (e) => {
+      e.stopPropagation();
+      selected = containerNode.id;
+      activeContainerId = containerNode.id;
+      draw(true);
+    };
+    leftWrap.append(tagBadge);
+    header.append(leftWrap);
+
+    // Center: Quick Column Width Distribution Presets (like WordPress Columns Block)
+    if (!isLoop && (containerNode.direction || 'row') === 'row' && (containerNode.children || []).length > 1) {
+      const presetsWrap = el('div', '', 'flex items-center gap-1');
+      const pLabel = el('span', 'Cols:', 'text-slate-400 text-xs hidden sm:inline');
+      presetsWrap.append(pLabel);
+
+      const presets = [
+        { label: '50:50', widths: ['50%', '50%'], count: 2 },
+        { label: '33:33:33', widths: ['33.3%', '33.3%', '33.3%'], count: 3 },
+        { label: '70:30', widths: ['70%', '30%'], count: 2 },
+        { label: '30:70', widths: ['30%', '70%'], count: 2 },
+        { label: '25:50:25', widths: ['25%', '50%', '25%'], count: 3 },
+        { label: 'Equal', widths: null, count: 0 },
+        { label: 'Auto', widths: 'auto', count: 0 }
+      ];
+
+      for (const p of presets) {
+        if (p.count > 0 && containerNode.children.length !== p.count) continue;
+        const pBtn = el('button', p.label, 'col-preset-btn');
+        pBtn.type = 'button';
+        pBtn.title = 'Apply ' + p.label + ' column distribution';
+        pBtn.onclick = (e) => {
+          e.stopPropagation();
+          change(() => {
+            if (p.widths === 'auto') {
+              containerNode.children.forEach(c => c.width = 'auto');
+            } else if (p.widths === null) {
+              containerNode.children.forEach(c => c.width = 'equal');
+            } else {
+              containerNode.children.forEach((c, idx) => {
+                c.width = p.widths[idx] || 'equal';
+              });
+            }
+          }, true);
+        };
+        presetsWrap.append(pBtn);
+      }
+      header.append(presetsWrap);
+    }
+
+    // Right: Actions (+ Add, Duplicate, Delete)
+    const rightWrap = el('div', '', 'flex items-center gap-1');
+
+    const addBtn = el('button', activeContainerId === containerNode.id ? '✓ Active target' : (isLoop ? '+ Add Row' : '+ Add'), 'wp-tool-btn');
+    addBtn.type = 'button';
+    addBtn.style.color = '#fbbf24';
+    addBtn.onclick = (e) => {
+      e.stopPropagation();
+      activeContainerId = containerNode.id;
+      selected = containerNode.id;
+      draw(true);
+    };
+
+    const dupBtn = el('button', '⎘', 'wp-tool-btn');
+    dupBtn.type = 'button';
+    dupBtn.title = 'Duplicate Row';
+    dupBtn.onclick = (e) => {
+      e.stopPropagation();
+      change(() => {
+        const copy = JSON.parse(JSON.stringify(containerNode));
+        function reId(n) {
+          n.id = makeId(n.type.charAt(0));
+          if (n.children) n.children.forEach(reId);
+        }
+        reId(copy);
+        copy.label = (containerNode.label || 'Row') + ' (copy)';
+        if (match) match.list.splice(match.index + 1, 0, copy);
+      }, true);
+    };
+
+    const delBtn = el('button', '🗑', 'wp-tool-btn');
+    delBtn.type = 'button';
+    delBtn.title = 'Delete Row';
+    delBtn.style.color = '#ef4444';
+    delBtn.onclick = (e) => {
+      e.stopPropagation();
+      change(() => {
+        if (match) {
+          match.list.splice(match.index, 1);
+          if (selected === containerNode.id) selected = '';
+          if (activeContainerId === containerNode.id) activeContainerId = null;
+        }
+      }, true);
+    };
+
+    rightWrap.append(addBtn, dupBtn, delBtn);
+    header.append(rightWrap);
+    containerBox.append(header);
+
+    // Children
+    for (const child of containerNode.children || []) {
+      if (child.type === 'container' || child.type === 'loop') {
+        containerBox.append(renderContainerNode(child));
+      } else {
         containerBox.append(renderPill(child));
       }
+    }
 
-      const addBtn = el('button', activeContainerId === node.id ? '✓ Active target' : '+ Add here', 'btn btn-secondary btn-sm');
-      addBtn.type = 'button';
-      addBtn.style.fontSize = '0.72rem';
-      addBtn.style.padding = '2px 6px';
-      addBtn.onclick = (e) => {
-        e.stopPropagation();
-        activeContainerId = node.id;
-        selected = node.id;
-        draw(true);
-      };
-      containerBox.append(addBtn);
+    // Drag and Drop into container or loop
+    containerBox.ondragover = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'copy';
+      containerBox.classList.add('drag-over');
+    };
+    containerBox.ondragleave = (e) => {
+      e.stopPropagation();
+      containerBox.classList.remove('drag-over');
+    };
+    containerBox.ondrop = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      containerBox.classList.remove('drag-over');
+      if (!draggedPayload) return;
 
-      // Drag and Drop into container
-      containerBox.ondragover = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        e.dataTransfer.dropEffect = 'copy';
-        containerBox.classList.add('drag-over');
-      };
-      containerBox.ondragleave = (e) => {
-        e.stopPropagation();
-        containerBox.classList.remove('drag-over');
-      };
-      containerBox.ondrop = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        containerBox.classList.remove('drag-over');
-        if (!draggedPayload) return;
+      if (draggedPayload.source === 'node') {
+        if (draggedPayload.id === containerNode.id) return;
+        moveNode(draggedPayload.id, containerNode.id, 'loop');
+      } else if (draggedPayload.source === 'component') {
+        const newBlock = createBlock(draggedPayload.type, draggedPayload.path || '', draggedPayload.label || '', 'loop', draggedPayload.imageSource || 'custom');
+        insertBlock(newBlock, containerNode.id, 'loop');
+      } else if (draggedPayload.source === 'path') {
+        const type = draggedPayload.kind === 'button' ? 'button' : 'field';
+        const newBlock = createBlock(type, draggedPayload.path, draggedPayload.label, 'loop');
+        insertBlock(newBlock, containerNode.id, 'loop');
+      }
+    };
 
-        if (draggedPayload.source === 'node') {
-          if (draggedPayload.id === node.id) return;
-          moveNode(draggedPayload.id, node.id, 'loop');
-        } else if (draggedPayload.source === 'component') {
-          const newBlock = createBlock(draggedPayload.type, draggedPayload.path || '', draggedPayload.label || '', 'loop', draggedPayload.imageSource || 'custom');
-          insertBlock(newBlock, node.id, 'loop');
-        } else if (draggedPayload.source === 'path') {
-          const type = draggedPayload.kind === 'button' ? 'button' : 'field';
-          const newBlock = createBlock(type, draggedPayload.path, draggedPayload.label, 'loop');
-          insertBlock(newBlock, node.id, 'loop');
-        }
-      };
+    return containerBox;
+  }
 
-      loopCanvas.append(containerBox);
+  for (const node of loopNodes) {
+    if (node.type === 'container' || node.type === 'loop') {
+      loopCanvas.append(renderContainerNode(node));
     } else {
       loopCanvas.append(renderPill(node));
     }
@@ -739,6 +1214,90 @@ function renderInspector(force = false) {
     grid.append(pathWrap);
   }
 
+  // Data format (for fields - date & time, date only, decimal, text)
+  if (node.type === 'field') {
+    const fmtWrap = el('label', 'Data Format:');
+    const fmtSel = el('select');
+    if (isDateField(node.path, node.label)) {
+      fmtSel.append(
+        new Option('Date & Time (e.g. December 13, 2026, 7:00 PM)', 'datetime'),
+        new Option('Date Only (e.g. December 13, 2026)', 'date_only')
+      );
+      fmtSel.value = node.format === 'date_only' ? 'date_only' : 'datetime';
+    } else {
+      fmtSel.append(
+        new Option('Text (Raw / Default)', 'text'),
+        new Option('Decimal Number (e.g. 1.95)', 'decimal')
+      );
+      fmtSel.value = node.format === 'decimal' ? 'decimal' : 'text';
+    }
+    fmtSel.onchange = () => change(() => {
+      node.format = fmtSel.value;
+    }, true);
+    fmtWrap.append(fmtSel);
+    grid.append(fmtWrap);
+  }
+
+  // Text Alignment (for field, text, and link)
+  if (node.type === 'field' || node.type === 'text' || node.type === 'link') {
+    const alignWrap = el('label', 'Text Alignment:');
+    const alignChips = el('div', '', 'width-presets-row');
+    const currentAlign = node.align || 'left';
+    const alignPresets = [
+      { label: 'Left', val: 'left' },
+      { label: 'Center', val: 'center' },
+      { label: 'Right', val: 'right' }
+    ];
+    for (const opt of alignPresets) {
+      const chip = el('button', opt.label, 'width-preset-chip');
+      chip.type = 'button';
+      chip.dataset.active = String(currentAlign === opt.val);
+      chip.onclick = () => change(() => {
+        node.align = opt.val;
+      }, true);
+      alignChips.append(chip);
+    }
+    alignWrap.append(alignChips);
+    grid.append(alignWrap);
+  }
+
+  // Column Width Control (for all blocks: field, button, link, image, text, container)
+  const widthWrap = el('label', 'Column Width:');
+  const widthChips = el('div', '', 'width-presets-row');
+  const currentW = node.width || 'equal';
+
+  const widthOptions = [
+    { label: 'Auto', val: 'auto' },
+    { label: 'Equal (1fr)', val: 'equal' },
+    { label: '25% (1/4)', val: '25%' },
+    { label: '33.3% (1/3)', val: '33.3%' },
+    { label: '50% (1/2)', val: '50%' },
+    { label: '66.7% (2/3)', val: '66.7%' },
+    { label: '75% (3/4)', val: '75%' },
+    { label: '100% (Full)', val: '100%' }
+  ];
+
+  for (const opt of widthOptions) {
+    const chip = el('button', opt.label, 'width-preset-chip');
+    chip.type = 'button';
+    chip.dataset.active = String(currentW === opt.val);
+    chip.onclick = () => change(() => {
+      node.width = opt.val;
+    }, true);
+    widthChips.append(chip);
+  }
+
+  const customInput = el('input');
+  customInput.placeholder = 'Custom width, e.g. 120px or 40%';
+  customInput.value = ['auto', 'equal', '25%', '33.3%', '50%', '66.7%', '75%', '100%'].includes(currentW) ? '' : (node.width || '');
+  customInput.oninput = () => {
+    node.width = customInput.value.trim();
+    onFieldInput();
+  };
+  customInput.onchange = snapshot;
+  widthWrap.append(widthChips, customInput);
+  grid.append(widthWrap);
+
   // Fallback text
   if (node.type === 'field') {
     const fbWrap = el('label', 'Fallback text:');
@@ -768,7 +1327,7 @@ function renderInspector(force = false) {
   // Type
   const typeWrap = el('label', 'Block type:');
   const typeSel = el('select');
-  for (const t of ['field', 'button', 'container', 'link', 'text', 'image']) {
+  for (const t of ['field', 'button', 'container', 'loop', 'link', 'text', 'image']) {
     typeSel.append(new Option(t, t));
   }
   typeSel.value = node.type;
@@ -777,17 +1336,81 @@ function renderInspector(force = false) {
     if (node.type === 'container') {
       node.children || (node.children = []);
       node.direction || (node.direction = 'row');
+    } else if (node.type === 'loop') {
+      node.children || (node.children = []);
+      node.columns = node.columns || 3;
+      node.direction || (node.direction = 'grid');
     }
   }, true);
   typeWrap.append(typeSel);
   grid.append(typeWrap);
 
-  // Container direction
+  // Container direction and column presets
   if (node.type === 'container') {
     const dirWrap = el('label', 'Container layout:');
     const dirSel = el('select');
     dirSel.append(new Option('Horizontal Row', 'row'), new Option('Vertical Column', 'column'));
     dirSel.value = node.direction || 'row';
+    dirSel.onchange = () => change(() => { node.direction = dirSel.value; }, true);
+    dirWrap.append(dirSel);
+    grid.append(dirWrap);
+
+    if ((node.direction || 'row') === 'row' && (node.children || []).length > 1) {
+      const cPresetsWrap = el('label', 'Row Column Presets:');
+      const pRow = el('div', '', 'width-presets-row');
+      const pList = [
+        { label: '50% / 50%', widths: ['50%', '50%'], count: 2 },
+        { label: '33% / 33% / 33%', widths: ['33.3%', '33.3%', '33.3%'], count: 3 },
+        { label: '70% / 30%', widths: ['70%', '30%'], count: 2 },
+        { label: '30% / 70%', widths: ['30%', '70%'], count: 2 },
+        { label: '25% / 50% / 25%', widths: ['25%', '50%', '25%'], count: 3 },
+        { label: 'Equal (1fr)', widths: null },
+        { label: 'Auto (Fit)', widths: 'auto' }
+      ];
+      for (const p of pList) {
+        if (p.count && node.children.length !== p.count) continue;
+        const pBtn = el('button', p.label, 'width-preset-chip');
+        pBtn.type = 'button';
+        pBtn.onclick = () => change(() => {
+          if (p.widths === 'auto') {
+            (node.children || []).forEach(c => c.width = 'auto');
+          } else if (p.widths === null) {
+            (node.children || []).forEach(c => c.width = 'equal');
+          } else {
+            (node.children || []).forEach((c, idx) => {
+              c.width = p.widths[idx] || 'equal';
+            });
+          }
+        }, true);
+        pRow.append(pBtn);
+      }
+      cPresetsWrap.append(pRow);
+      grid.append(cPresetsWrap);
+    }
+  }
+
+  // Loop columns and display style
+  if (node.type === 'loop') {
+    const colsWrap = el('label', 'Loop columns:');
+    const colsSel = el('select');
+    colsSel.append(
+      new Option('1 Column', '1'),
+      new Option('2 Columns', '2'),
+      new Option('3 Columns', '3')
+    );
+    colsSel.value = String(node.columns || 3);
+    colsSel.onchange = () => change(() => {
+      node.columns = Number(colsSel.value);
+      if (wireframeColumns) wireframeColumns.value = String(node.columns);
+      if (columnsSelect) columnsSelect.value = String(node.columns);
+    }, true);
+    colsWrap.append(colsSel);
+    grid.append(colsWrap);
+
+    const dirWrap = el('label', 'Display style:');
+    const dirSel = el('select');
+    dirSel.append(new Option('Grid', 'grid'), new Option('Horizontal Row', 'row'));
+    dirSel.value = node.direction || 'grid';
     dirSel.onchange = () => change(() => { node.direction = dirSel.value; }, true);
     dirWrap.append(dirSel);
     grid.append(dirWrap);
@@ -814,10 +1437,87 @@ function renderInspector(force = false) {
     urlInput.onchange = snapshot;
     urlWrap.append(urlInput);
     grid.append(urlWrap);
+
+    if (node.type === 'button') {
+      const alignWrap = el('label', 'Button Alignment:');
+      const alignChips = el('div', '', 'width-presets-row');
+      const currentAlign = node.align || 'center';
+      const alignPresets = [
+        { label: 'Left', val: 'left' },
+        { label: 'Center', val: 'center' },
+        { label: 'Right', val: 'right' },
+        { label: 'Justify (Full)', val: 'justify' }
+      ];
+      for (const opt of alignPresets) {
+        const chip = el('button', opt.label, 'width-preset-chip');
+        chip.type = 'button';
+        chip.dataset.active = String(currentAlign === opt.val);
+        chip.onclick = () => change(() => {
+          node.align = opt.val;
+        }, true);
+        alignChips.append(chip);
+      }
+      alignWrap.append(alignChips);
+      grid.append(alignWrap);
+
+      const btnWidthWrap = el('label', 'Button Size / Width:');
+      const btnWidthChips = el('div', '', 'width-presets-row');
+      const currentBtnW = node.btn_width || 'auto';
+      const btnWidthPresets = [
+        { label: 'Auto', val: 'auto' },
+        { label: '80px', val: '80px' },
+        { label: '100px', val: '100px' },
+        { label: '120px', val: '120px' },
+        { label: '160px', val: '160px' },
+        { label: 'Full', val: '100%' }
+      ];
+      for (const opt of btnWidthPresets) {
+        const chip = el('button', opt.label, 'width-preset-chip');
+        chip.type = 'button';
+        chip.dataset.active = String((currentBtnW === opt.val) || (!node.btn_width && opt.val === 'auto'));
+        chip.onclick = () => change(() => {
+          node.btn_width = opt.val === 'auto' ? '' : opt.val;
+        }, true);
+        btnWidthChips.append(chip);
+      }
+      btnWidthWrap.append(btnWidthChips);
+
+      const customBtnWidthInput = el('input');
+      customBtnWidthInput.style.marginTop = '6px';
+      customBtnWidthInput.value = node.btn_width || '';
+      customBtnWidthInput.placeholder = 'Custom button width e.g. 90px, 140px, 100%';
+      customBtnWidthInput.oninput = () => {
+        node.btn_width = customBtnWidthInput.value.trim();
+        onFieldInput();
+      };
+      customBtnWidthInput.onchange = snapshot;
+      btnWidthWrap.append(customBtnWidthInput);
+      grid.append(btnWidthWrap);
+    }
   }
 
   // Image properties
   if (node.type === 'image') {
+    const alignWrap = el('label', 'Image Alignment:');
+    const alignChips = el('div', '', 'width-presets-row');
+    const currentImgAlign = node.align || (node.section === 'loop' ? 'left' : 'center');
+    const alignPresets = [
+      { label: 'Left', val: 'left' },
+      { label: 'Center', val: 'center' },
+      { label: 'Right', val: 'right' }
+    ];
+    for (const opt of alignPresets) {
+      const chip = el('button', opt.label, 'width-preset-chip');
+      chip.type = 'button';
+      chip.dataset.active = String(currentImgAlign === opt.val);
+      chip.onclick = () => change(() => {
+        node.align = opt.val;
+      }, true);
+      alignChips.append(chip);
+    }
+    alignWrap.append(alignChips);
+    grid.append(alignWrap);
+
     const srcWrap = el('label', 'Image source:');
     const srcSel = el('select');
     srcSel.append(
@@ -849,25 +1549,63 @@ function renderInspector(force = false) {
     urlWrap.append(urlInput);
     grid.append(urlWrap);
 
-    const widthWrap = el('label', 'Image width:');
-    const widthInput = el('input');
-    widthInput.value = node.width || '';
-    widthInput.placeholder = 'e.g. 48px or 100%';
-    widthInput.oninput = () => {
-      node.width = widthInput.value;
+    const imgSizeWrap = el('label', 'Image Display Width / Size:');
+    const imgSizeChips = el('div', '', 'width-presets-row');
+    const currentImgW = node.image_width || (node.width && !['100%', '50%', '33.3%', '25%'].includes(node.width) ? node.width : '48px');
+    const imgSizePresets = [
+      { label: '24px', val: '24px' },
+      { label: '32px', val: '32px' },
+      { label: '40px', val: '40px' },
+      { label: '48px', val: '48px' },
+      { label: '64px', val: '64px' },
+      { label: '80px', val: '80px' },
+      { label: '120px', val: '120px' },
+      { label: 'Full', val: '100%' }
+    ];
+    for (const opt of imgSizePresets) {
+      const chip = el('button', opt.label, 'width-preset-chip');
+      chip.type = 'button';
+      chip.dataset.active = String(currentImgW === opt.val);
+      chip.onclick = () => change(() => {
+        node.image_width = opt.val;
+      }, true);
+      imgSizeChips.append(chip);
+    }
+    imgSizeWrap.append(imgSizeChips);
+
+    const customImgWidthInput = el('input');
+    customImgWidthInput.style.marginTop = '6px';
+    customImgWidthInput.value = node.image_width || (node.width && !['100%', '50%', '33.3%', '25%'].includes(node.width) ? node.width : '');
+    customImgWidthInput.placeholder = 'Custom size e.g. 48px, 64px, 100%';
+    customImgWidthInput.oninput = () => {
+      node.image_width = customImgWidthInput.value.trim();
       onFieldInput();
     };
-    widthInput.onchange = snapshot;
-    widthWrap.append(widthInput);
-    grid.append(widthWrap);
+    customImgWidthInput.onchange = snapshot;
+    imgSizeWrap.append(customImgWidthInput);
+    grid.append(imgSizeWrap);
+
+    const heightInputWrap = el('label', 'Image Height (Optional):');
+    const heightInput = el('input');
+    heightInput.value = node.image_height || node.height || '';
+    heightInput.placeholder = 'e.g. 48px or auto';
+    heightInput.oninput = () => {
+      node.image_height = heightInput.value.trim();
+      node.height = node.image_height;
+      onFieldInput();
+    };
+    heightInput.onchange = snapshot;
+    heightInputWrap.append(heightInput);
+    grid.append(heightInputWrap);
   }
 
   // Actions
   const actions = el('div', '', 'support-actions');
   actions.style.marginTop = '12px';
 
-  const moveLeft = el('button', '← Move before', 'btn btn-secondary btn-sm');
+  const moveLeft = el('button', '← Move before / up', 'btn btn-secondary btn-sm');
   moveLeft.type = 'button';
+  moveLeft.disabled = match.index === 0;
   moveLeft.onclick = () => {
     if (match.index > 0) {
       change(() => {
@@ -877,8 +1615,9 @@ function renderInspector(force = false) {
     }
   };
 
-  const moveRight = el('button', 'Move after →', 'btn btn-secondary btn-sm');
+  const moveRight = el('button', 'Move after / down →', 'btn btn-secondary btn-sm');
   moveRight.type = 'button';
+  moveRight.disabled = match.index >= match.list.length - 1;
   moveRight.onclick = () => {
     if (match.index < match.list.length - 1) {
       change(() => {
@@ -888,7 +1627,7 @@ function renderInspector(force = false) {
     }
   };
 
-  const duplicateBtn = el('button', 'Duplicate', 'btn btn-secondary btn-sm');
+  const duplicateBtn = el('button', '⎘ Duplicate block', 'btn btn-secondary btn-sm');
   duplicateBtn.type = 'button';
   duplicateBtn.onclick = () => {
     change(() => {
@@ -900,7 +1639,7 @@ function renderInspector(force = false) {
     }, true);
   };
 
-  const removeBtn = el('button', 'Delete block', 'btn btn-danger btn-sm');
+  const removeBtn = el('button', '🗑 Delete block', 'btn btn-danger btn-sm');
   removeBtn.type = 'button';
   removeBtn.onclick = () => change(() => {
     match.list.splice(match.index, 1);
@@ -918,6 +1657,7 @@ function renderGeneratedPaths() {
 
   // Full rich set of paths from the 2-row NBA sample
   const samplePaths = [
+    { label: 'Sport Category', path: '$.sport_category', kind: 'field', isTitle: true },
     { label: 'sport_title', path: '$.sport_title', kind: 'field', isTitle: true },
     { label: 'Away Team', path: '$.away_team', kind: 'field' },
     { label: 'Home Team', path: '$.home_team', kind: 'field' },
@@ -1005,12 +1745,51 @@ function updateLivePreview() {
   const limit = Number(wireframeLimit?.value || limitHidden?.value || 2);
 
   // Evaluate the REAL nodes against sample data or loaded API response
-  const dataSource = (cachedApiResponse && cachedApiResponse.raw_data && Array.isArray(cachedApiResponse.raw_data))
-    ? cachedApiResponse.raw_data
-    : sampleOddsData;
+  const dataSource = getActiveSampleData();
 
   const payload = projectLayoutLocally(dataSource, nodes, cols, limit);
   renderLayout(previewContainer, payload);
+}
+
+function getMatchCardPreset() {
+  return [
+    { id: 'i_sport', type: 'image', path: '$.sport_title', label: 'Sport Image', section: 'title', visible: true, image_source: 'sport' },
+    { id: 'f_sport_cat', type: 'field', path: '$.sport_category', label: 'Sport Category', role: 'title', section: 'title', visible: true, format: 'text', fallback: 'Basketball' },
+    { id: 't_sport', type: 'field', path: '$.sport_title', label: 'League', role: 'title', section: 'title', visible: true, format: 'text', fallback: 'NBA' },
+    { id: 'c_teams', type: 'container', label: 'Teams & Date', direction: 'row', section: 'loop', visible: true, children: [
+      { id: 'f_away', type: 'field', path: '$.away_team', label: 'Away Team', role: 'data', section: 'loop', visible: true, format: 'text', fallback: 'Away', width: '33.3%' },
+      { id: 'f_home', type: 'field', path: '$.home_team', label: 'Home Team', role: 'data', section: 'loop', visible: true, format: 'text', fallback: 'Home', width: '33.3%' },
+      { id: 'f_date', type: 'field', path: '$.commence_time', label: 'Game Date', role: 'data', section: 'loop', visible: true, format: 'datetime', fallback: 'TBD', width: '33.3%' }
+    ]},
+    { id: 'c_odds', type: 'container', label: 'H2H Odds (1xBet)', direction: 'row', section: 'loop', visible: true, children: [
+      { id: 'b_away_h2h', type: 'button', path: '$.bookmakers[0].markets[0].outcomes[0].price', label: 'Away H2H', style: 'gold', section: 'loop', visible: true, url: '', target: '_blank', width: '50%' },
+      { id: 'b_home_h2h', type: 'button', path: '$.bookmakers[0].markets[0].outcomes[1].price', label: 'Home H2H', style: 'gold', section: 'loop', visible: true, url: '', target: '_blank', width: '50%' }
+    ]},
+    { id: 'c_spreads', type: 'container', label: 'Spreads & Totals', direction: 'row', section: 'loop', visible: true, children: [
+      { id: 'f_spread_pt', type: 'field', path: '$.bookmakers[0].markets[1].outcomes[0].point', label: 'Spread Line', role: 'data', section: 'loop', visible: true, format: 'text', fallback: '0', width: '25%' },
+      { id: 'b_spread_odds', type: 'button', path: '$.bookmakers[0].markets[1].outcomes[0].price', label: 'Spread Odds', style: 'brand', section: 'loop', visible: true, url: '', target: '_blank', width: '25%' },
+      { id: 'f_total_pt', type: 'field', path: '$.bookmakers[0].markets[2].outcomes[0].point', label: 'Total O/U', role: 'data', section: 'loop', visible: true, format: 'text', fallback: '0', width: '25%' },
+      { id: 'b_total_odds', type: 'button', path: '$.bookmakers[0].markets[2].outcomes[0].price', label: 'Total Odds', style: 'primary', section: 'loop', visible: true, url: '', target: '_blank', width: '25%' }
+    ]}
+  ];
+}
+
+function getOutrightsPreset() {
+  const currentCols = Math.min(3, Math.max(1, Number(wireframeColumns?.value || columnsSelect?.value || 3)));
+  return [
+    { id: 'i_sport', type: 'image', path: '$.sport_title', label: 'Sport Image', section: 'title', visible: true, image_source: 'sport' },
+    { id: 'f_sport_cat', type: 'field', path: '$.sport_category', label: 'Sport Category', role: 'title', section: 'title', visible: true, format: 'text', fallback: 'Basketball' },
+    { id: 't_sport', type: 'field', path: '$.sport_title', label: 'Tournament / Event', role: 'title', section: 'title', visible: true, format: 'text', fallback: 'NBA Championship Winner' },
+    { id: 'f_date', type: 'field', path: '$.commence_time', label: 'Cutoff Date', role: 'data', section: 'title', visible: true, format: 'datetime', fallback: 'TBD' },
+    { id: 'f_bookmaker', type: 'field', path: '$.bookmakers[0].title', label: 'Bookmaker', role: 'data', section: 'title', visible: true, format: 'text', fallback: 'FanDuel' },
+    { id: 'l_outcomes', type: 'loop', path: '$.bookmakers[0].markets[0].outcomes[]', label: 'Contenders', columns: currentCols, direction: 'grid', section: 'loop', visible: true, children: [
+      { id: 'c_contender', type: 'container', path: '', label: 'Contender Card', direction: 'row', section: 'loop', visible: true, children: [
+        { id: 'i_team', type: 'image', path: '$.name', label: 'Team Logo', image_source: 'team', image_width: '36px', width: 'auto', align: 'left', height: '', section: 'loop', visible: true },
+        { id: 'f_name', type: 'field', path: '$.name', label: 'Team Name', role: 'data', format: 'text', section: 'loop', visible: true, fallback: '', width: 'equal' },
+        { id: 'b_price', type: 'button', path: '$.price', label: 'Odds', style: 'gold', section: 'loop', visible: true, url: '', target: '_blank', width: 'auto', align: 'right' }
+      ]}
+    ]}
+  ];
 }
 
 // Setup Dragging on Sidebar Component Buttons
@@ -1020,9 +1799,11 @@ function setupComponentDraggables() {
     { id: '#btn-add-button', type: 'button', label: 'Bet Now', imageSource: 'custom', section: 'loop' },
     { id: '#btn-add-container', type: 'container', label: 'Container row', imageSource: 'custom', section: 'loop' },
     { id: '#btn-add-image', type: 'image', label: 'Custom Image', imageSource: 'custom', section: 'loop' },
+    { id: '#btn-add-sport-cat', type: 'field', path: '$.sport_category', label: 'Sport Category', section: 'title' },
     { id: '#btn-add-sport-img', type: 'image', path: '$.sport_title', label: 'Sport Image', imageSource: 'sport', section: 'title' },
     { id: '#btn-add-home-img', type: 'image', path: '$.home_team', label: 'Home Team Logo', imageSource: 'home_team', section: 'loop' },
-    { id: '#btn-add-away-img', type: 'image', path: '$.away_team', label: 'Away Team Logo', imageSource: 'away_team', section: 'loop' }
+    { id: '#btn-add-away-img', type: 'image', path: '$.away_team', label: 'Away Team Logo', imageSource: 'away_team', section: 'loop' },
+    { id: '#btn-add-team-img', type: 'image', path: '$.name', label: 'Contender / Team Logo', imageSource: 'team', section: 'loop' }
   ];
 
   for (const comp of components) {
@@ -1056,17 +1837,62 @@ function setupComponentDraggables() {
 }
 
 // Event Listeners
+document.querySelector('#btn-preset-outrights')?.addEventListener('click', () => {
+  nodes = getOutrightsPreset();
+  const marketsInput = document.querySelector('input[name="markets"]');
+  if (marketsInput && (!marketsInput.value || marketsInput.value === 'h2h,spreads,totals')) {
+    marketsInput.value = 'outrights';
+  }
+  selected = '';
+  activeContainerId = '';
+  draw(true);
+  updateLivePreview();
+});
+
+document.querySelector('#btn-preset-match')?.addEventListener('click', () => {
+  nodes = getMatchCardPreset();
+  const marketsInput = document.querySelector('input[name="markets"]');
+  if (marketsInput && marketsInput.value === 'outrights') {
+    marketsInput.value = 'h2h,spreads,totals';
+  }
+  selected = '';
+  activeContainerId = '';
+  draw(true);
+  updateLivePreview();
+});
+
 document.querySelector('#btn-add-sample-row')?.addEventListener('click', () => {
   insertBlock(createBlock('container', '', 'New Container Row', 'loop'), null, 'loop');
 });
 
 if (fieldSearch) fieldSearch.oninput = renderGeneratedPaths;
 
+function updateLayoutColumns(cols) {
+  cols = Math.min(3, Math.max(1, Number(cols) || 1));
+  if (wireframeColumns) wireframeColumns.value = String(cols);
+  if (columnsSelect) columnsSelect.value = String(cols);
+
+  // Update loop nodes in layout
+  const updateLoopNodes = (list) => {
+    for (const n of list) {
+      if (n.type === 'loop') {
+        n.columns = cols;
+      }
+      if (n.children && Array.isArray(n.children)) {
+        updateLoopNodes(n.children);
+      }
+    }
+  };
+  updateLoopNodes(nodes);
+
+  sync();
+  draw(false);
+  updateLivePreview();
+}
+
 if (wireframeColumns) {
   wireframeColumns.onchange = () => {
-    if (columnsSelect) columnsSelect.value = wireframeColumns.value;
-    sync();
-    updateLivePreview();
+    updateLayoutColumns(wireframeColumns.value);
   };
 }
 
@@ -1080,9 +1906,7 @@ if (wireframeLimit) {
 
 if (columnsSelect) {
   columnsSelect.onchange = () => {
-    if (wireframeColumns) wireframeColumns.value = columnsSelect.value;
-    sync();
-    updateLivePreview();
+    updateLayoutColumns(columnsSelect.value);
   };
 }
 

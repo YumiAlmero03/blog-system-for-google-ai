@@ -7,6 +7,9 @@ require_once __DIR__ . '/../includes/sports-registry.php';
 
 $slug = trim((string) ($_GET['sport'] ?? ''));
 $id = (int) ($_GET['id'] ?? 0);
+if ($slug === '' && $id <= 0 && preg_match('#/(?:registry|sports)/([A-Za-z0-9_-]+)/registration#', (string) ($_SERVER['REQUEST_URI'] ?? ''), $uriMatches)) {
+    $slug = $uriMatches[1];
+}
 $sport = $slug !== '' ? sports_category_get($slug) : ($id > 0 ? sports_category_get($id) : null);
 
 if (!$sport) {

@@ -6,6 +6,18 @@ putenv('APP_STORAGE_DIR='.$dir.'/storage'); putenv('CHAT_STORAGE_DIR='.$dir.'/ch
 require __DIR__.'/../includes/chat-ai.php';
 function rt_check(bool $ok,string $label): void { if (!$ok) throw new RuntimeException($label); }
 try {
+    putenv('SITE_BASE_URL=https://support.example');
+    $insert = blogs_pdo()->prepare('INSERT INTO blog_posts(id,slug,title,category,author,excerpt,content,featured_image,status,date_label,published_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)');
+    foreach (['published','draft'] as $state) $insert->execute([$state,$state.'-login','Login help','Support','Support','Reset your login password.','','',$state,'',time()-10,time()-10,time()]);
+    $pages=$dir.'/sitemap-pages.xml';
+    file_put_contents($pages, '<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://support.example/login/</loc></url><url><loc>https://evil.example/login/</loc></url><url><loc>https://support.example/admin/login.php</loc></url></urlset>');
+    $links=chat_ai_site_links([['sender'=>'user','text'=>'login problem']],$pages);
+    $urls=array_column($links,'url');
+    rt_check(in_array('/blog/published-login/',$urls,true) && in_array('/login/',$urls,true),'Relevant public blog and sitemap anchors found');
+    rt_check(count($urls)===2 && !in_array('/blog/draft-login/',$urls,true),'Draft, external and admin links excluded');
+    rt_check(chat_ai_site_links([['sender'=>'user','text'=>'unrelatedxyz']],$pages)===[],'Unrelated links excluded');
+    file_put_contents($pages, '<!DOCTYPE urlset [<!ENTITY injected SYSTEM "file:///etc/passwd">]><urlset><url><loc>&injected;</loc></url></urlset>');
+    rt_check(count(chat_ai_site_links([['sender'=>'user','text'=>'login']],$pages))===1,'XML entities ignored while blog help remains available');
     $_SERVER['REMOTE_ADDR']='127.0.0.1';
     $start=chat_realtime_action(['action'=>'start','name'=>'Test']);
     $auth=['session_id'=>$start['sessionId'],'session_token'=>$start['sessionToken'],'client_id'=>'browser-test'];

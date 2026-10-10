@@ -13,13 +13,16 @@ require ${phpString(root+'/admin/plugin/odds-api/includes/sports-api.php')};
 $c=sports_category_save(['name'=>'Basketball','slug'=>'basketball','enabled'=>1]);
 $t=tournament_save(['sports_category_id'=>$c['id'],'title'=>'NBA','odds_sport_key'=>'basketball_nba','enabled'=>1]);
 $p=sports_registry_pdo();
+blog_setting_set('default_image','/uploads/blogs/site-default-abcdef.png');
 foreach(['Home Team','Away Team'] as $name) {
  $p->prepare('INSERT INTO participants(sports_category_id,participant_id,name,slug,image_key,image_path,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)')->execute([$c['id'],$name,$name,sports_registry_slugify($name),$name,'/uploads/sports/fixture.png',time(),time()]);
 }
+$p->exec("UPDATE participants SET image_path='/uploads/sports/missing.png' WHERE name='Away Team'");
 sports_images_record('tournament',$t,'saved','/uploads/sports/fixture.png',['source'=>'sportsdataverse'],'');
 $layout=[];
 foreach(['sport','home_team','away_team'] as $source)$layout[]=['id'=>$source,'type'=>'image','path'=>'$.'.$source,'label'=>$source,'image_source'=>$source,'section'=>$source==='sport'?'title':'loop','width'=>'48px'];
-$data=sports_api_project([(object)['sport_key'=>'basketball_nba','home_team'=>'Home Team','away_team'=>'Away Team']],$layout,1,0,'basketball_nba');
+$layout[]=['id'=>'unknown','type'=>'image','path'=>'$.unknown','label'=>'Unknown team','image_source'=>'team','section'=>'loop'];
+$data=sports_api_project([(object)['sport_key'=>'basketball_nba','home_team'=>'Home Team','away_team'=>'Away Team','unknown'=>'Unknown Team']],$layout,1,0,'basketball_nba');
 file_put_contents(__DIR__.'/response.json',json_encode(['ok'=>true,'enabled'=>true,'title'=>'NBA','updatedAt'=>gmdate('c')]+$data));
 `;
 fs.writeFileSync(path.join(temp,'setup.php'),setup);
@@ -28,19 +31,38 @@ if(seeded.status!==0)throw new Error(seeded.stderr||seeded.stdout);
 fs.writeFileSync(path.join(temp,'fixture.png'),Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==','base64'));
 fs.writeFileSync(path.join(temp,'assert.js'),`
 let tries=0;
-const timer=setInterval(()=>{
+const timer=setInterval(async ()=>{
  const imgs=[...document.querySelectorAll('img.api-img')];
- if(imgs.length===3 && imgs.every(img=>img.complete)) {
+ if(imgs.length===4 && imgs.every(img=>img.complete)) {
   clearInterval(timer);
   const ok=imgs.every(img=>img.naturalWidth>0 && new URL(img.src).origin===location.origin);
-  document.querySelector('#test-result').textContent=ok?'PASS: tournament, home and away logos load under iframe CSP with placeholder site origin':'FAIL: image did not load';
- } else if(++tries>50) { clearInterval(timer);document.querySelector('#test-result').textContent='FAIL: expected three images; got '+imgs.length; }
+  if (!ok) { document.querySelector('#test-result').textContent='FAIL: image did not load'; return; }
+  const {renderLayout}=await import('/admin/plugin/odds-api/public/render.js');
+  const fixture=document.createElement('div');
+  fixture.style.width='1000px';document.body.append(fixture);
+  const field={type:'field',value:'Team',width:'50%'};
+  const record={blocks:[{type:'container',direction:'row',blocks:[field,field]}, {type:'loop',label:'Outcomes',columns:1,items:[{blocks:[{type:'field',value:'2.10'}]}]}]};
+  renderLayout(fixture,{columns:2,records:[record,record]});
+  const grid=fixture.querySelector('.api-grid');
+  const fields=fixture.querySelectorAll('.api-container-row > .api-field');
+  const desktop=getComputedStyle(grid).gridTemplateColumns.split(' ').length===2;
+  const widths=fields.length===4 && Math.abs(fields[0].getBoundingClientRect().top-fields[1].getBoundingClientRect().top)<1;
+  const borders=[...fixture.querySelectorAll('.api-loop')].every(n=>parseFloat(getComputedStyle(n).borderTopWidth)>0);
+  fixture.style.width='600px';
+  const stacked=getComputedStyle(grid).gridTemplateColumns.split(' ').length===1
+    && fields[1].getBoundingClientRect().top>fields[0].getBoundingClientRect().top
+    && Math.abs(fields[0].getBoundingClientRect().width-fields[0].parentElement.getBoundingClientRect().width)<1;
+  fixture.style.width='320px';
+  const mobile=getComputedStyle(grid).gridTemplateColumns.split(' ').length===1;
+  const passed=desktop&&widths&&borders&&mobile&&stacked;
+  document.querySelector('#test-result').textContent=passed?'PASS: image fallbacks, saved columns, fractional rows, loop borders and responsive grids':'FAIL: layout '+JSON.stringify({desktop,widths,borders,mobile,stacked});
+ } else if(++tries>50) { clearInterval(timer);document.querySelector('#test-result').textContent='FAIL: expected four images; got '+imgs.length; }
 },100);
 `);
 fs.writeFileSync(path.join(temp,'router.php'),`<?php
 $path=parse_url($_SERVER['REQUEST_URI'],PHP_URL_PATH);
 if($path==='/api/sports-layout.php'){header('Content-Type:application/json');readfile(__DIR__.'/response.json');exit;}
-if($path==='/uploads/sports/fixture.png'){header('Content-Type:image/png');readfile(__DIR__.'/fixture.png');exit;}
+if($path==='/uploads/sports/fixture.png'||$path==='/uploads/blogs/site-default-abcdef.png'){header('Content-Type:image/png');readfile(__DIR__.'/fixture.png');exit;}
 if($path==='/assert.js'){header('Content-Type:text/javascript');readfile(__DIR__.'/assert.js');exit;}
 if($path==='/odds-api/'){
  ob_start();require ${phpString(root+'/admin/plugin/odds-api/public/index.php')};$html=ob_get_clean();

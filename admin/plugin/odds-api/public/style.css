@@ -73,7 +73,7 @@ header > div,
   min-width: 0;
 }
 
-header p, footer, #status {
+header p, footer, #status, .status-message {
   color: var(--text-muted);
   font-size: 0.9rem;
 }
@@ -206,7 +206,7 @@ footer {
   color: #64748b;
 }
 
-#status[data-error="true"] {
+#status[data-error="true"], .status-error {
   color: #f87171;
   background: rgba(180, 35, 24, 0.2);
   border: 1px solid rgba(248, 113, 113, 0.35);

@@ -11,4 +11,4 @@ Deploy the root `.htaccess` with the folders and adapters: it protects plugin in
 
 Checks: `php admin/scripts/test-plugin-removal.php`, `php admin/scripts/test-sports-api.php`, `php admin/scripts/test-odds-api.php`, `php admin/scripts/test-game-storage.php`, `php admin/scripts/test-game-visibility.php` and `php admin/scripts/test-public-details.php`.
 
-Public Games API implementations live separately in root `game-api/` (game.php, slot-list.php, provider-list.php, game-play.php). Existing `/api/` URLs forward to these endpoints. The Games plugin still supplies catalogue storage and shared helpers.
+Public Games API implementations live in `admin/plugin/games/api/` (with canonical provider-list.php) and root `game-api/` (game.php, slot-list.php, provider-list.php adapter, game-play.php). Existing `/api/` and `/game-api/` URLs forward to the plugin endpoints and return JSON 404 when Games is uninstalled. Provider administration is located at `admin/plugin/games/providers/index.php` and `admin/plugin/games/providers.php` (with legacy shim at `admin/settings/providers/index.php`). The Games plugin supplies catalogue storage, provider settings, and shared helpers.

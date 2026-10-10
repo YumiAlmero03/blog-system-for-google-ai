@@ -24,6 +24,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 $enabled = games_enabled();
 $title = 'Games Settings'; require __DIR__ . '/../../partials/support-head.php';
 ?>
+<p><a href="/admin/plugin/games/">All Games</a> · <a href="/admin/plugin/games/providers.php">Providers</a></p>
 <?php if ($message !== ''): ?><p role="status" class="<?= $failed ? 'support-error' : '' ?>"><?= h($message) ?></p><?php endif; ?>
 <form method="post">
 <?= csrf_input() ?>

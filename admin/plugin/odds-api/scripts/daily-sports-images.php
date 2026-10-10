@@ -2,15 +2,15 @@
 declare(strict_types=1);
 if (PHP_SAPI !== 'cli') { http_response_code(404);exit; }
 require_once __DIR__ . '/../includes/sports-images-daily.php';
-$options=getopt('', ['tournament:','max-items:','max-seconds:','batch-size:','pause-ms:','help']);
+$options=getopt('', ['tournament:','max-images:','max-items:','max-seconds:','batch-size:','pause-ms:','help']);
 if (isset($options['help'])) {
-    echo "Usage: php admin/plugin/odds-api/scripts/daily-sports-images.php [--tournament=ID_OR_ODDS_KEY] [--max-items=1000] [--max-seconds=1800] [--batch-size=25] [--pause-ms=1000]\n";
-    echo "Safe for daily cron or nohup. Only enabled categories with enabled, active tournaments are enriched; existing/manual images are preserved. HTTP 429 starts a persistent 30-minute cooldown. Lock and rotating log live in APP_STORAGE_DIR.\n";
+    echo "Usage: php admin/plugin/odds-api/scripts/daily-sports-images.php [--tournament=ID_OR_ODDS_KEY] [--max-images=100] [--max-items=1000] [--max-seconds=1800] [--batch-size=25] [--pause-ms=1000]\n";
+    echo "Safe for daily cron or nohup. Only enabled categories with enabled, active tournaments are enriched; existing/manual images are preserved. HTTP 429 waits 30 minutes and retries automatically. Default target: 100 saved images. Lock and rotating log live in APP_STORAGE_DIR.\n";
     exit;
 }
 try {
     $args=[];
-    foreach (['max-items','max-seconds','batch-size','pause-ms'] as $flag) {
+    foreach (['max-images','max-items','max-seconds','batch-size','pause-ms'] as $flag) {
         if (!isset($options[$flag])) continue;
         if (!is_string($options[$flag]) || !preg_match('/^[0-9]+$/D',$options[$flag])) throw new InvalidArgumentException('Invalid --'.$flag);
         $args[str_replace('-','_',$flag)]=(int)$options[$flag];

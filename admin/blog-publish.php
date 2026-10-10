@@ -1142,6 +1142,67 @@ $writerOptions = writer_options();
     .wp-toolbar-right {
       justify-content: flex-end;
     }
+    .autosave-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: #64748b;
+      padding: 4px 9px;
+      border-radius: 4px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      white-space: nowrap;
+      user-select: none;
+      transition: all 0.2s ease;
+    }
+    .autosave-status.is-saving {
+      color: #0284c7;
+      background: #f0f9ff;
+      border-color: #bae6fd;
+    }
+    .autosave-status.is-saved {
+      color: #166534;
+      background: #f0fdf4;
+      border-color: #bbf7d0;
+    }
+    .autosave-status.is-dirty {
+      color: #b45309;
+      background: #fffbeb;
+      border-color: #fde68a;
+    }
+    .autosave-status.is-error {
+      color: #b91c1c;
+      background: #fef2f2;
+      border-color: #fecaca;
+    }
+    .autosave-status .autosave-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #94a3b8;
+      display: inline-block;
+      flex-shrink: 0;
+      transition: background 0.2s ease;
+    }
+    .autosave-status.is-saving .autosave-dot {
+      background: #0284c7;
+      animation: autosave-pulse 0.8s infinite alternate ease-in-out;
+    }
+    .autosave-status.is-saved .autosave-dot {
+      background: #16a34a;
+    }
+    .autosave-status.is-dirty .autosave-dot {
+      background: #f59e0b;
+    }
+    .autosave-status.is-error .autosave-dot {
+      background: #dc2626;
+    }
+    @keyframes autosave-pulse {
+      from { opacity: 0.3; transform: scale(0.8); }
+      to { opacity: 1; transform: scale(1.2); }
+    }
     .wp-icon-button {
       width: 36px;
       height: 36px;
@@ -1622,6 +1683,10 @@ $writerOptions = writer_options();
         </div>
         <div class="wp-document-title"><span id="form-title-text">No title · Post</span></div>
         <div class="wp-toolbar-right">
+          <div id="autosave-status" class="autosave-status is-saved" aria-live="polite" title="Auto-save status">
+            <span class="autosave-dot"></span>
+            <span id="autosave-message">All changes saved</span>
+          </div>
           <button type="submit" id="save-draft-btn" class="btn btn-secondary btn-sm" data-save-status="draft">Save as Draft</button>
           <button type="submit" id="publish-blog-btn" class="btn btn-primary" data-save-status="published">Publish</button>
           <button type="button" id="view-blog-page-btn" class="btn btn-secondary btn-sm" style="display:none;">View Page</button>
@@ -1844,7 +1909,7 @@ $writerOptions = writer_options();
                 </select>
                 <input type="text" id="blog-image-url" name="featured_image" class="form-control" value="<?= h(BLOG_DEFAULT_IMAGE) ?>" maxlength="180" style="margin-top:12px; font-size:0.85rem;">
                 <div style="width:100%; height:120px; border-radius:var(--radius-sm); border:1px solid var(--border); overflow:hidden; background:#0d0104; display:flex; align-items:center; justify-content:center; margin-top:12px;">
-                  <img id="featured-image-preview" src="<?= h(BLOG_DEFAULT_IMAGE) ?>" alt="Featured image preview" style="width:100%; height:100%; object-fit:cover;">
+                  <img id="featured-image-preview" src="<?= h(site_default_image(BLOG_DEFAULT_IMAGE)) ?>" alt="Featured image preview" style="width:100%; height:100%; object-fit:cover;">
                 </div>
                 <span id="image-path-badge" class="badge badge-yellow" style="font-size:0.72rem; margin-top:6px; display:inline-block; max-width:100%; overflow-wrap:anywhere;"><?= h(BLOG_DEFAULT_IMAGE) ?></span>
                 <button type="submit" id="save-current-post-btn" class="btn btn-primary" style="width:100%; margin-top:14px;" data-save-current="true">Save Post</button>
@@ -2237,6 +2302,199 @@ $writerOptions = writer_options();
         }
         setText(saveState, status === 'draft' ? 'Draft' : (status === 'scheduled' ? 'Scheduled' : 'Publish ready'));
         updateViewPageButton();
+      }
+
+      // Auto-save system
+      let isDirty = false;
+      let isSaving = false;
+      let autosaveTimer = null;
+      let lastSavedAt = null;
+      const autosaveStatusEl = document.getElementById('autosave-status');
+      const autosaveMessageEl = document.getElementById('autosave-message');
+
+      function updateAutosaveIndicator(state, message) {
+        if (!autosaveStatusEl) return;
+        autosaveStatusEl.className = 'autosave-status is-' + state;
+        if (autosaveMessageEl) autosaveMessageEl.textContent = message;
+      }
+
+      function getStorageKey() {
+        const curId = editingId && editingId.value.trim() ? editingId.value.trim() : (initialEditId || 'new');
+        return 'cms_blog_autosave_' + curId;
+      }
+
+      function saveToLocalStorage() {
+        try {
+          const draft = {
+            id: editingId ? editingId.value : '',
+            title: title ? title.value : '',
+            slug: slug ? slug.value : '',
+            seoTitle: seoTitle ? seoTitle.value : '',
+            category: categoryField ? categoryField.value : '',
+            author: authorField ? authorField.value : '',
+            writerId: writerField ? writerField.value : '',
+            excerpt: excerpt ? excerpt.value : '',
+            content: blogContent ? blogContent.value : '',
+            imageUrl: imageUrl ? imageUrl.value : '',
+            status: blogStatus ? blogStatus.value : 'draft',
+            focusKeyphrase: focusKeyphrase ? focusKeyphrase.value : '',
+            savedAt: Date.now()
+          };
+          localStorage.setItem(getStorageKey(), JSON.stringify(draft));
+        } catch (e) {}
+      }
+
+      function clearLocalStorage() {
+        try {
+          localStorage.removeItem(getStorageKey());
+        } catch (e) {}
+      }
+
+      function markDirty() {
+        isDirty = true;
+        updateAutosaveIndicator('dirty', 'Unsaved changes');
+        saveToLocalStorage();
+        scheduleAutoSave();
+      }
+
+      function scheduleAutoSave() {
+        if (autosaveTimer) clearTimeout(autosaveTimer);
+        autosaveTimer = setTimeout(() => {
+          performAutoSave();
+        }, 2500);
+      }
+
+      async function performAutoSave() {
+        if (isSaving || !isDirty) return;
+
+        if (editorShell && editorShell.classList.contains('editor-mode-write')) {
+          syncMarkdownFromEditor();
+        }
+        updateWordCounter();
+
+        const titleVal = title ? title.value.trim() : '';
+        const contentVal = blogContent ? blogContent.value.trim() : '';
+
+        saveToLocalStorage();
+
+        if (!titleVal) {
+          updateAutosaveIndicator('dirty', 'Draft saved in browser');
+          return;
+        }
+
+        isSaving = true;
+        updateAutosaveIndicator('saving', 'Saving...');
+
+        try {
+          const currentStatus = blogStatus ? blogStatus.value : (savedBlogStatus || 'draft');
+          if (currentStatus !== 'draft') ensurePublishDateValue();
+
+          const data = new FormData(form);
+          const cleanSlug = slugify(data.get('slug') || titleVal);
+          data.set('slug', cleanSlug);
+          data.set('title', titleVal);
+          data.set('seo_title', data.get('seo_title') || (titleVal + ' | ' + websiteTitle));
+          data.set('status', currentStatus);
+          data.set('published_at', publishedAtField ? publishedAtField.value : '');
+          data.set('scheduled_at', currentStatus === 'scheduled' && publishedAtField ? publishedAtField.value : '');
+          data.set('countdown_enabled', countdownEnabledCheckbox && countdownEnabledCheckbox.checked ? '1' : '0');
+          data.set('countdown_target', countdownTargetField ? countdownTargetField.value : '');
+          data.set('countdown_title', countdownTitleField ? countdownTitleField.value : '');
+          data.set('countdown_end_text', countdownEndTextField ? countdownEndTextField.value : '');
+          data.set('focus_keyphrase', focusKeyphrase ? focusKeyphrase.value.trim() : '');
+          data.set('csrf_token', csrfToken);
+          data.set('autosave', '1');
+
+          let excerptVal = data.get('excerpt') ? String(data.get('excerpt')).trim() : '';
+          if (!excerptVal) {
+            const plain = contentVal.replace(/[#*_`~\[\]\(\)>!-]/g, ' ').replace(/\s+/g, ' ').trim();
+            excerptVal = plain.slice(0, 150) || titleVal;
+            data.set('excerpt', excerptVal);
+          }
+
+          if (!data.get('category_id') && categoryField && categoryField.options.length) {
+            data.set('category_id', categoryField.options[0].value);
+          }
+
+          if (!data.get('content') || !String(data.get('content')).trim()) {
+            data.set('content', contentVal || '\n');
+          }
+
+          const response = await fetch('/admin/blog-save.php', {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'fetch' },
+            body: data
+          });
+
+          const result = await parseJsonResponse(response);
+          if (result && result.csrfToken) {
+            updateCsrf(result.csrfToken);
+          }
+
+          if (!response.ok || !result.ok) {
+            throw new Error((result.errors || [result.error || 'Autosave failed']).join(' '));
+          }
+
+          if (result.blog) {
+            savedBlogStatus = result.blog.status || currentStatus;
+            const savedId = result.blog.id || result.blog.slug || cleanSlug;
+            if (editingId && !editingId.value) {
+              editingId.value = savedId;
+              const newUrl = '/admin/blog-publish.php?id=' + encodeURIComponent(savedId);
+              if (window.history && window.history.replaceState) {
+                window.history.replaceState({ id: savedId }, '', newUrl);
+              }
+            }
+            if (slug && result.blog.slug && !manualSlug) {
+              slug.value = result.blog.slug;
+              setText(slugPreview, result.blog.slug);
+            }
+            if (blogStatus) blogStatus.value = result.blog.status || currentStatus;
+          }
+
+          isDirty = false;
+          lastSavedAt = new Date();
+          const timeStr = lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          updateAutosaveIndicator('saved', 'Saved at ' + timeStr);
+          clearLocalStorage();
+        } catch (err) {
+          console.warn('Autosave warning:', err);
+          updateAutosaveIndicator('error', 'Saved locally (server offline)');
+        } finally {
+          isSaving = false;
+        }
+      }
+
+      function checkLocalStorageRecovery() {
+        try {
+          const raw = localStorage.getItem(getStorageKey());
+          if (!raw) return;
+          const draft = JSON.parse(raw);
+          if (!draft || (!draft.title && !draft.content)) return;
+
+          const isFormEmpty = (!title || !title.value.trim()) && (!blogContent || !blogContent.value.trim());
+          if (isFormEmpty && (draft.title || draft.content)) {
+            if (title && draft.title) title.value = draft.title;
+            if (slug && draft.slug) { slug.value = draft.slug; setText(slugPreview, draft.slug); }
+            if (seoTitle && draft.seoTitle) seoTitle.value = draft.seoTitle;
+            if (categoryField && draft.category) categoryField.value = draft.category;
+            if (authorField && draft.author) authorField.value = draft.author;
+            if (writerField && draft.writerId) writerField.value = draft.writerId;
+            if (excerpt && draft.excerpt) excerpt.value = draft.excerpt;
+            if (imageUrl && draft.imageUrl) setImage(draft.imageUrl);
+            if (focusKeyphrase && draft.focusKeyphrase) focusKeyphrase.value = draft.focusKeyphrase;
+            if (draft.content) {
+              setEditorMarkdown(draft.content);
+              resetEditorHistory(draft.content);
+              renderMarkdownPreview();
+            }
+            updateTitleDisplay();
+            updateExcerptCounter();
+            updateAutosaveIndicator('dirty', 'Restored draft (unsaved)');
+            showNotice('Restored unsaved draft from your browser.', 'ok');
+            isDirty = true;
+          }
+        } catch (e) {}
       }
 
       function escapeHtml(value) {
@@ -3159,6 +3417,7 @@ $writerOptions = writer_options();
         }
         isRestoringHistory = false;
         updateHistoryButtons();
+        markDirty();
       }
 
       function renderMarkdownPreview() {
@@ -3941,6 +4200,7 @@ $writerOptions = writer_options();
         syncMarkdownFromEditor();
         scheduleEditorHistory(immediate);
         analyzeSeo();
+        markDirty();
       }
 
       function tableColumnCount(tableBlock) {
@@ -4642,10 +4902,17 @@ $writerOptions = writer_options();
         return (value || '').toLowerCase().trim().replace(/[^a-z0-9-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 96);
       }
 
+      const blogDefaultImage = <?= json_encode(site_default_image(BLOG_DEFAULT_IMAGE), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+      if (imagePreview) imagePreview.addEventListener('error', () => {
+        if (imagePreview.getAttribute('src') !== blogDefaultImage) imagePreview.src = blogDefaultImage;
+      });
+      function previewImagePath(path) {
+        return !path || path === '/uploads/blogs/default-featured.svg' || path.startsWith('/uploads/blogs/site-default-') ? blogDefaultImage : path;
+      }
       function setImage(path) {
         const value = path || '/uploads/blogs/default-featured.svg';
         if (imageUrl) imageUrl.value = value;
-        if (imagePreview) imagePreview.src = value;
+        if (imagePreview) imagePreview.src = previewImagePath(value);
         setText(imageBadge, value);
         if (imagePreset) {
           imagePreset.value = value;
@@ -4702,6 +4969,7 @@ $writerOptions = writer_options();
         }
         updateTitleDisplay();
         analyzeSeo();
+        markDirty();
       });
 
       on(slug, 'input', () => {
@@ -4711,30 +4979,46 @@ $writerOptions = writer_options();
         setText(slugPreview, clean || 'blog-article');
         updateViewPageButton();
         analyzeSeo();
+        markDirty();
       });
 
       on(seoTitle, 'input', () => {
         manualSeoTitle = true;
         updateSeoTitleCounter();
         analyzeSeo();
+        markDirty();
       });
 
       if (imagePreset) {
         on(imagePreset, 'change', () => {
           setImage(imagePreset.value);
           analyzeSeo();
+          markDirty();
         });
       }
       on(imageUrl, 'input', () => {
-        if (imagePreview) imagePreview.src = imageUrl.value || '/uploads/blogs/default-featured.svg';
+        if (imagePreview) imagePreview.src = previewImagePath(imageUrl.value);
         setText(imageBadge, imageUrl.value || '/uploads/blogs/default-featured.svg');
         analyzeSeo();
+        markDirty();
       });
-      on(focusKeyphrase, 'input', analyzeSeo);
-      on(keyphraseSynonyms, 'input', analyzeSeo);
+      on(focusKeyphrase, 'input', () => { analyzeSeo(); markDirty(); });
+      on(keyphraseSynonyms, 'input', () => { analyzeSeo(); markDirty(); });
       on(blogStatus, 'change', () => {
         updateSaveState(blogStatus.value);
+        markDirty();
       });
+      if (categoryField) on(categoryField, 'change', markDirty);
+      if (writerField) on(writerField, 'change', markDirty);
+      if (authorField) on(authorField, 'input', markDirty);
+      if (publishedAtField) on(publishedAtField, 'input', markDirty);
+      if (scheduledAtField) on(scheduledAtField, 'input', markDirty);
+      if (countdownEnabledCheckbox) on(countdownEnabledCheckbox, 'change', markDirty);
+      if (countdownTargetField) on(countdownTargetField, 'input', markDirty);
+      if (countdownTitleField) on(countdownTitleField, 'input', markDirty);
+      if (countdownEndTextField) on(countdownEndTextField, 'input', markDirty);
+      document.querySelectorAll('#blog-tags input').forEach(input => on(input, 'change', markDirty));
+
       on(viewBlogPageBtn, 'click', () => {
         const href = viewBlogPageBtn.dataset.href || currentBlogPublicUrl();
         if (href) window.open(href, '_blank', 'noopener');
@@ -4749,6 +5033,7 @@ $writerOptions = writer_options();
       on(document.getElementById('blog-excerpt'), 'input', () => {
         updateExcerptCounter();
         analyzeSeo();
+        markDirty();
       });
 
       on(tabWrite, 'click', () => setEditorMode('write'));
@@ -4787,6 +5072,7 @@ $writerOptions = writer_options();
           renderMarkdownPreview();
         }
         scheduleEditorHistory(false);
+        markDirty();
       });
       on(wysiwygEditor, 'change', (event) => {
         const block = event.target.closest('.editor-button-block');
@@ -4807,6 +5093,7 @@ $writerOptions = writer_options();
           renderMarkdownPreview();
         }
         scheduleEditorHistory(false);
+        markDirty();
       });
       on(wysiwygEditor, 'keyup', saveEditorSelection);
       on(wysiwygEditor, 'mouseup', saveEditorSelection);
@@ -5210,6 +5497,10 @@ $writerOptions = writer_options();
           updateSaveState(blogStatus ? blogStatus.value : 'draft');
           setEditorMarkdown('');
           resetEditorHistory('');
+          clearLocalStorage();
+          isDirty = false;
+          if (autosaveTimer) clearTimeout(autosaveTimer);
+          updateAutosaveIndicator('saved', 'All changes saved');
           pendingSaveStatus = '';
           updateTitleDisplay();
           updateSeoTitleCounter();
@@ -5266,6 +5557,11 @@ $writerOptions = writer_options();
           }
           pendingSaveStatus = '';
           updateSaveState(currentStatus);
+          isDirty = false;
+          if (autosaveTimer) clearTimeout(autosaveTimer);
+          const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          updateAutosaveIndicator('saved', (currentStatus === 'published' ? 'Published' : 'Saved') + ' at ' + timeNow);
+          clearLocalStorage();
           showNotice(currentStatus === 'draft' ? 'Draft saved.' : (currentStatus === 'scheduled' ? 'Post scheduled.' : 'Published post saved. Changes are live.'), 'ok');
           if (publicWindow && publicUrl) {
             publicWindow.location.href = publicUrl;
@@ -5274,6 +5570,7 @@ $writerOptions = writer_options();
           }
         } catch (error) {
           if (publicWindow) publicWindow.close();
+          updateAutosaveIndicator('error', 'Error saving');
           showNotice(error.message || 'Blog post could not be saved.', 'error');
         }
       });
@@ -5328,6 +5625,10 @@ $writerOptions = writer_options();
         pendingSaveStatus = '';
         updateTitleDisplay();
         updateSeoTitleCounter();
+        isDirty = false;
+        if (autosaveTimer) clearTimeout(autosaveTimer);
+        updateAutosaveIndicator('saved', 'Saved');
+        clearLocalStorage();
         if (cancelBtn) cancelBtn.style.display = 'inline-block';
         showNotice('Blog post loaded for editing.', 'ok');
         analyzeSeo();
@@ -5335,7 +5636,23 @@ $writerOptions = writer_options();
 
       if (initialEditId) {
         loadBlogForEditing(initialEditId).catch((error) => showNotice(error.message || 'Blog post could not be loaded.', 'error'));
+      } else {
+        checkLocalStorageRecovery();
       }
+
+      setInterval(() => {
+        if (isDirty && !isSaving) {
+          performAutoSave();
+        }
+      }, 30000);
+
+      window.addEventListener('beforeunload', (event) => {
+        if (isDirty) {
+          event.preventDefault();
+          event.returnValue = '';
+        }
+      });
+
       updateTitleDisplay();
       updateExcerptCounter();
       updateViewPageButton();

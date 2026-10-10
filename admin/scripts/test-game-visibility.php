@@ -97,7 +97,8 @@ try {
     foreach (['blocked','hidden','ph','unfinished','draft'] as $slug) visibility_check(!str_contains($xml,'/game/'.$slug.'/'),'Sitemap excludes '.$slug);
     visibility_check(str_contains($xml,'/game/visible/'),'Sitemap includes eligible game');
     [$status,,$html]=visibility_handler(['path'=>'/admin/slots.php','role'=>'editor','method'=>'GET']);
-    visibility_check($status===200 && str_contains($html,'blocked') && str_contains($html,'hidden'),'Admin sees hidden games');
+    visibility_check($status===200 && str_contains($html,'Slug: hidden') && str_contains($html,'Slug: draft') && str_contains($html,'Slug: unfinished'),'Admin sees eligible games regardless of visibility or publish status');
+    visibility_check(!str_contains($html,'Slug: blocked') && !str_contains($html,'Slug: ph') && !str_contains($html,'value="blocked"'),'Admin excludes PH restrictions and disabled providers');
     foreach (['admin','super_user'] as $role) {
         [$status,,$html]=visibility_handler(['path'=>'/admin/settings/providers/index.php','role'=>$role,'method'=>'GET']);
         visibility_check($status===200 && str_contains($html,'Blocked'),'Admin sees all providers');

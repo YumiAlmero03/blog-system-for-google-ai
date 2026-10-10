@@ -77,7 +77,8 @@ require __DIR__ . '/../../../partials/support-head.php';
       <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
         <div>
           <?php if (!empty($participant['image_path'])): ?>
-            <img src="<?= h(public_url($participant['image_path'])) ?>" alt="<?= h($participant['name']) ?>" style="max-width:100px;max-height:100px;object-fit:contain;background:#1e293b;border-radius:8px;padding:4px;border:1px solid var(--border);">
+            <?php $pImgUrl = sports_registry_safe_image_url($participant['image_path']) . ($participant['updated_at'] ? '?t=' . $participant['updated_at'] : ''); ?>
+            <img src="<?= h($pImgUrl) ?>" alt="<?= h($participant['name']) ?>" style="max-width:100px;max-height:100px;object-fit:contain;background:#1e293b;border-radius:8px;padding:4px;border:1px solid var(--border);">
           <?php else: ?>
             <div style="width:80px;height:80px;border-radius:8px;background:var(--surface-soft);display:flex;align-items:center;justify-content:center;color:var(--text-muted);border:1px dashed var(--border);">No Image</div>
           <?php endif; ?>

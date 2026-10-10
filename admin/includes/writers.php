@@ -63,7 +63,7 @@ function writer_default_id(): ?int
 {
     if (($_SESSION['user']['id'] ?? '') === 'admin:env') return (int)admin_environment_user()['id'];
     $id = $_SESSION['user']['account_id'] ?? null;
-    if (!$id && str_starts_with($_SESSION['user']['id'] ?? '', 'editor:')) $id = (int)substr($_SESSION['user']['id'],7);
+    if (!$id && str_starts_with((string)($_SESSION['user']['id'] ?? ''), 'editor:')) $id = (int)substr((string)$_SESSION['user']['id'],7);
     return $id ? (int)$id : null;
 }
 

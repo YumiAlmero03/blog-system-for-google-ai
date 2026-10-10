@@ -28,7 +28,7 @@ $title = 'Automatic Chat Replies'; require __DIR__ . '/partials/support-head.php
 ?>
 <p><a href="/admin/live-chat.php">Back to Live Chat</a></p>
 <p>Add unlimited matching rules. Choose up to 5 enabled suggestions for the chat support layout. Matching ignores letter case and extra spaces; the longest matching phrase wins, with the first saved rule winning ties.</p>
-<p>Enabled replies also provide the AI with support information. Add accurate steps and links for registration, login, and other common questions. Matching phrases send the saved reply immediately; other questions can use this information in an AI response. For unresolved issues, the AI can ask for an email address or contact number for a human agent to review in Live Chat.</p>
+<p>Enabled replies also provide the AI with support information. Add accurate steps and links for registration, login, and other common questions. Matching phrases send the saved reply immediately; other questions can use this information in an AI response. For unresolved issues, the AI can ask for an email address or contact number to help proceed with the issue in Live Chat. Relevant public blog and sitemap pages can be shared as clickable links.</p>
 <?php if ($error): ?><p role="alert" class="support-error"><?= h($error) ?></p><?php endif; ?>
 <?php if (isset($_GET['saved'])): ?><p role="status">Automatic replies saved.</p><?php endif; ?>
 <h2><?= $edit['id'] !== '' ? 'Edit reply' : 'Add reply' ?></h2>

@@ -29,8 +29,7 @@ $title = 'Odds API Settings'; require __DIR__ . '/../../partials/support-head.ph
               <label><input type="checkbox" name="clear_api_key" value="1"> Remove saved key (disable Odds API first)</label>
             </div>
             <div class="form-row"><label for="odds-regions">regions</label><input id="odds-regions" name="regions" type="text" value="<?= h($oddsConfig['regions']) ?>" maxlength="1000" required><p>Comma-separated: us, us2, uk, au, eu.</p></div>
-            <p>Choose markets and arrange display fields in the <a href="/admin/plugin/odds-api/sports/">iframe editor</a>.</p>
-            <div class="form-row"><label for="odds-bookmakers">bookmakers (optional)</label><input id="odds-bookmakers" name="bookmakers" type="text" value="<?= h($oddsConfig['bookmakers']) ?>" maxlength="1000" placeholder="draftkings,fanduel"><p>Bookmaker keys, separated by commas. When supplied, these take priority over regions.</p></div>
+            <p>Choose markets, bookmakers, and arrange display fields in the <a href="/admin/plugin/odds-api/sports/">iframe editor</a>.</p>
             <div class="actions"><button type="submit" name="action" value="save_odds_api" class="btn btn-primary btn-sm">Save Odds API Settings</button><a class="btn btn-secondary btn-sm" href="/admin/plugin/odds-api/sports/">Sport / Competition</a></div>
           </form>
 </main></body></html>

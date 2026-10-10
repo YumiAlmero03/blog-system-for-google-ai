@@ -30,7 +30,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 $providers = game_provider_settings_rows($pdo);
 $title = 'Providers Settings'; require __DIR__ . '/../../partials/support-head.php';
 ?>
-<p><a href="/admin/plugin/games/settings.php">Back to Settings</a></p>
+<p><a href="/admin/plugin/games/">All Games</a> · <a href="/admin/plugin/games/settings.php">Games Settings</a></p>
 <?php if ($message !== ''): ?><p role="status" class="<?= $failed ? 'support-error' : '' ?>"><?= h($message) ?></p><?php endif; ?>
 <p>Approved providers may appear publicly when each game also meets visibility, processing, publication, and PH restriction rules.</p>
 <div class="support-actions"><label>Search providers <input id="provider-search" type="search" autocomplete="off"></label></div>

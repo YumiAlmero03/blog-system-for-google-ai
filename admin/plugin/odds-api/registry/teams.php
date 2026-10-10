@@ -86,7 +86,8 @@ require __DIR__ . '/../../../partials/support-head.php';
           <tr>
             <td>
               <?php if (!empty($t['image_path'])): ?>
-                <img src="<?= h(public_url($t['image_path'])) ?>" alt="<?= h($t['name']) ?>" class="team-thumb">
+                <?php $tImgUrl = sports_registry_safe_image_url($t['image_path']) . ($t['updated_at'] ? '?t=' . $t['updated_at'] : ''); ?>
+                <img src="<?= h($tImgUrl) ?>" alt="<?= h($t['name']) ?>" class="team-thumb">
               <?php else: ?>
                 <span class="team-thumb-empty"><?= $t['image_failure'] ? '⚠️' : '—' ?></span>
               <?php endif; ?>

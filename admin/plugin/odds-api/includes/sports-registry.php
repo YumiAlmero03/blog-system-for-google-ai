@@ -582,12 +582,16 @@ function sports_registry_update_image(int $sportId, string $imagePath): void { s
 function sports_registry_save_sport_image(int $sportId, array $file): array { return sports_category_save_image($sportId, $file); }
 function sports_registry_remove_sport_image(int $sportId): bool { return sports_category_remove_image($sportId); }
 function sports_registry_delete(int $id): bool { return sports_category_delete($id); }
+function sports_registry_tree(array $options = []): array {
+    require_once __DIR__ . '/sports-api.php';
+    return sports_api_tree($options);
+}
 
 // --------------------------------------------------------------------------
 // Tournaments (Odds API Sport Keys)
 // --------------------------------------------------------------------------
 
-function tournament_get_all(?int $categoryId = null, bool $onlyEnabled = false, bool $onlyEnabledCategory = true): array
+function tournament_get_all(?int $categoryId = null, bool $onlyEnabled = false, bool $onlyEnabledCategory = true, bool $onlyActive = false): array
 {
     $pdo = sports_registry_pdo();
     $where = [];
@@ -602,6 +606,9 @@ function tournament_get_all(?int $categoryId = null, bool $onlyEnabled = false, 
     }
     if ($onlyEnabledCategory) {
         $where[] = 'sc.enabled = 1';
+    }
+    if ($onlyActive) {
+        $where[] = 't.active = 1';
     }
 
     $sql = 'SELECT t.*, sc.name AS category_name, sc.slug AS category_slug, sc.enabled AS category_enabled,
@@ -967,6 +974,10 @@ function participant_save(array $data): array
         $slug = sports_registry_slugify($slug);
     }
 
+    $cat = sports_category_get((int) $participant['sports_category_id']);
+    $catSlug = $cat['slug'] ?? 'sport';
+    $imageKey = sports_registry_participant_image_key($slug, $catSlug);
+
     $code = strtoupper(trim((string) ($data['code'] ?? '')));
     $enabled = isset($data['enabled']) ? (!empty($data['enabled']) ? 1 : 0) : (int) $participant['enabled'];
 
@@ -974,13 +985,13 @@ function participant_save(array $data): array
     $imageSource = isset($data['manual_image_path']) ? 'manual' : ($data['image_source'] ?? $participant['image_source']);
 
     $now = time();
-    $stmt = $pdo->prepare('UPDATE participants SET name = ?, slug = ?, image_path = ?, image_source = ?, enabled = ?, updated_at = ? WHERE id = ?');
-    $stmt->execute([$name, $slug, $imagePath, $imageSource, $enabled, $now, $id]);
+    $stmt = $pdo->prepare('UPDATE participants SET name = ?, slug = ?, image_key = ?, image_path = ?, image_source = ?, enabled = ?, updated_at = ? WHERE id = ?');
+    $stmt->execute([$name, $slug, $imageKey, $imagePath, $imageSource, $enabled, $now, $id]);
 
     // Mirror to legacy teams table
     try {
-        $pdo->prepare('UPDATE teams SET name = ?, slug = ?, code = ?, image_path = ?, image_source = ?, enabled = ?, updated_at = ? WHERE id = ?')
-            ->execute([$name, $slug, $code, $imagePath, $imageSource, $enabled, $now, $id]);
+        $pdo->prepare('UPDATE teams SET name = ?, slug = ?, image_key = ?, code = ?, image_path = ?, image_source = ?, enabled = ?, updated_at = ? WHERE id = ?')
+            ->execute([$name, $slug, $imageKey, $code, $imagePath, $imageSource, $enabled, $now, $id]);
     } catch (Throwable) {}
 
     return participant_get($id) ?? [];
@@ -2165,6 +2176,23 @@ function sports_api_sync_teams(int|string $sportIdOrSlug, ?int $competitionId = 
 // Resolvers for Odds API & Layout Builder
 // --------------------------------------------------------------------------
 
+function sports_registry_safe_image_url(string $path, bool $absolute = false): string
+{
+    $path = trim($path);
+    if ($path === '') return '';
+    if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+        return $path;
+    }
+    $rootRelative = '/' . ltrim($path, '/');
+    if ($absolute && function_exists('site_base_url')) {
+        $base = site_base_url();
+        if ($base !== '' && $base !== '[insert_domain_here]') {
+            return rtrim($base, '/') . $rootRelative;
+        }
+    }
+    return $rootRelative;
+}
+
 function sports_registry_resolve_sport_image(string $sportSlugOrKey, bool $absolute = true): string
 {
     $sportSlugOrKey = trim($sportSlugOrKey);
@@ -2176,20 +2204,28 @@ function sports_registry_resolve_sport_image(string $sportSlugOrKey, bool $absol
     $stmt = $pdo->prepare("SELECT a.image_path FROM sports_image_assets a JOIN tournaments t ON t.id=a.entity_id WHERE a.entity_type='tournament' AND a.status='saved' AND t.odds_sport_key=?");
     $stmt->execute([$sportSlugOrKey]);
     $logo = $stmt->fetchColumn();
-    if ($logo) return $absolute ? public_url((string)$logo) : (string)$logo;
+    if ($logo) return sports_registry_safe_image_url((string)$logo, $absolute);
+
+    // Fallback: check base tournament if this is an outrights or sub-competition
+    $baseKey = preg_replace('/_(?:championship_winner|preseason|winner)$/i', '', $sportSlugOrKey);
+    if ($baseKey !== '' && $baseKey !== $sportSlugOrKey) {
+        $stmt->execute([$baseKey]);
+        $logo = $stmt->fetchColumn();
+        if ($logo) return sports_registry_safe_image_url((string)$logo, $absolute);
+    }
 
     // 1. Check if matches a tournament odds_sport_key directly
     $stmt = $pdo->prepare('SELECT sc.image_path FROM tournaments t JOIN sports_categories sc ON sc.id = t.sports_category_id WHERE t.odds_sport_key = ?');
     $stmt->execute([$sportSlugOrKey]);
     $imgPath = $stmt->fetchColumn();
     if ($imgPath) {
-        return $absolute ? public_url((string)$imgPath) : (string)$imgPath;
+        return sports_registry_safe_image_url((string)$imgPath, $absolute);
     }
 
     // 2. Check if matches a sports_category slug directly
     $cat = sports_category_get($sportSlugOrKey);
     if ($cat && !empty($cat['image_path'])) {
-        return $absolute ? public_url($cat['image_path']) : $cat['image_path'];
+        return sports_registry_safe_image_url($cat['image_path'], $absolute);
     }
 
     // 3. Fallback: match sport key prefixes like 'basketball_nba' -> 'basketball', 'soccer_epl' -> 'soccer'
@@ -2203,7 +2239,7 @@ function sports_registry_resolve_sport_image(string $sportSlugOrKey, bool $absol
             $cat = sports_category_get('soccer');
         }
         if ($cat && !empty($cat['image_path'])) {
-            return $absolute ? public_url($cat['image_path']) : $cat['image_path'];
+            return sports_registry_safe_image_url($cat['image_path'], $absolute);
         }
     }
 
@@ -2245,7 +2281,7 @@ function sports_registry_match_participant(string $sportSlugOrKey, string $ident
         $stmt->execute([$catId, $identifierOrName]);
         $p = $stmt->fetch();
         if ($p) {
-            $p['image_url'] = !empty($p['image_path']) ? public_url($p['image_path']) : '';
+            $p['image_url'] = !empty($p['image_path']) ? sports_registry_safe_image_url($p['image_path']) : '';
             return $p;
         }
     }
@@ -2259,7 +2295,7 @@ function sports_registry_match_participant(string $sportSlugOrKey, string $ident
         $stmt->execute([$catId, $slug, $lower, $identifierOrName]);
         $p = $stmt->fetch();
         if ($p) {
-            $p['image_url'] = !empty($p['image_path']) ? public_url($p['image_path']) : '';
+            $p['image_url'] = !empty($p['image_path']) ? sports_registry_safe_image_url($p['image_path']) : '';
             return $p;
         }
     }
@@ -2269,7 +2305,7 @@ function sports_registry_match_participant(string $sportSlugOrKey, string $ident
     $stmt->execute([$slug, $lower, $identifierOrName]);
     $p = $stmt->fetch();
     if ($p) {
-        $p['image_url'] = !empty($p['image_path']) ? public_url($p['image_path']) : '';
+        $p['image_url'] = !empty($p['image_path']) ? sports_registry_safe_image_url($p['image_path']) : '';
         return $p;
     }
 
@@ -2278,7 +2314,7 @@ function sports_registry_match_participant(string $sportSlugOrKey, string $ident
     $stmt->execute(['%' . $lower . '%', $lower]);
     $p = $stmt->fetch();
     if ($p) {
-        $p['image_url'] = !empty($p['image_path']) ? public_url($p['image_path']) : '';
+        $p['image_url'] = !empty($p['image_path']) ? sports_registry_safe_image_url($p['image_path']) : '';
         return $p;
     }
 

@@ -6,6 +6,9 @@ require_admin();
 require_once __DIR__ . '/../includes/sports-registry.php';
 
 $id = (int) ($_GET['id'] ?? 0);
+if ($id <= 0 && preg_match('#/tournaments/([0-9]+)#', (string) ($_SERVER['REQUEST_URI'] ?? ''), $uriMatches)) {
+    $id = (int) $uriMatches[1];
+}
 $tournament = $id > 0 ? tournament_get($id) : null;
 
 if (!$tournament) {
@@ -83,17 +86,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $enrichResult['unmatched']
             );
             csrf_rotate();
-        } elseif ($action === 'upload_participant_image') {
+        } elseif ($action === 'save_participant' || $action === 'upload_participant_image') {
             $pId = (int) ($_POST['participant_id'] ?? 0);
             if ($pId <= 0) {
                 throw new InvalidArgumentException('Participant ID required.');
             }
+            $name = trim((string) ($_POST['name'] ?? ''));
+            $slug = trim((string) ($_POST['slug'] ?? ''));
+            $hasName = $name !== '';
+
+            if ($hasName) {
+                $enabled = isset($_POST['enabled']) ? 1 : 0;
+                $savedP = participant_save([
+                    'id' => $pId,
+                    'name' => $name,
+                    'slug' => $slug,
+                    'enabled' => $enabled,
+                ]);
+            } else {
+                $savedP = participant_get($pId);
+                if (!$savedP) {
+                    throw new InvalidArgumentException('Participant not found.');
+                }
+            }
+
             $file = $_FILES['participant_image'] ?? null;
-            if (!$file || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            if ($file && ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
+                $savedP = participant_save_manual_image($pId, $file);
+                $notice = sprintf("Participant '%s' and logo updated successfully (Manual override).", $savedP['name']);
+            } elseif ($hasName) {
+                $notice = sprintf("Participant '%s' updated successfully.", $savedP['name']);
+            } elseif ($action === 'upload_participant_image') {
                 throw new InvalidArgumentException('Please select an image file to upload.');
             }
-            $savedP = participant_save_manual_image($pId, $file);
-            $notice = sprintf("Logo for '%s' updated successfully (Manual override).", $savedP['name']);
             csrf_rotate();
         } elseif ($action === 'remove_participant_image') {
             $pId = (int) ($_POST['participant_id'] ?? 0);
@@ -336,7 +361,8 @@ require __DIR__ . '/../../../partials/support-head.php';
           <?php endif; ?>
           <?php foreach ($participants as $p): ?>
             <?php
-              $imgUrl = !empty($p['image_path']) ? public_url($p['image_path']) : '';
+              $rawImg = !empty($p['image_path']) ? sports_registry_safe_image_url($p['image_path']) : '';
+              $imgUrl = $rawImg !== '' ? $rawImg . ($p['updated_at'] ? '?t=' . $p['updated_at'] : '') : '';
               $pSource = strtoupper($p['image_source'] ?: 'NONE');
               $badgeClass = match ($p['image_source']) {
                   'manual' => 'badge-manual',
@@ -344,22 +370,33 @@ require __DIR__ . '/../../../partials/support-head.php';
                   'odds_api' => 'badge-odds',
                   default => 'badge-neutral',
               };
+              $pJsonArgs = sprintf(
+                  '%d, %s, %s, %s, %s, %s, %s, %d',
+                  (int)$p['id'],
+                  json_encode($p['name'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP),
+                  json_encode($p['slug'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP),
+                  json_encode($imgUrl, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP),
+                  json_encode($pSource, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP),
+                  json_encode($p['image_key'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP),
+                  json_encode($p['image_path'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP),
+                  (int)$p['enabled']
+              );
             ?>
             <tr>
               <td>
                 <?php if ($imgUrl !== ''): ?>
-                  <a href="javascript:void(0)" onclick="openImageModal(<?= (int)$p['id'] ?>, '<?= h(addslashes($p['name'])) ?>', '<?= h(addslashes($imgUrl)) ?>', '<?= h(addslashes($pSource)) ?>', '<?= h(addslashes($p['image_key'])) ?>', '<?= h(addslashes($p['image_path'])) ?>')" title="Click to view/edit logo">
+                  <a href="javascript:void(0)" onclick="openImageModal(<?= $pJsonArgs ?>)" title="Click to view/edit logo">
                     <img src="<?= h($imgUrl) ?>" alt="<?= h($p['name']) ?>" class="team-thumb">
                   </a>
                 <?php else: ?>
-                  <a href="javascript:void(0)" onclick="openImageModal(<?= (int)$p['id'] ?>, '<?= h(addslashes($p['name'])) ?>', '', 'NONE', '<?= h(addslashes($p['image_key'])) ?>', '')" title="Click to upload logo">
+                  <a href="javascript:void(0)" onclick="openImageModal(<?= $pJsonArgs ?>)" title="Click to upload logo">
                     <span class="team-thumb-empty"><?= $p['image_failure'] ? '⚠️' : 'No Logo' ?></span>
                   </a>
                 <?php endif; ?>
               </td>
               <td>
                 <strong>
-                  <a href="javascript:void(0)" onclick="openImageModal(<?= (int)$p['id'] ?>, '<?= h(addslashes($p['name'])) ?>', '<?= h(addslashes($imgUrl)) ?>', '<?= h(addslashes($pSource)) ?>', '<?= h(addslashes($p['image_key'])) ?>', '<?= h(addslashes($p['image_path'])) ?>')">
+                  <a href="javascript:void(0)" onclick="openImageModal(<?= $pJsonArgs ?>)">
                     <?= h($p['name']) ?>
                   </a>
                 </strong>
@@ -380,8 +417,8 @@ require __DIR__ . '/../../../partials/support-head.php';
                 </form>
               </td>
               <td>
-                <button type="button" class="btn btn-secondary btn-sm" onclick="openImageModal(<?= (int)$p['id'] ?>, '<?= h(addslashes($p['name'])) ?>', '<?= h(addslashes($imgUrl)) ?>', '<?= h(addslashes($pSource)) ?>', '<?= h(addslashes($p['image_key'])) ?>', '<?= h(addslashes($p['image_path'])) ?>')">
-                  ✏️ Edit Logo
+                <button type="button" class="btn btn-secondary btn-sm" onclick="openImageModal(<?= $pJsonArgs ?>)">
+                  ✏️ Edit
                 </button> ·
                 <a class="btn btn-secondary btn-sm" href="/admin/plugin/odds-api/registry/team-edit.php?id=<?= (int)$p['id'] ?>">Details</a>
               </td>
@@ -393,11 +430,11 @@ require __DIR__ . '/../../../partials/support-head.php';
   </div>
 </div>
 
-<!-- Modal: Participant Image Editor -->
-<dialog id="image-modal" style="border:1px solid var(--border);border-radius:10px;padding:24px;background:var(--surface);color:inherit;max-width:560px;width:100%;">
+<!-- Modal: Participant Editor -->
+<dialog id="image-modal" style="border:1px solid var(--border);border-radius:10px;padding:24px;background:var(--surface);color:inherit;max-width:580px;width:100%;">
   <div>
-    <div class="flex-between" style="margin-bottom:12px;">
-      <p style="font-weight:700;font-size:1.15rem;margin:0;" id="modal-title">Participant Logo Editor</p>
+    <div class="flex-between" style="margin-bottom:14px;">
+      <span style="font-weight:700;font-size:1.15rem;margin:0;" id="modal-title">Edit Participant & Logo</span>
       <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('image-modal').close()">✕</button>
     </div>
 
@@ -416,50 +453,71 @@ require __DIR__ . '/../../../partials/support-head.php';
       </div>
     </div>
 
-    <div style="background:var(--surface-soft);border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:16px;font-size:0.85rem;">
-      <div><strong>Participant:</strong> <span id="modal-pname-display"></span></div>
-      <div><strong>Image Key:</strong> <code id="modal-key-display"></code></div>
-      <div><strong>Tournament:</strong> <?= h($tournament['title']) ?> (<code><?= h($tournament['odds_sport_key']) ?></code>)</div>
-      <?php if (!empty($tournament['enrich_api_url'])): ?>
-        <div><strong>Enrich API:</strong> <code style="font-size:0.75rem;"><?= h($tournament['enrich_api_url']) ?></code></div>
-      <?php endif; ?>
-    </div>
-
-    <!-- Upload / Replace Form -->
+    <!-- Edit Form -->
     <form method="post" enctype="multipart/form-data" style="margin-bottom:12px;">
       <?= csrf_input() ?>
-      <input type="hidden" name="action" value="upload_participant_image">
+      <input type="hidden" name="action" value="save_participant">
       <input type="hidden" name="participant_id" id="modal-pid-upload" value="">
 
-      <label style="display:block;margin-bottom:8px;font-weight:600;">
-        Upload / Replace Image<br>
-        <input type="file" name="participant_image" required accept="image/jpeg,image/png,image/webp,image/avif" style="margin-top:4px;">
-      </label>
-      <p style="font-size:0.75rem;color:var(--text-muted);margin:0 0 10px;">
-        Manual uploads are saved locally and marked as <strong>MANUAL</strong> to prevent automated API enrichments from overwriting them.
-      </p>
-      <button type="submit" class="btn btn-primary btn-sm">Upload & Save Logo</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+        <div>
+          <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:4px;">Participant Name</label>
+          <input type="text" name="name" id="modal-pname-input" required maxlength="120" style="width:100%;box-sizing:border-box;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);">
+        </div>
+        <div>
+          <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:4px;">Slug</label>
+          <input type="text" name="slug" id="modal-slug-input" required maxlength="120" style="width:100%;box-sizing:border-box;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);">
+        </div>
+      </div>
+
+      <div style="background:var(--surface-soft);border:1px solid var(--border);border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:0.8rem;">
+        <div><strong>Image Key:</strong> <code id="modal-key-display"></code></div>
+        <div><strong>Tournament:</strong> <?= h($tournament['title']) ?> (<code><?= h($tournament['odds_sport_key']) ?></code>)</div>
+      </div>
+
+      <div style="margin-bottom:12px;">
+        <label style="display:inline-flex;align-items:center;gap:6px;font-weight:600;cursor:pointer;">
+          <input type="checkbox" name="enabled" id="modal-enabled-input" value="1">
+          <span>Enabled in Odds / Layout</span>
+        </label>
+      </div>
+
+      <div style="border:1px dashed var(--border);border-radius:8px;padding:12px;margin-bottom:14px;background:rgba(255,255,255,0.02);">
+        <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:4px;">
+          Upload / Replace Logo (Optional)
+        </label>
+        <input type="file" name="participant_image" accept="image/jpeg,image/png,image/webp,image/avif" style="margin-top:2px;font-size:0.85rem;">
+        <p style="font-size:0.75rem;color:var(--text-muted);margin:4px 0 0;">
+          Manual uploads are saved locally and marked as <strong>MANUAL</strong> to prevent automated API enrichments from overwriting them.
+        </p>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <button type="submit" class="btn btn-primary btn-sm">Save Participant & Logo</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('image-modal').close()">Cancel</button>
+      </div>
     </form>
 
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
+    <div style="display:flex;justify-content:flex-end;align-items:center;margin-top:8px;padding-top:10px;border-top:1px solid var(--border);">
       <form method="post" style="margin:0;" onsubmit="return confirm('Remove logo for this participant?');">
         <?= csrf_input() ?>
         <input type="hidden" name="action" value="remove_participant_image">
         <input type="hidden" name="participant_id" id="modal-pid-remove" value="">
         <button type="submit" class="btn btn-secondary btn-sm" id="modal-remove-btn" style="color:var(--danger);">Remove Logo</button>
       </form>
-      <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('image-modal').close()">Close</button>
     </div>
   </div>
 </dialog>
 
 <script>
-function openImageModal(id, name, imgUrl, source, key, path) {
+function openImageModal(id, name, slug, imgUrl, source, key, path, enabled) {
   document.getElementById('modal-pid-upload').value = id;
   document.getElementById('modal-pid-remove').value = id;
-  document.getElementById('modal-pname-display').textContent = name;
+  document.getElementById('modal-pname-input').value = name;
+  document.getElementById('modal-slug-input').value = slug;
   document.getElementById('modal-key-display').textContent = key;
   document.getElementById('modal-path-display').textContent = path || '';
+  document.getElementById('modal-enabled-input').checked = (enabled == 1 || enabled === true);
 
   var sourceBadge = document.getElementById('modal-source-badge');
   sourceBadge.textContent = source || 'NONE';

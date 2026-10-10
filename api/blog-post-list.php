@@ -15,7 +15,7 @@ function blog_post_list_cache_key(int $count, int $page, ?string $category): str
     $dbMtime = is_file(blogs_db_path()) ? (int) @filemtime(blogs_db_path()) : 0;
 
     return hash('sha256', json_encode([
-        'endpoint' => 'blog-post-list-taxonomy-v4',
+        'endpoint' => 'blog-post-list-taxonomy-v5',
         'count' => $count,
         'page' => $page,
         'category' => $category,
@@ -79,8 +79,53 @@ function blog_post_list_positive_int(string $key, int $default, int $min, int $m
     return max($min, min($max, (int) $value));
 }
 
+function blog_post_list_iso_date(mixed $value): ?string
+{
+    if ($value === null || $value === '') {
+        return null;
+    }
+    if (is_numeric($value)) {
+        return gmdate('Y-m-d\TH:i:s\Z', (int) $value);
+    }
+    if (is_string($value)) {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return null;
+        }
+        $ts = strtotime($trimmed);
+        if ($ts !== false && $ts > 0) {
+            return gmdate('Y-m-d\TH:i:s\Z', $ts);
+        }
+        return $trimmed;
+    }
+    return null;
+}
+
+function blog_post_list_format_date(mixed $value, mixed $publishDate): string
+{
+    if (is_numeric($publishDate) && (int) $publishDate > 0) {
+        return (new DateTimeImmutable('@' . (int) $publishDate))
+            ->setTimezone(blog_display_timezone())
+            ->format('F j, Y');
+    }
+    if (is_string($value) && trim($value) !== '') {
+        $trimmed = trim($value);
+        $ts = strtotime($trimmed);
+        if ($ts !== false && $ts > 0) {
+            return (new DateTimeImmutable('@' . $ts))
+                ->setTimezone(blog_display_timezone())
+                ->format('F j, Y');
+        }
+        return $trimmed;
+    }
+    return '';
+}
+
 function blog_post_list_item(array $post): array
 {
+    $publishDate = $post['publishedAt'] ?? ($post['scheduledAt'] ?? ($post['createdAt'] ?? ($post['date'] ?? null)));
+    $countdownTarget = trim((string)($post['countdown_target'] ?? ($post['countdownTarget'] ?? '')));
+
     return [
         'id' => $post['id'] ?? '',
         'slug' => $post['slug'] ?? '',
@@ -91,11 +136,13 @@ function blog_post_list_item(array $post): array
         'tags' => blog_public_tags($post),
         'author' => $post['author'] ?? '',
         'excerpt' => $post['excerpt'] ?? '',
-        'featuredImage' => $post['featuredImage'] ?? BLOG_DEFAULT_IMAGE,
+        'featuredImage' => blog_display_image((string)($post['featuredImage'] ?? BLOG_DEFAULT_IMAGE)),
         'status' => $post['status'] ?? 'published',
-        'date' => $post['date'] ?? '',
+        'date' => blog_post_list_format_date($post['date'] ?? '', $publishDate),
         'publishedAt' => $post['publishedAt'] ?? null,
         'scheduledAt' => $post['scheduledAt'] ?? null,
+        'startsAt' => blog_post_list_iso_date($publishDate),
+        'endsAt' => $countdownTarget !== '' ? blog_post_list_iso_date($countdownTarget) : null,
         'isPublic' => (bool) ($post['isPublic'] ?? false),
         'createdAt' => $post['createdAt'] ?? null,
         'updatedAt' => $post['updatedAt'] ?? null,

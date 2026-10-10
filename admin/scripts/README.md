@@ -299,4 +299,8 @@ Sports sync utilities now live in `admin/plugin/odds-api/scripts/`: `sync-odds-p
 
 Free image enrichment: `php admin/plugin/odds-api/scripts/enrich-sports-images.php [--tournament=ID_OR_ODDS_KEY] [--limit=5] [--dry-run] [--retry]`. SportsDataverse first, Wikidata/Commons fallback. See [Free sports images](../plugin/odds-api/README.md#free-sports-images).
 
-Daily/background sports logos: `php admin/plugin/odds-api/scripts/daily-sports-images.php [--tournament=ID_OR_ODDS_KEY] [--max-items=1000] [--max-seconds=1800] [--batch-size=25] [--pause-ms=1000]`. Exclusive lock, resumable batches, private rotating log, HTTP 429 stop. See [aaPanel setup](../plugin/odds-api/README.md#dailybackground-image-job-aapanel).
+Daily/background sports logos: `php admin/plugin/odds-api/scripts/daily-sports-images.php [--tournament=ID_OR_ODDS_KEY] [--max-images=100] [--max-items=1000] [--max-seconds=1800] [--batch-size=25] [--pause-ms=1000]`. Exclusive lock, resumable batches, private rotating log, HTTP 429 wait-and-retry. See [aaPanel setup](../plugin/odds-api/README.md#dailybackground-image-job-aapanel).
+
+Game description enrichment status now reports `remaining eligible` across the matching selection (before batch limit/offset) and `left to attempt in batch`. Successful saves reduce the remaining count; failures, skipped saves and dry runs do not. Counts are a selection snapshot for each attempt; no new flags or database changes. Successful progress lines also appear in `enrich-game-descriptions.log`.
+
+`php admin/scripts/test-default-image.php` verifies shared default-image upload validation, blog fallback resolution, sports fallback payloads, replacement/removal and preservation of registry records. Uses isolated storage and removes test uploads.

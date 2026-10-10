@@ -62,6 +62,12 @@ try {
         return $body;
     };
     verify(sports_images_wikidata(['name'=>'Commons Team','odds_sport_key'=>'basketball_nba'],$duplicate)===null,'Wikidata rejects duplicate exact-name entities');
+    verify(sports_images_leagues(['odds_sport_key'=>'basketball_nba_preseason'])===['nba'],'NBA preseason shares NBA identity mapping');
+    verify(sports_images_leagues(['odds_sport_key'=>'basketball_ncaab_championship_winner'])===['mbb'],'NCAA outright markets share college basketball mapping');
+    verify(sports_images_leagues(['odds_sport_key'=>'icehockey_ahl'])===['ahl'],'AHL has its own source league');
+    $teamOnlyIndex=$index;unset($teamOnlyIndex['league']);
+    $prioritized=sports_images_enrich((int)$t['id'],['limit'=>1,'dry_run'=>true,'manifest'=>$teamOnlyIndex,'transport'=>static function(){throw new RuntimeException('Wikimedia must not run ahead of a known team match');}]);
+    verify($prioritized['enriched']===1 && $prioritized['results'][0]['name']==='Atlanta Hawks','Known team logo is processed before unmatched tournament');
     $preview=sports_images_enrich((int)$t['id'],['manifest'=>$index,'transport'=>$transport,'dry_run'=>true]);
     verify($preview['enriched']===3 && $preview['wikimedia']===1,'SDV followed by Commons fallback');
     verify($pdo->query('SELECT COUNT(*) FROM sports_image_assets')->fetchColumn()===0,'Preview does not assign or record images');

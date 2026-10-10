@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/blog-storage.php';
 require_once __DIR__ . '/includes/chat-realtime.php';
+require_once __DIR__ . '/includes/default-image.php';
 
 require_auth();
 
@@ -151,7 +152,23 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     require_valid_csrf();
     $action = settings_post_value('action', 20);
 
-    if ($action === 'save_chat_name') {
+    if ($action === 'save_default_image' || $action === 'clear_default_image') {
+        require_admin();
+        try {
+            if ($action === 'clear_default_image') blog_setting_set('default_image', '');
+            else site_default_image_upload(is_array($_FILES['default_image'] ?? null) ? $_FILES['default_image'] : []);
+            $notice = $action === 'clear_default_image' ? 'Default image removed.' : 'Default image saved.';
+            $noticeType = 'ok';
+            csrf_rotate();
+        } catch (InvalidArgumentException $exception) {
+            $notice = $exception->getMessage();
+            $noticeType = 'error';
+        } catch (Throwable $exception) {
+            error_log('Default image upload failed: '.$exception->getMessage());
+            $notice = 'Default image could not be saved.';
+            $noticeType = 'error';
+        }
+    } elseif ($action === 'save_chat_name') {
         $chatAiName = chat_clean_string(settings_post_value('chat_ai_name', 80), 80);
         if ($chatAiName === '') {
             $notice = 'Chat name is required.';
@@ -375,6 +392,23 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         <?php endif; ?>
 
         <div class="settings-grid">
+          <form method="post" enctype="multipart/form-data" class="settings-card">
+            <?= csrf_input() ?>
+            <div class="form-row">
+              <label for="default-image">Default fallback image</label>
+              <p>Used when a blog featured image or sports logo is missing. Existing images stay unchanged.</p>
+              <?php if (site_default_image() !== ''): ?>
+                <img src="<?= h(site_default_image()) ?>" alt="Current default image" width="160" style="max-height:120px;object-fit:contain;">
+              <?php endif; ?>
+              <input type="file" id="default-image" name="default_image" accept="image/png,image/jpeg,image/webp,image/avif">
+              <small>PNG, JPEG, WebP or AVIF. Maximum 10 MB.</small>
+            </div>
+            <div class="actions">
+              <button type="submit" name="action" value="save_default_image" class="btn btn-primary btn-sm">Upload Default Image</button>
+              <?php if (site_default_image() !== ''): ?><button type="submit" name="action" value="clear_default_image" class="btn btn-secondary btn-sm">Remove Default</button><?php endif; ?>
+            </div>
+          </form>
+
 
           <form method="post" class="settings-card">
             <?= csrf_input() ?>

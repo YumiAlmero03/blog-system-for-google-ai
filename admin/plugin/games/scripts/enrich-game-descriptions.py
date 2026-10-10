@@ -456,7 +456,7 @@ def public_eligibility_sql() -> dict[str, str]:
     return json.loads(result.stdout)
 
 
-def select_games(conn: sqlite3.Connection, args: argparse.Namespace, include_done: bool = True) -> list[sqlite3.Row]:
+def select_games(conn: sqlite3.Connection, args: argparse.Namespace, include_done: bool = True, progress: dict[str, int] | None = None) -> list[sqlite3.Row]:
     where = []
     params: dict[str, Any] = {}
     if getattr(args, 'only_unprocessed', False):
@@ -487,6 +487,8 @@ def select_games(conn: sqlite3.Connection, args: argparse.Namespace, include_don
             COALESCE(SUM(CASE WHEN {publication_check} THEN 1 ELSE 0 END),0) AS unpublished
         FROM games {candidate_where}
     """, params).fetchone()
+    if progress is not None:
+        progress['eligible'] = int(counts['eligible'])
     print(f"Eligible games: {counts['eligible']} of {counts['candidates']} candidates; "
           f"skipped hidden: {counts['hidden']}; unapproved provider: {counts['unapproved']}; "
           f"PH restricted: {counts['ph']}; unpublished/unprocessed: {counts['unpublished']} "
@@ -589,15 +591,16 @@ def set_rewrite_status(conn: sqlite3.Connection, game_id: int, status: str) -> N
 
 
 def process_batch(conn: sqlite3.Connection, args: argparse.Namespace, attempt: int = 1) -> tuple[int, int]:
+    progress: dict[str, int] = {}
     try:
-        games = select_games(conn, args, include_done=attempt == 1)
+        games = select_games(conn, args, include_done=attempt == 1, progress=progress)
     except Exception as exc:
         log_error("database game selection", exc)
         raise
     print(f"Found {len(games)} game(s) to enrich.")
 
     updated = 0
-    for game in games:
+    for position, game in enumerate(games, start=1):
         if conn.execute('SELECT enabled FROM game_module_settings WHERE id=1').fetchone()[0] != 1:
             print('Games module disabled; stopping batch.')
             break
@@ -606,7 +609,8 @@ def process_batch(conn: sqlite3.Connection, args: argparse.Namespace, attempt: i
             set_rewrite_status(conn, game_id, "processing")
         rtp = random.randint(7000, 9900) / 100 if missing_stat(game['rtp']) else float(game['rtp'])
         volatility = random.choice(['low', 'medium', 'high']) if missing_stat(game['volatility']) else str(game['volatility'])
-        print(f"Game {game_id} {game['name']} attempt {attempt}")
+        print(f"Game {game_id} {game['name']} attempt {attempt} | "
+              f"batch {position}/{len(games)} | remaining eligible: {progress['eligible'] - updated}", flush=True)
 
         try:
             reference = '' if args.fallback_only else ollama_search_reference(game, args.timeout, args.retries)
@@ -669,7 +673,11 @@ def process_batch(conn: sqlite3.Connection, args: argparse.Namespace, attempt: i
                 print('Games module disabled before save; content not published.')
                 continue
             updated += 1
-            print(f"Game {game_id} {game['name']} final status done")
+            status = (f"Game {game_id} {game['name']} final status done | "
+                      f"remaining eligible: {progress['eligible'] - updated} | "
+                      f"left to attempt in batch: {len(games) - position}")
+            print(status, flush=True)
+            LOGGER.info(status)
         except Exception as exc:
             conn.rollback()
             try:
@@ -679,7 +687,9 @@ def process_batch(conn: sqlite3.Connection, args: argparse.Namespace, attempt: i
             log_error(f"game database save attempt={attempt}", exc, game)
             print(f"Game {game_id} {game['name']} attempt {attempt} failed: {exc}", file=sys.stderr)
 
-    print(f"Batch updated {updated} of {len(games)} game(s).")
+    print(f"Batch updated {updated} of {len(games)} game(s). "
+          f"Remaining eligible: {progress['eligible'] - updated} "
+          "(includes failed, skipped and unattempted games).", flush=True)
     return len(games), updated
 
 

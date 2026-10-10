@@ -35,7 +35,7 @@ CODE;
     $output = []; $code = 0;
     exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($temp . '/check.php') . ' 2>&1', $output, $code);
     if ($code !== 0 || implode("\n", $output) !== 'core-ok') throw new RuntimeException(implode("\n", $output));
-    foreach (['game', 'game-play', 'slot-list', 'provider-list', 'odds-api', 'sports-layout'] as $endpoint) {
+    foreach (['game', 'game-play', 'slot-list', 'provider-list', 'odds-api', 'sports-layout', 'sports'] as $endpoint) {
         $entry = $temp . '/api/' . $endpoint . '.php';
         $codeText = 'register_shutdown_function(function(){if(http_response_code()!==404)exit(2);});require ' . var_export($entry, true) . ';';
         $output = []; $code = 0;
