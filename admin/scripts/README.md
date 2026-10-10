@@ -304,3 +304,10 @@ Daily/background sports logos: `php admin/plugin/odds-api/scripts/daily-sports-i
 Game description enrichment status now reports `remaining eligible` across the matching selection (before batch limit/offset) and `left to attempt in batch`. Successful saves reduce the remaining count; failures, skipped saves and dry runs do not. Counts are a selection snapshot for each attempt; no new flags or database changes. Successful progress lines also appear in `enrich-game-descriptions.log`.
 
 `php admin/scripts/test-default-image.php` verifies shared default-image upload validation, blog fallback resolution, sports fallback payloads, replacement/removal and preservation of registry records. Uses isolated storage and removes test uploads.
+
+
+## SlotsLaunch play counts
+
+Run `php admin/plugin/games/scripts/sync-slotslaunch-rankings.php` from `www` to synchronize the documented network rankings. Requires a SlotsLaunch API token and registered `SLOTSLAUNCH_ORIGIN` (or valid `SITE_BASE_URL`); `SLOTSLAUNCH_API_SECRET` enables request signing. No command flags. Schedule daily separately if desired.
+
+The script validates every record and atomically replaces `APP_STORAGE_DIR/slotslaunch-rankings.json`; errors retain the previous snapshot. `GET /game-api/game.php?slug=...` reads this cache without upstream requests. Missing game counts are null, not zero; these are plays, not unique users. Local unique browsers remain in existing `game_players`. See [Game inner-page API](../API.md#game-inner-page-detail). Regression: `php admin/scripts/test-game-detail.php` and `php admin/scripts/test-game-players.php`.

@@ -5,7 +5,7 @@ if (($argv[1] ?? '') === '--request') {
     $_POST=json_decode(stream_get_contents(STDIN),true);
     $_SERVER['REQUEST_METHOD']='POST';
     $_SERVER['REMOTE_ADDR']='127.0.0.1';
-    require __DIR__.'/../../'.(($argv[2] ?? '')==='legacy' ? 'api' : 'game-api').'/game-play.php';
+    require __DIR__.'/../../game-api/game-play.php';
     exit;
 }
 $dir=sys_get_temp_dir().'/game-players-'.bin2hex(random_bytes(6));
@@ -14,8 +14,8 @@ ini_set('session.save_path',$dir);
 require __DIR__.'/../includes/auth.php';
 require __DIR__.'/../includes/public-detail.php';
 function check_players(bool $ok): void { if (!$ok) throw new RuntimeException('Counter regression failed'); }
-function record_player(string $slug,string $visitor,bool $legacy=false): array {
-    $p=proc_open([PHP_BINARY,__FILE__,'--request',$legacy?'legacy':'canonical'],[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);
+function record_player(string $slug,string $visitor): array {
+    $p=proc_open([PHP_BINARY,__FILE__,'--request','canonical'],[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);
     fwrite($pipes[0],json_encode(['slug'=>$slug,'visitor_id'=>$visitor])); fclose($pipes[0]);
     $out=stream_get_contents($pipes[1]); fclose($pipes[1]); $err=stream_get_contents($pipes[2]); fclose($pipes[2]);
     check_players(proc_close($p)===0 && $err===''); return json_decode($out,true,512,JSON_THROW_ON_ERROR);
@@ -29,7 +29,7 @@ try {
     check_players($one['counted'] && $one['uniquePlayers']===1 && !$repeat['counted'] && $repeat['uniquePlayers']===1 && $two['uniquePlayers']===2);
     check_players(!record_player('missing',str_repeat('a',32))['ok']);
     check_players(!record_player('counter-test','bad')['ok']);
-    check_players(record_player('counter-test',str_repeat('a',32),true)['ok']);
+    check_players(public_game_payload(public_game_find('counter-test'))['uniquePlayers']===2);
     $pdo->exec('UPDATE games SET is_viewable=0');
     check_players(!record_player('counter-test',str_repeat('c',32))['ok']);
     check_players((int)$pdo->query('SELECT COUNT(*) FROM game_players')->fetchColumn()===2);

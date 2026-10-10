@@ -1674,6 +1674,7 @@ $writerOptions = writer_options();
     <form id="create-blog-form" method="post">
       <input type="hidden" name="csrf_token" id="csrf-token" value="<?= h(csrf_token()) ?>">
       <input type="hidden" id="editing-blog-id" name="id" value="">
+      <input type="file" id="blog-import-file" accept=".zip,application/zip" hidden>
 
       <header class="wp-editor-topbar">
         <div class="wp-toolbar-left">
@@ -1687,6 +1688,7 @@ $writerOptions = writer_options();
             <span class="autosave-dot"></span>
             <span id="autosave-message">All changes saved</span>
           </div>
+          <button type="button" id="import-post-btn" class="btn btn-secondary btn-sm">Import Post</button>
           <button type="submit" id="save-draft-btn" class="btn btn-secondary btn-sm" data-save-status="draft">Save as Draft</button>
           <button type="submit" id="publish-blog-btn" class="btn btn-primary" data-save-status="published">Publish</button>
           <button type="button" id="view-blog-page-btn" class="btn btn-secondary btn-sm" style="display:none;">View Page</button>
@@ -1972,6 +1974,8 @@ $writerOptions = writer_options();
       const siteBaseUrl = <?= json_encode((string) (env_value('SITE_BASE_URL') ?: ''), JSON_UNESCAPED_SLASHES) ?>;
       const form = document.getElementById('create-blog-form');
       const notice = document.getElementById('notice');
+      const importPostBtn = document.getElementById('import-post-btn');
+      const importPostFile = document.getElementById('blog-import-file');
       const title = document.getElementById('blog-title');
       const seoTitle = document.getElementById('blog-seo-title');
       const titlePreview = document.getElementById('blog-title-preview');
@@ -2010,6 +2014,44 @@ $writerOptions = writer_options();
       const publishBtn = document.getElementById('publish-blog-btn');
       const saveCurrentPostBtn = document.getElementById('save-current-post-btn');
       const viewBlogPageBtn = document.getElementById('view-blog-page-btn');
+      if (importPostBtn && importPostFile) {
+        importPostBtn.addEventListener('click', () => importPostFile.click());
+        importPostFile.addEventListener('change', async () => {
+          const file = importPostFile.files && importPostFile.files[0];
+          if (!file) return;
+          if (!file.name.toLowerCase().endsWith('.zip') || file.size <= 0 || file.size > 100 * 1024 * 1024) {
+            showNotice('Select a valid blog export ZIP file up to 100 MB.', 'error');
+            importPostFile.value = '';
+            return;
+          }
+
+          const data = new FormData();
+          data.append('csrf_token', csrfToken);
+          data.append('import_file', file);
+          importPostBtn.disabled = true;
+          showNotice('Importing post...', 'ok');
+
+          try {
+            const response = await fetch('/admin/blog-import.php', {
+              method: 'POST',
+              headers: { 'Accept': 'application/json', 'X-Requested-With': 'fetch' },
+              body: data,
+            });
+            const result = await parseJsonResponse(response);
+            updateCsrf(result.csrfToken);
+            if (!response.ok || !result.ok) {
+              throw new Error(result.error || 'Post import failed.');
+            }
+            const counts = result.counts || {};
+            showNotice(`Imported: ${Number(counts.imported || 0)} · Updated: ${Number(counts.updated || 0)} · Skipped: ${Number(counts.skipped || 0)} · Images restored: ${Number(counts.imagesRestored || 0)} · Failed: ${Number(counts.failed || 0)}`, 'ok');
+          } catch (error) {
+            showNotice(error.message || 'Post import failed.', 'error');
+          } finally {
+            importPostBtn.disabled = false;
+            importPostFile.value = '';
+          }
+        });
+      }
       const cancelBtn = document.getElementById('cancel-edit-btn');
       const formTitle = document.getElementById('form-title-text');
       const imageUpload = document.getElementById('blog-image-upload');

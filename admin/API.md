@@ -267,7 +267,7 @@ curl 'http://localhost:8082/api/settings/seo.php'
 | `slug` | Yes | None | Publicly eligible game's exact slug. |
 | `visitor_id` | Yes | None | Random browser identifier, 32–80 letters/digits/hyphens/underscores. Persist and reuse it in localStorage; do not send a username. |
 
-Returns `{"ok":true,"counted":true,"uniquePlayers":1}`. `counted` is false for an already counted browser/game pair. Errors: 405 wrong method, 422 invalid fields, 404 unavailable game, 429 over 60 requests/minute per direct client IP, 500 storage failure. Responses use no-store. Only hashed visitor identifiers are retained. Counts appear in the existing paginated admin game list. No changes to game-list/detail response shapes.
+Returns `{"ok":true,"counted":true,"uniquePlayers":1}`. `counted` is false for an already counted browser/game pair. Errors: 405 wrong method, 422 invalid fields, 404 unavailable game, 429 over 60 requests/minute per direct client IP, 500 storage failure. Responses use no-store. Only hashed visitor identifiers are retained. Counts appear in the existing paginated admin game list. The detail response also exposes `uniquePlayers`; the list response is unchanged.
 
 Frontend: run this inside the demo launch handler; a tracking failure must not prevent launching the game:
 
@@ -363,3 +363,29 @@ Automatic replies are limited to once per rule per chat session for matching phr
 Game handlers now use `/game-api/{slot-list,provider-list,game,game-play}.php` and `/admin/plugin/games/` (`index.php`, `edit.php`, `save.php`). Removed `/api/` game forwarders and `/admin/slot*.php` are no longer supported. Sports layout reads use public `GET /odds-api/sports-layout.php?id=ID`; sports listings use `/odds-api/sports.php`. Methods, permissions, inputs and response shapes on surviving endpoints are unchanged. The public iframe and generated layout URLs use the canonical sports route.
 
 Shared `public_detail_slug()` and `public_detail_url()` live in `admin/includes/public-detail.php`, which loads optional game helpers and retains the absent-plugin fallback. Core/bootstrap and game import/sitemap code no longer require the deleted `admin/includes/game-*.php` wrappers. No flags or database schema changes. Regression tests target surviving routes.
+
+
+### Game inner-page detail
+
+Use public `GET /game-api/game.php?slug=example-game` as the game equivalent of `/api/blog.php`. No authentication is required. It returns `{ "ok": true, "game": { ... } }` and retains all existing fields. Errors remain 404 for missing/invalid/ineligible games, 405 for non-GET methods, and 500 for storage failures. Responses are `no-store`. PH restrictions, provider approval, global enablement, publication, processing and visibility are enforced. Removed `/api/game.php` is not recreated.
+
+Additional `game` fields:
+
+- `content_html`: sanitized long description ready to render; raw `longDescription` remains available. Plain-text newlines are preserved. Render `content_html`, not unsanitized raw content.
+- `provider.id`, `type.id`: nullable local catalogue IDs.
+- `megaways`, `bonusBuy`, `landBased`, `autoplay`, `quickspin`, `tumblingReels`, `increasingMultipliers`: booleans.
+- `reels`, `maxExposure`, `orientation`: saved strings; empty means unspecified.
+- `currencies`, `languages`, `markets`: arrays; `createdAt`: Unix timestamp (0 if unavailable).
+- `seo`: `title` from the game name, `description` from the plain short description, `canonicalUrl`, and `image`. These are derived, not separately stored SEO overrides.
+- `uniquePlayers`: count from this site's `game_players` table; `playerCountMetric: "unique_browsers_on_this_site"`. Call existing `POST /game-api/game-play.php` with `slug` and a stable `visitor_id` when the visitor actually starts the demo. Reading details never increments it.
+- `slotsLaunchPlays`: `{ "count": 1234, "metric": "plays", "source": "slotslaunch", "scope": "network", "syncedAt": 1791580800, "stale": false }`. `count` is null before sync or when a game is absent from the rankings. `syncedAt` is the local snapshot timestamp, not the provider's measurement period; `stale` becomes true after 24 hours. SlotsLaunch documents `times_played`, not unique users or a guaranteed all-time period. Never label this value as unique users.
+
+Source: [SlotsLaunch Rankings API](https://docs.slotslaunch.com/article/12-api-endpoints). Counts come from the network rankings without a `host` filter. Public requests only read local data; they never call SlotsLaunch.
+
+Refresh rankings from the `www` directory with:
+
+```sh
+php admin/plugin/games/scripts/sync-slotslaunch-rankings.php
+```
+
+Uses existing `SLOTSLAUNCH_API_TOKEN` (or existing token aliases), `SLOTSLAUNCH_ORIGIN` (registered website origin, falling back to a valid `SITE_BASE_URL`), and optional `SLOTSLAUNCH_API_SECRET` for signed requests. Keep the secret server-side. Schedule daily using your existing task runner. No scheduler is installed. Validated responses atomically replace `APP_STORAGE_DIR/slotslaunch-rankings.json`; fetch/validation failures preserve the previous snapshot. No new database tables or columns. Tests: `php admin/scripts/test-game-detail.php` and `php admin/scripts/test-game-players.php`.

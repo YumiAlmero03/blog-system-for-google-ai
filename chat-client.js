@@ -29,7 +29,20 @@ export class SupportChat {
     if (this.currentSession === data.sessionId && (data.revision ?? 0) < (this.revision ?? 0)) return;
     this.currentSession = data.sessionId; this.revision = data.revision;
     this.version = data.version;
-    this.onUpdate(data); // Replace the visible transcript; do not append the entire snapshot.
+    if (data.incremental) {
+      const messages = this.messages ?? [];
+      const knownIds = new Set(messages.map(message => message.id ?? message.clientMessageId).filter(Boolean));
+      this.messages = [...messages, ...(data.messages ?? []).filter(message => {
+        const id = message.id ?? message.clientMessageId;
+        if (!id) return true;
+        if (knownIds.has(id)) return false;
+        knownIds.add(id);
+        return true;
+      })].slice(-200);
+    } else {
+      this.messages = data.messages ?? [];
+    }
+    this.onUpdate({ ...data, messages: this.messages });
   }
   async start() {
     if (this.started) return;

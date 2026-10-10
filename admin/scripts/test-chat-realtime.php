@@ -28,7 +28,7 @@ try {
     rt_check($denied,'Unauthorized reads rejected');
     $request=$auth+['action'=>'send','message'=>"Help please\r\n\r\nVisit https://example.com/help  now",'client_message_id'=>'message-test-1'];
     $send=chat_realtime_action($request);
-    rt_check($send['messages'][0]['sender']==='user' && $send['status']['playerOnline'],'Server-owned sender and online state');
+    rt_check($send['messages'][0]['sender']==='user' && $send['status']['playerOnline'] && $send['incremental'],'Server-owned sender and incremental send response');
     rt_check(count(chat_realtime_action($request)['messages'])===1,'Duplicate send deduplicated');
     rt_check($send['messages'][0]['text']==="Help please\n\nVisit https://example.com/help  now",'Customer newlines and spaces preserved');
     $now=time();
@@ -80,7 +80,8 @@ try {
     rt_check(!chat_ai_process($id,static function() use ($request) { chat_realtime_action(array_replace($request,['client_message_id'=>'message-test-4','message'=>'New turn'])); return 'Stale answer'; }),'New user turn invalidates stale AI');
     chat_auto_change('save',['label'=>'Deposit','keywords'=>'how to deposit','response'=>'Configured instructions','enabled'=>'1']);
     $auto=chat_realtime_action(array_replace($request,['client_message_id'=>'message-test-5','message'=>'how to deposit']));
-    rt_check(end($auto['messages'])['type']==='auto_response' && $auto['status']['waitingSince']===null,'Keyword reply takes precedence');
+    rt_check(count($auto['messages'])===2 && end($auto['messages'])['type']==='auto_response'
+        && $auto['status']['waitingSince']===null && $auto['incremental'],'Keyword reply included in incremental send response');
     $repeat=chat_realtime_action(array_replace($request,['client_message_id'=>'message-test-6','message'=>'how to deposit']));
     rt_check(end($repeat['messages'])['sender']==='user' && $repeat['status']['waitingSince']!==null,'Used keyword reply leaves turn pending for AI');
     $rule=chat_auto_rules()[0];
