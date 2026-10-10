@@ -10,114 +10,38 @@ require_valid_csrf();
 
 header('Content-Type: application/json; charset=UTF-8');
 
-const UPLOAD_MAX_BYTES = 3 * 1024 * 1024;
-const UPLOAD_MIN_WIDTH = 120;
-const UPLOAD_MIN_HEIGHT = 80;
-const UPLOAD_MAX_WIDTH = 5000;
-const UPLOAD_MAX_HEIGHT = 5000;
+const UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
+const UPLOAD_MIN_WIDTH = 16;
+const UPLOAD_MIN_HEIGHT = 16;
+const UPLOAD_MAX_WIDTH = 8000;
+const UPLOAD_MAX_HEIGHT = 8000;
 const UPLOAD_IMAGE_QUALITY = 60;
 const UPLOAD_OUTPUT_MAX_WIDTH = 1200;
 const UPLOAD_OUTPUT_MAX_HEIGHT = 675;
 
-function is_gd_image(mixed $image): bool
-{
-    return is_resource($image) || (class_exists('GdImage') && $image instanceof GdImage);
-}
-
-function optimize_uploaded_image(string $source, string $destination, string $mime): bool
-{
-    if (!extension_loaded('gd')) {
-        return move_uploaded_file($source, $destination);
-    }
-
-    $image = match ($mime) {
-        'image/jpeg' => function_exists('imagecreatefromjpeg') ? @imagecreatefromjpeg($source) : false,
-        'image/png' => function_exists('imagecreatefrompng') ? @imagecreatefrompng($source) : false,
-        'image/webp' => function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($source) : false,
-        'image/avif' => function_exists('imagecreatefromavif') ? @imagecreatefromavif($source) : false,
-        default => false,
-    };
-
-    if (!is_gd_image($image)) {
-        return move_uploaded_file($source, $destination);
-    }
-
-    $sourceWidth = imagesx($image);
-    $sourceHeight = imagesy($image);
-    $scale = min(1, UPLOAD_OUTPUT_MAX_WIDTH / max(1, $sourceWidth), UPLOAD_OUTPUT_MAX_HEIGHT / max(1, $sourceHeight));
-    $wasResized = $scale < 1;
-
-    if ($wasResized) {
-        $targetWidth = max(1, (int) floor($sourceWidth * $scale));
-        $targetHeight = max(1, (int) floor($sourceHeight * $scale));
-        $resized = imagecreatetruecolor($targetWidth, $targetHeight);
-        if (is_gd_image($resized)) {
-            if ($mime === 'image/png' || $mime === 'image/webp') {
-                imagealphablending($resized, false);
-                imagesavealpha($resized, true);
-                $transparent = imagecolorallocatealpha($resized, 0, 0, 0, 127);
-                imagefilledrectangle($resized, 0, 0, $targetWidth, $targetHeight, $transparent);
-            }
-            imagecopyresampled($resized, $image, 0, 0, 0, 0, $targetWidth, $targetHeight, $sourceWidth, $sourceHeight);
-            if (is_resource($image)) imagedestroy($image);
-            $image = $resized;
-        }
-    }
-
-    if ($mime === 'image/jpeg') {
-        imageinterlace($image, true);
-        $saved = imagejpeg($image, $destination, UPLOAD_IMAGE_QUALITY);
-    } elseif ($mime === 'image/png') {
-        imagealphablending($image, false);
-        imagesavealpha($image, true);
-        $saved = imagepng($image, $destination, 6);
-    } elseif ($mime === 'image/webp' && function_exists('imagewebp')) {
-        imagepalettetotruecolor($image);
-        imagealphablending($image, true);
-        imagesavealpha($image, true);
-        $saved = imagewebp($image, $destination, UPLOAD_IMAGE_QUALITY);
-    } elseif ($mime === 'image/avif' && function_exists('imageavif')) {
-        imagepalettetotruecolor($image);
-        imagealphablending($image, true);
-        imagesavealpha($image, true);
-        $saved = imageavif($image, $destination, UPLOAD_IMAGE_QUALITY);
-    } else {
-        if (is_resource($image)) imagedestroy($image);
-        return move_uploaded_file($source, $destination);
-    }
-
-    if (is_resource($image)) imagedestroy($image);
-    if ($saved && is_file($destination)) {
-        $sourceSize = @filesize($source);
-        $destinationSize = @filesize($destination);
-        if (!$wasResized && is_int($sourceSize) && is_int($destinationSize) && $destinationSize > $sourceSize) {
-            @unlink($destination);
-            return move_uploaded_file($source, $destination);
-        }
-        return true;
-    }
-
-    if (is_file($destination)) {
-        @unlink($destination);
-    }
-
-    return move_uploaded_file($source, $destination);
-}
-
-if (!isset($_FILES['image']) || !is_array($_FILES['image'])) {
+$file = $_FILES['image'] ?? $_FILES['file'] ?? null;
+if (!is_array($file)) {
     http_response_code(422);
     echo json_encode(['ok' => false, 'error' => 'No image uploaded.']);
     exit;
 }
 
-$file = $_FILES['image'];
-if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || !isset($file['tmp_name'], $file['name'], $file['size'])) {
+$uploadError = $file['error'] ?? UPLOAD_ERR_NO_FILE;
+if ($uploadError !== UPLOAD_ERR_OK) {
+    $errorMessage = match ($uploadError) {
+        UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'Image file exceeds maximum upload size.',
+        UPLOAD_ERR_PARTIAL => 'Image file was only partially uploaded.',
+        UPLOAD_ERR_NO_FILE => 'No image file was received.',
+        UPLOAD_ERR_NO_TMP_DIR => 'Server temporary folder is missing.',
+        UPLOAD_ERR_CANT_WRITE => 'Failed to write image file to disk.',
+        default => 'Image upload failed.',
+    };
     http_response_code(422);
-    echo json_encode(['ok' => false, 'error' => 'Image upload failed.']);
+    echo json_encode(['ok' => false, 'error' => $errorMessage]);
     exit;
 }
 
-if (!is_string($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+if (!isset($file['tmp_name'], $file['name'], $file['size']) || !is_string($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
     http_response_code(422);
     echo json_encode(['ok' => false, 'error' => 'Invalid uploaded file.']);
     exit;
@@ -132,12 +56,12 @@ if (!is_int($file['size']) && !ctype_digit((string) $file['size'])) {
 $size = (int) $file['size'];
 if ($size <= 0 || $size > UPLOAD_MAX_BYTES) {
     http_response_code(413);
-    echo json_encode(['ok' => false, 'error' => 'Image file is too large.']);
+    echo json_encode(['ok' => false, 'error' => 'Image file is too large (max 10MB).']);
     exit;
 }
 
 $originalName = is_string($file['name']) ? basename($file['name']) : '';
-if (substr_count($originalName, '.') !== 1) {
+if ($originalName === '') {
     http_response_code(422);
     echo json_encode(['ok' => false, 'error' => 'Invalid image filename.']);
     exit;
@@ -153,13 +77,19 @@ $mime = detect_blog_image_mime($file['tmp_name']);
 
 if (!is_string($mime) || !isset($extensions[$mime])) {
     http_response_code(415);
-    echo json_encode(['ok' => false, 'error' => 'Unsupported image type.']);
+    echo json_encode(['ok' => false, 'error' => 'Unsupported image type. Please upload a JPEG, PNG, WebP, or AVIF image.']);
     exit;
 }
 
-if (!validate_blog_image_file($file['tmp_name'],pathinfo($originalName,PATHINFO_EXTENSION))['ok']) {
+$originalExt = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+if ($originalExt === '') {
+    $originalExt = $extensions[$mime];
+}
+
+if (!preg_match('/^[a-z0-9]{2,5}$/', $originalExt) || !validate_blog_image_file($file['tmp_name'], $originalExt)['ok']) {
     http_response_code(422);
-    echo json_encode(['ok'=>false,'error'=>'Image extension must match its content.']); exit;
+    echo json_encode(['ok' => false, 'error' => 'Image extension must match its content.']);
+    exit;
 }
 
 $dimensions = @getimagesize($file['tmp_name']);
@@ -176,21 +106,42 @@ if ($width < UPLOAD_MIN_WIDTH || $height < UPLOAD_MIN_HEIGHT || $width > UPLOAD_
     exit;
 }
 
-$uploadDir = __DIR__ . '/uploads/blogs';
-if (!is_dir($uploadDir)) {
-    mkdir($uploadDir, 0755, true);
+$webUploadDir = dirname(__DIR__) . '/uploads/blogs';
+$adminUploadDir = __DIR__ . '/uploads/blogs';
+
+if (!is_dir($webUploadDir)) {
+    @mkdir($webUploadDir, 0755, true);
+}
+if (!is_dir($adminUploadDir)) {
+    @mkdir($adminUploadDir, 0755, true);
 }
 
 $filename = bin2hex(random_bytes(16)) . '.' . $extensions[$mime];
-$destination = $uploadDir . '/' . $filename;
+$webDestination = $webUploadDir . '/' . $filename;
+$adminDestination = $adminUploadDir . '/' . $filename;
 
-if (!optimize_uploaded_image($file['tmp_name'], $destination, $mime)) {
-    http_response_code(500);
-    echo json_encode(['ok' => false, 'error' => 'Image could not be saved.']);
-    exit;
+// Save and optimize to web directory first, or fallback to admin directory
+$saved = optimize_uploaded_image($file['tmp_name'], $webDestination, $mime);
+if (!$saved) {
+    $saved = optimize_uploaded_image($file['tmp_name'], $adminDestination, $mime);
+    if (!$saved) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Image could not be saved to disk.']);
+        exit;
+    }
+    @chmod($adminDestination, 0644);
+    @copy($adminDestination, $webDestination);
+    if (is_file($webDestination)) {
+        @chmod($webDestination, 0644);
+    }
+} else {
+    @chmod($webDestination, 0644);
+    @copy($webDestination, $adminDestination);
+    if (is_file($adminDestination)) {
+        @chmod($adminDestination, 0644);
+    }
 }
 
-chmod($destination, 0644);
 csrf_rotate();
 
 echo json_encode([

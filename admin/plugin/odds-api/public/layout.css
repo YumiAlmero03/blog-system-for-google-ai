@@ -1,0 +1,222 @@
+/* Grid layouts */
+.api-grid {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+.api-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+.api-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.api-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.api-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.api-cols-auto { grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
+
+/* Flexible horizontal rows */
+.api-flex-row,
+.api-direction-row,
+.api-card-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.api-flex-row > .api-card,
+.api-direction-row > .api-card,
+.api-card-row > .api-card {
+  flex: 1 1 180px;
+  min-width: 140px;
+}
+
+/* Containers (Wireframe flexible rows and columns) */
+.api-container {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  margin: 6px 0;
+}
+
+.api-container-row {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.api-container-column {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.api-container-row > * {
+  flex: 1 1 0%;
+  min-width: 0;
+}
+
+.api-container-row > [style*="flex"],
+.api-container-row > .flex-none,
+.api-container-row > .flex-initial,
+.api-container-row > .w-auto {
+  flex-grow: 0;
+}
+
+.api-container-row > .w-full { flex: 0 0 100% !important; max-width: 100% !important; }
+.api-container-row > .w-1\/2 { flex: 0 0 calc(50% - 6px); max-width: calc(50% - 6px); }
+.api-container-row > .w-1\/3 { flex: 0 0 calc(33.333333% - 8px); max-width: calc(33.333333% - 8px); }
+.api-container-row > .w-2\/3 { flex: 0 0 calc(66.666667% - 4px); max-width: calc(66.666667% - 4px); }
+.api-container-row > .w-1\/4 { flex: 0 0 calc(25% - 9px); max-width: calc(25% - 9px); }
+.api-container-row > .w-3\/4 { flex: 0 0 calc(75% - 3px); max-width: calc(75% - 3px); }
+
+.api-layout-root {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.api-card {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  container-type: inline-size;
+}
+
+.api-card:has(> .api-loop) {
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.api-card:has(> .api-loop):hover {
+  box-shadow: none;
+}
+
+.api-loop {
+  min-width: 0;
+  margin-top: 4px;
+  border: 1px solid var(--surface-card-border, #00ba7c55);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.api-field {
+  min-width: 0;
+}
+
+.api-value {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.api-block-button {
+  display: inline-flex;
+}
+
+.api-block-link {
+  margin: 4px 0;
+}
+
+.api-block-image {
+  margin: 4px 0;
+}
+
+.api-img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  display: block;
+  object-fit: contain;
+}
+
+.status-message {
+  color: #94a3b8;
+  font-size: 0.95rem;
+  padding: 20px;
+  text-align: center;
+}
+
+.status-error {
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 8px;
+  padding: 14px 18px;
+  font-size: 0.95rem;
+}
+
+/* Responsive container queries and breakpoints for 1, 2, 3, 4 columns */
+@container (max-width: 640px) {
+  .api-cols-3,
+  .api-cols-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 420px) {
+  .api-cols-2,
+  .api-cols-3,
+  .api-cols-4 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .api-cols-3,
+  .api-cols-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .api-cols-2,
+  .api-cols-3,
+  .api-cols-4 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The preview uses the same theme inside an isolated shadow root. */
+.sports-preview-theme {
+  --primary-emerald: #00ba7c;
+  --primary-emerald-hover: #00d284;
+  --primary-button-text: #fff;
+  --surface-card-border: #00ba7c55;
+  color: #fff;
+  font: 15px Inter, system-ui, sans-serif;
+}
+[hidden] { display: none !important; }
+.api-layout-root, .api-loop, .api-container { box-sizing: border-box; }
+.api-layout-root { container-type: inline-size; }
+#iframe-header { flex-wrap: wrap; }
+#iframe-header #refresh { flex-shrink: 0; }
+
+.api-custom-width { width: var(--block-width); }
+.api-container-row > .api-custom-width { flex: 0 1 var(--block-width); }
+
+/* Stack by iframe/preview width, not by the width of individual desktop cards. */
+.api-layout-root { container-name: sports-layout; }
+@container sports-layout (max-width: 640px) {
+  .api-grid { grid-template-columns: minmax(0, 1fr); }
+  .api-flex-row, .api-container-row, .api-direction-row, .api-card-row {
+    flex-direction: column;
+    align-items: stretch;
+    overflow-x: visible;
+  }
+  .api-container-row > *, .api-flex-row > .api-card,
+  .api-direction-row > .api-card, .api-card-row > .api-card {
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0;
+  }
+}
+@media (max-width: 640px) {
+  #iframe-header { flex-direction: column; align-items: stretch; }
+  #iframe-header .iframe-header-titles { width: 100%; }
+  #iframe-header #refresh { align-self: flex-start; }
+}

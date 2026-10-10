@@ -17,26 +17,26 @@ try {
     $pdo=blogs_pdo(); $_SESSION['user']=auth_authenticate_credentials('super_user','Visibility test password 123!');
     foreach(['admin','editor'] as $role) admin_user_save(['username'=>$role,'display_name'=>$role,'password'=>'Visibility test password 123!','active'=>1,'role'=>$role]);
     $pdo->exec('INSERT INTO games(api_id,name,slug,provider,provider_slug,published,done_processing) VALUES(1,"One","one","First","first",1,1),(2,"Two","two","Second","second",1,1)');
-    [$status,$body]=pl_handler(['path'=>'/admin/settings/providers/index.php','role'=>'admin','method'=>'GET']);
+    [$status,$body]=pl_handler(['path'=>'/admin/plugin/games/providers/index.php','role'=>'admin','method'=>'GET']);
     pl_check($status===200 && str_contains($body,'Uncheck All Providers'),'Bulk control rendered');
     $doc=new DOMDocument(); @$doc->loadHTML($body); $xpath=new DOMXPath($doc);
     $keys=$xpath->query('//form[@id="uncheck-all-providers"]/input[@name="provider_keys"]')->item(0)->getAttribute('value');
     $post=['action'=>'uncheck_all','provider_keys'=>$keys];
-    foreach (['editor'] as $role) { [$status]=pl_handler(['path'=>'/admin/settings/providers/index.php','role'=>$role,'post'=>$post]); pl_check($status===403,'Editor bulk denied'); }
-    [$status]=pl_handler(['path'=>'/admin/settings/providers/index.php','role'=>'admin','bad_csrf'=>true,'post'=>$post]); pl_check($status===403,'Bulk CSRF');
-    [$status,$body]=pl_handler(['path'=>'/admin/settings/providers/index.php','role'=>'admin','post'=>$post]);
+    foreach (['editor'] as $role) { [$status]=pl_handler(['path'=>'/admin/plugin/games/providers/index.php','role'=>$role,'post'=>$post]); pl_check($status===403,'Editor bulk denied'); }
+    [$status]=pl_handler(['path'=>'/admin/plugin/games/providers/index.php','role'=>'admin','bad_csrf'=>true,'post'=>$post]); pl_check($status===403,'Bulk CSRF');
+    [$status,$body]=pl_handler(['path'=>'/admin/plugin/games/providers/index.php','role'=>'admin','post'=>$post]);
     pl_check($status===200 && str_contains($body,'All loaded providers unchecked and saved.'),'Bulk autosave result');
     pl_check((int)$pdo->query('SELECT COUNT(*) FROM game_provider_settings WHERE approved=0')->fetchColumn()===2,'Bulk persisted');
-    [$status,$body]=pl_handler(['path'=>'/api/slot-list.php','method'=>'GET']); pl_check($status===200 && json_decode($body,true)['pagination']['total']===0,'Public API follows bulk approval immediately');
-    [$status,$body]=pl_handler(['path'=>'/admin/settings/providers/index.php','role'=>'admin','method'=>'GET']); @$doc->loadHTML($body); $xpath=new DOMXPath($doc);
+    [$status,$body]=pl_handler(['path'=>'/game-api/slot-list.php','method'=>'GET']); pl_check($status===200 && json_decode($body,true)['pagination']['total']===0,'Public API follows bulk approval immediately');
+    [$status,$body]=pl_handler(['path'=>'/admin/plugin/games/providers/index.php','role'=>'admin','method'=>'GET']); @$doc->loadHTML($body); $xpath=new DOMXPath($doc);
     pl_check($xpath->query('//input[@name="approved" and @checked]')->length===0,'Refresh unchecked');
-    [$status]=pl_handler(['path'=>'/admin/settings/providers/index.php','role'=>'admin','post'=>['provider_key'=>'slug:first','approved'=>'1']]);
+    [$status]=pl_handler(['path'=>'/admin/plugin/games/providers/index.php','role'=>'admin','post'=>['provider_key'=>'slug:first','approved'=>'1']]);
     pl_check($status===200 && public_game_find('one')!==null,'Individual reapproval');
-    [$status]=pl_handler(['path'=>'/admin/settings/providers/index.php','role'=>'admin','post'=>['action'=>'uncheck_all','provider_keys'=>json_encode(['slug:first','missing'])]]);
+    [$status]=pl_handler(['path'=>'/admin/plugin/games/providers/index.php','role'=>'admin','post'=>['action'=>'uncheck_all','provider_keys'=>json_encode(['slug:first','missing'])]]);
     pl_check($status===422 && public_game_find('one')!==null,'Invalid bulk rolls back atomically');
     $pairs=['/slots'=>'/slots/','https://example.test/blog/post'=>'https://example.test/blog/post/','/arcade'=>'/arcade/','/game/example?ref=home#faq'=>'/game/example/?ref=home#faq','https://example.test?x=1#top'=>'https://example.test/?x=1#top'];
     foreach($pairs as $before=>$after) pl_check(blog_normalize_internal_url($before)===$after,'Normalize '.$before);
-    foreach(['https://external.test/slots','//external.test/slots','mailto:a@example.test','tel:123','javascript:alert(1)','#anchor','?query=1','/image.webp','/file.pdf','/script.js','/style.css','/sitemap.xml','/api/blog.php','/api/game.php','/uploads/no-extension','/slots/','https://example.test.evil.test/path'] as $url) pl_check(blog_normalize_internal_url($url)===$url,'Preserve '.$url);
+    foreach(['https://external.test/slots','//external.test/slots','mailto:a@example.test','tel:123','javascript:alert(1)','#anchor','?query=1','/image.webp','/file.pdf','/script.js','/style.css','/sitemap.xml','/api/blog.php','/game-api/game.php','/uploads/no-extension','/slots/','https://example.test.evil.test/path'] as $url) pl_check(blog_normalize_internal_url($url)===$url,'Preserve '.$url);
     $content=<<<'MD'
 [Slots](/slots) and [External](https://other.test/slots).
 <a href="/arcade?x=1#part">Arcade</a>

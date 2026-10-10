@@ -4,17 +4,19 @@ declare(strict_types=1);
 function auth_route_capability(): string
 {
     $path = $_SERVER['SCRIPT_NAME'] ?? '';
+    if (str_starts_with($path, '/admin/games/')) $path = '/admin/plugin/games/' . substr($path, strlen('/admin/games/'));
     $routes = [
         '/admin/index.php'=>'blogs.view', '/admin/blogs.php'=>'blogs.view',
         '/admin/blog-list.php'=>'blogs.view', '/admin/blog-edit.php'=>'blogs.edit',
         '/admin/blog-publish.php'=>'blogs.edit', '/admin/blog-create.php'=>'blogs.edit',
         '/admin/blog-save.php'=>'blogs.publish', '/admin/blog-delete.php'=>'blogs.edit',
         '/admin/blog-category-list.php'=>'blogs.view', '/admin/blog-tag-list.php'=>'blogs.view', '/admin/upload-image.php'=>'blogs.edit',
-        '/admin/games/index.php'=>(($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' ? 'slots.edit' : 'slots.view'),
-        '/admin/games/'=>(($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' ? 'slots.edit' : 'slots.view'), '/admin/games/edit.php'=>'slots.edit', '/admin/games/save.php'=>'slots.edit',
+        '/admin/plugin/games/index.php'=>(($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' ? 'slots.edit' : 'slots.view'),
+        '/admin/plugin/games/'=>(($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' ? 'slots.edit' : 'slots.view'), '/admin/plugin/games/edit.php'=>'slots.edit', '/admin/plugin/games/save.php'=>'slots.edit',
         '/admin/slots.php'=>(($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' ? 'slots.edit' : 'slots.view'),
         '/admin/slot-edit.php'=>'slots.edit', '/admin/slot-save.php'=>'slots.edit',
         '/admin/contacts.php'=>'contacts.view', '/admin/live-chat.php'=>'chat.view',
+        '/admin/session-renew.php'=>'session.renew',
         '/api/chat-session.php'=>(($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' ? 'chat.reply' : 'chat.view'),
         '/logout.php'=>'session.logout',
     ];
@@ -29,7 +31,7 @@ function auth_can(string $capability): bool
     if ($role === 'admin') return $capability !== 'super_user';
     return $role === 'editor' && in_array($capability,[
         'blogs.view','blogs.edit','blogs.publish','slots.view','slots.edit',
-        'contacts.view','contacts.manage','chat.view','chat.reply','session.logout',
+        'contacts.view','contacts.manage','chat.view','chat.reply','session.logout','session.renew',
     ],true);
 }
 

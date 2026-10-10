@@ -3,8 +3,10 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/env.php';
 require_once __DIR__ . '/blog-links.php';
-require_once __DIR__ . '/game-visibility.php';
-require_once __DIR__ . '/../games/includes/storage.php';
+if (is_file(__DIR__ . '/../plugin/games/includes/storage.php')) {
+    require_once __DIR__ . '/../plugin/games/includes/game-visibility.php';
+    require_once __DIR__ . '/../plugin/games/includes/storage.php';
+}
 require_once __DIR__ . '/blog-taxonomy.php';
 
 const BLOG_CATEGORIES = ['Guides', 'Troubleshooting', 'Casino', 'Promotions', 'Community'];
@@ -153,7 +155,7 @@ function blogs_pdo(): PDO
         }
     }
 
-    games_storage_attach($pdo);
+    if (function_exists('games_storage_attach')) games_storage_attach($pdo);
     blogs_schema($pdo);
     blogs_migrate_json($pdo);
 
@@ -193,21 +195,38 @@ function blogs_schema(PDO $pdo): void
     $hasSeoTitle = false;
     $hasPublishedAt = false;
     $hasScheduledAt = false;
+    $hasCountdownEnabled = false;
+    $hasCountdownTarget = false;
+    $hasCountdownTitle = false;
+    $hasCountdownEndText = false;
     foreach ($columns as $column) {
-        if (($column['name'] ?? null) === 'status') {
+        $cName = $column['name'] ?? null;
+        if ($cName === 'status') {
             $hasStatus = true;
         }
-        if (($column['name'] ?? null) === 'focus_keyphrase') {
+        if ($cName === 'focus_keyphrase') {
             $hasFocusKeyphrase = true;
         }
-        if (($column['name'] ?? null) === 'seo_title') {
+        if ($cName === 'seo_title') {
             $hasSeoTitle = true;
         }
-        if (($column['name'] ?? null) === 'published_at') {
+        if ($cName === 'published_at') {
             $hasPublishedAt = true;
         }
-        if (($column['name'] ?? null) === 'scheduled_at') {
+        if ($cName === 'scheduled_at') {
             $hasScheduledAt = true;
+        }
+        if ($cName === 'countdown_enabled') {
+            $hasCountdownEnabled = true;
+        }
+        if ($cName === 'countdown_target') {
+            $hasCountdownTarget = true;
+        }
+        if ($cName === 'countdown_title') {
+            $hasCountdownTitle = true;
+        }
+        if ($cName === 'countdown_end_text') {
+            $hasCountdownEndText = true;
         }
     }
     if (!$hasStatus) {
@@ -226,6 +245,18 @@ function blogs_schema(PDO $pdo): void
     }
     if (!$hasScheduledAt) {
         $pdo->exec('ALTER TABLE blog_posts ADD COLUMN scheduled_at INTEGER DEFAULT NULL');
+    }
+    if (!$hasCountdownEnabled) {
+        $pdo->exec('ALTER TABLE blog_posts ADD COLUMN countdown_enabled INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!$hasCountdownTarget) {
+        $pdo->exec('ALTER TABLE blog_posts ADD COLUMN countdown_target TEXT NOT NULL DEFAULT ""');
+    }
+    if (!$hasCountdownTitle) {
+        $pdo->exec('ALTER TABLE blog_posts ADD COLUMN countdown_title TEXT NOT NULL DEFAULT ""');
+    }
+    if (!$hasCountdownEndText) {
+        $pdo->exec('ALTER TABLE blog_posts ADD COLUMN countdown_end_text TEXT NOT NULL DEFAULT ""');
     }
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_blog_posts_updated_at ON blog_posts(updated_at DESC)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_blog_posts_status_updated_at ON blog_posts(status, updated_at DESC)');
@@ -418,7 +449,7 @@ function blog_row_to_array(array $row): array
         'writerId' => isset($row['writer_id']) ? (int)$row['writer_id'] : null,
         'excerpt' => $row['excerpt'],
         'content' => $row['content'],
-        'featuredImage' => $row['featured_image'],
+        'featuredImage' => blog_display_image((string)$row['featured_image']),
         'status' => $isPublic ? 'published' : $status,
         'focusKeyphrase' => normalize_focus_keyphrase($row['focus_keyphrase'] ?? ''),
         'date' => $row['date_label'],
@@ -426,6 +457,14 @@ function blog_row_to_array(array $row): array
         'publishedAtInput' => blog_format_admin_datetime_input($publishedAt),
         'scheduledAt' => $scheduledAt,
         'scheduledAtInput' => blog_format_admin_datetime_input($scheduledAt),
+        'countdown_enabled' => !empty($row['countdown_enabled']) ? 1 : 0,
+        'countdownEnabled' => !empty($row['countdown_enabled']),
+        'countdown_target' => (string)($row['countdown_target'] ?? ''),
+        'countdownTargetInput' => (string)($row['countdown_target'] ?? ''),
+        'countdown_title' => (string)($row['countdown_title'] ?? ''),
+        'countdownTitle' => (string)($row['countdown_title'] ?? ''),
+        'countdown_end_text' => (string)($row['countdown_end_text'] ?? ''),
+        'countdownEndText' => (string)($row['countdown_end_text'] ?? ''),
         'isPublic' => $isPublic,
         'createdAt' => (int) $row['created_at'],
         'updatedAt' => (int) $row['updated_at'],
@@ -499,7 +538,7 @@ function blog_format_date_label(int $timestamp): string
 {
     return (new DateTimeImmutable('@' . $timestamp))
         ->setTimezone(blog_display_timezone())
-        ->format('M j, Y');
+        ->format('F j, Y');
 }
 
 function blog_public_visibility_sql(string $alias = ''): string
@@ -598,6 +637,25 @@ function blog_setting_set(string $key, string $value, int $maxLength = 255): voi
 
     unset($GLOBALS['seo_settings_cache']);
     blog_clear_api_cache();
+}
+
+/** Shared display fallback. Never write fallback paths into sports participant records. */
+function site_default_image(string $fallback = ''): string
+{
+    $path = blog_setting_get('default_image');
+    return preg_match('#^/uploads/blogs/site-default-[a-f0-9]+\.(?:png|jpg|webp|avif)$#D', $path) ? $path : $fallback;
+}
+
+function blog_display_image(string $path): string
+{
+    if (trim($path) === '' || $path === BLOG_DEFAULT_IMAGE || str_starts_with($path, '/uploads/blogs/site-default-')) {
+        return site_default_image(BLOG_DEFAULT_IMAGE);
+    }
+    if (str_starts_with($path, '/uploads/') && !str_contains($path, '..') &&
+        !is_file(dirname(__DIR__,2).$path) && !is_file(dirname(__DIR__).$path)) {
+        return site_default_image($path);
+    }
+    return $path;
 }
 
 function blog_website_title(): string
@@ -1222,9 +1280,9 @@ function blogs_upsert_with_pdo(PDO $pdo, array $blog): array
     indexing_content_changed($pdo, 'blog');
     $stmt = $pdo->prepare(
         'INSERT INTO blog_posts (
-            id, slug, title, seo_title, category, category_id, author, excerpt, content, featured_image, status, focus_keyphrase, date_label, published_at, scheduled_at, created_at, updated_at, writer_id
+            id, slug, title, seo_title, category, category_id, author, excerpt, content, featured_image, status, focus_keyphrase, date_label, published_at, scheduled_at, created_at, updated_at, writer_id, countdown_enabled, countdown_target, countdown_title, countdown_end_text
         ) VALUES (
-            :id, :slug, :title, :seo_title, :category, :category_id, :author, :excerpt, :content, :featured_image, :status, :focus_keyphrase, :date_label, :published_at, :scheduled_at, :created_at, :updated_at, :writer_id
+            :id, :slug, :title, :seo_title, :category, :category_id, :author, :excerpt, :content, :featured_image, :status, :focus_keyphrase, :date_label, :published_at, :scheduled_at, :created_at, :updated_at, :writer_id, :countdown_enabled, :countdown_target, :countdown_title, :countdown_end_text
         )
         ON CONFLICT(id) DO UPDATE SET
             slug = excluded.slug,
@@ -1241,7 +1299,11 @@ function blogs_upsert_with_pdo(PDO $pdo, array $blog): array
             date_label = excluded.date_label,
             published_at = excluded.published_at,
             scheduled_at = excluded.scheduled_at,
-            updated_at = excluded.updated_at'
+            updated_at = excluded.updated_at,
+            countdown_enabled = excluded.countdown_enabled,
+            countdown_target = excluded.countdown_target,
+            countdown_title = excluded.countdown_title,
+            countdown_end_text = excluded.countdown_end_text'
     );
     $stmt->execute([
         ':id' => $blog['id'],
@@ -1263,6 +1325,10 @@ function blogs_upsert_with_pdo(PDO $pdo, array $blog): array
         ':scheduled_at' => $blog['scheduledAt'] ?? null,
         ':created_at' => $blog['createdAt'],
         ':updated_at' => $blog['updatedAt'],
+        ':countdown_enabled' => !empty($blog['countdown_enabled']) || !empty($blog['countdownEnabled']) ? 1 : 0,
+        ':countdown_target' => (string)($blog['countdown_target'] ?? $blog['countdownTarget'] ?? ''),
+        ':countdown_title' => (string)($blog['countdown_title'] ?? $blog['countdownTitle'] ?? ''),
+        ':countdown_end_text' => (string)($blog['countdown_end_text'] ?? $blog['countdownEndText'] ?? ''),
     ]);
 
     blog_taxonomy_assign_tags($pdo, $blog);
@@ -1389,6 +1455,7 @@ function blogs_upsert(array $blog, bool $manageTransaction = true): array
             $pdo->commit();
         }
         blogs_publish_due_scheduled($pdo, $now);
+        blog_clear_api_cache();
     } catch (Throwable $exception) {
         if ($manageTransaction && $pdo->inTransaction()) {
             $pdo->rollBack();
@@ -1469,15 +1536,39 @@ function blog_payload_from_post(): array
     $excerpt = request_string('excerpt', 360);
     $content = request_string('content', 60000);
     $featuredImage = request_string('featured_image', 180) ?? BLOG_DEFAULT_IMAGE;
-    $status = normalize_blog_status($_POST['status'] ?? null);
+    $status = normalize_blog_status($_POST['status'] ?? 'draft');
     $focusKeyphrase = request_string('focus_keyphrase', 160) ?? '';
     $existingId = request_string('id', 110);
     $publishedAt = blog_parse_admin_datetime($_POST['published_at'] ?? null);
     $scheduledAt = blog_parse_admin_datetime($_POST['scheduled_at'] ?? null);
+    $countdownEnabled = isset($_POST['countdown_enabled']) && in_array(strtolower(trim((string)$_POST['countdown_enabled'])), ['1', 'true', 'on', 'yes'], true) ? 1 : 0;
+    $countdownTarget = request_string('countdown_target', 64) ?? '';
+    $countdownTitle = request_string('countdown_title', 160) ?? '';
+    $countdownEndText = request_string('countdown_end_text', 160) ?? '';
 
     $slug = $slug !== null ? normalize_slug($slug) : '';
     if ($slug === '' && $title !== null) {
         $slug = normalize_slug($title);
+    }
+    if ($seoTitle === null && $title !== null) {
+        $seoTitle = normalize_seo_title($title . ' | ' . blog_website_title());
+    }
+    if ($category === null) {
+        $cats = blog_categories_all();
+        if (!empty($cats)) {
+            $category = $cats[0]['name'];
+            if ($categoryId === null) $categoryId = $cats[0]['id'];
+        }
+    }
+    if ($excerpt === null && $content !== null) {
+        $cleanContent = trim(strip_tags(preg_replace('/[#*_`~\[\]\(\)>!-]/', ' ', $content)));
+        $excerpt = mb_substr($cleanContent, 0, 160);
+        if ($excerpt === '' && $title !== null) {
+            $excerpt = $title;
+        }
+    }
+    if ($content === null && isset($_POST['autosave'])) {
+        $content = "\n";
     }
 
     $errors = [];
@@ -1530,6 +1621,10 @@ function blog_payload_from_post(): array
             'focusKeyphrase' => normalize_focus_keyphrase($focusKeyphrase),
             'publishedAt' => $publishedAt,
             'scheduledAt' => $scheduledAt,
+            'countdown_enabled' => $countdownEnabled,
+            'countdown_target' => $countdownTarget,
+            'countdown_title' => $countdownTitle,
+            'countdown_end_text' => $countdownEndText,
         ],
     ];
 }

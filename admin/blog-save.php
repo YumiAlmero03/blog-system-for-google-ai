@@ -14,7 +14,7 @@ header('Content-Type: application/json; charset=UTF-8');
 $payload = blog_payload_from_post();
 if (!$payload['ok']) {
     http_response_code(422);
-    echo json_encode(['ok' => false, 'errors' => $payload['errors']], JSON_UNESCAPED_SLASHES);
+    echo json_encode(['ok' => false, 'errors' => $payload['errors'], 'csrfToken' => csrf_token()], JSON_UNESCAPED_SLASHES);
     exit;
 }
 

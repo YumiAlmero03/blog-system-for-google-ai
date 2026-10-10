@@ -1142,6 +1142,67 @@ $writerOptions = writer_options();
     .wp-toolbar-right {
       justify-content: flex-end;
     }
+    .autosave-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: #64748b;
+      padding: 4px 9px;
+      border-radius: 4px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      white-space: nowrap;
+      user-select: none;
+      transition: all 0.2s ease;
+    }
+    .autosave-status.is-saving {
+      color: #0284c7;
+      background: #f0f9ff;
+      border-color: #bae6fd;
+    }
+    .autosave-status.is-saved {
+      color: #166534;
+      background: #f0fdf4;
+      border-color: #bbf7d0;
+    }
+    .autosave-status.is-dirty {
+      color: #b45309;
+      background: #fffbeb;
+      border-color: #fde68a;
+    }
+    .autosave-status.is-error {
+      color: #b91c1c;
+      background: #fef2f2;
+      border-color: #fecaca;
+    }
+    .autosave-status .autosave-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #94a3b8;
+      display: inline-block;
+      flex-shrink: 0;
+      transition: background 0.2s ease;
+    }
+    .autosave-status.is-saving .autosave-dot {
+      background: #0284c7;
+      animation: autosave-pulse 0.8s infinite alternate ease-in-out;
+    }
+    .autosave-status.is-saved .autosave-dot {
+      background: #16a34a;
+    }
+    .autosave-status.is-dirty .autosave-dot {
+      background: #f59e0b;
+    }
+    .autosave-status.is-error .autosave-dot {
+      background: #dc2626;
+    }
+    @keyframes autosave-pulse {
+      from { opacity: 0.3; transform: scale(0.8); }
+      to { opacity: 1; transform: scale(1.2); }
+    }
     .wp-icon-button {
       width: 36px;
       height: 36px;
@@ -1524,6 +1585,11 @@ $writerOptions = writer_options();
     .yoast-check-list .dot.ok {
       background: #00a32a;
     }
+    .yoast-check-list .dot.neutral { background:#98a2b3; }
+    .yoast-highlight-check { display:block; margin-top:6px; }
+    .yoast-highlight-check[aria-pressed="true"] { outline:2px solid var(--brand); }
+    ::highlight(blog-readability) { background-color:#ffe08a; color:#271c00; text-decoration:underline #b45309; }
+    .yoast-analysis-icon.warn { background:#dba617; }
     .yoast-check-list .dot.warn {
       background: #dba617;
     }
@@ -1617,6 +1683,10 @@ $writerOptions = writer_options();
         </div>
         <div class="wp-document-title"><span id="form-title-text">No title · Post</span></div>
         <div class="wp-toolbar-right">
+          <div id="autosave-status" class="autosave-status is-saved" aria-live="polite" title="Auto-save status">
+            <span class="autosave-dot"></span>
+            <span id="autosave-message">All changes saved</span>
+          </div>
           <button type="submit" id="save-draft-btn" class="btn btn-secondary btn-sm" data-save-status="draft">Save as Draft</button>
           <button type="submit" id="publish-blog-btn" class="btn btn-primary" data-save-status="published">Publish</button>
           <button type="button" id="view-blog-page-btn" class="btn btn-secondary btn-sm" style="display:none;">View Page</button>
@@ -1671,6 +1741,7 @@ $writerOptions = writer_options();
                     <button type="button" class="wysiwyg-btn" data-command="table" title="Table block">Table</button>
                     <button type="button" class="wysiwyg-btn" data-command="custom-code" title="Custom code block (administrator only)" <?= auth_can('admin') ? '' : 'disabled' ?>>Code</button>
                     <button type="button" class="wysiwyg-btn" data-command="slot-demo" title="Slot demo block">Demo</button>
+                    <button type="button" class="wysiwyg-btn" data-command="countdown" title="Countdown timer block">Timer</button>
                     <button type="button" class="wysiwyg-btn" data-command="link" title="Insert link">Link</button>
                     <button type="button" class="wysiwyg-btn" data-command="clear" title="Clear formatting">Clear</button>
                   </div>
@@ -1715,7 +1786,7 @@ $writerOptions = writer_options();
                 <button type="button" id="apply-image-settings-btn" class="btn btn-primary btn-sm">Apply</button>
                 <button type="button" id="remove-image-link-btn" class="btn btn-secondary btn-sm">Remove Link</button>
               </div>
-              <input type="file" id="article-image-upload" accept="image/jpeg,image/png,image/webp" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;" tabindex="-1">
+              <input type="file" id="article-image-upload" accept="image/jpeg,image/png,image/webp,image/avif,.jpg,.jpeg,.png,.webp,.avif" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;" tabindex="-1">
               <div id="editor-shell" class="editor-shell editor-mode-write">
                 <textarea id="blog-content" name="content" maxlength="60000" aria-label="Markdown article content"></textarea>
                 <div id="wysiwyg-editor" class="wysiwyg-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Write your article here. Use the toolbar for headings, links, lists, quotes, and images."></div>
@@ -1774,6 +1845,30 @@ $writerOptions = writer_options();
                     <input type="hidden" id="blog-scheduled-at" name="scheduled_at" value="">
                   </div>
                 </div>
+                <div class="form-group" style="margin-top:12px; padding:12px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface-soft);">
+                  <div style="display:flex; align-items:center; justify-content:space-between;">
+                    <label for="blog-countdown-enabled" style="font-weight:700; margin:0; cursor:pointer; display:flex; align-items:center; gap:8px;">
+                      <input type="checkbox" id="blog-countdown-enabled" name="countdown_enabled" value="1">
+                      <span>Add Countdown (Optional)</span>
+                    </label>
+                    <span class="badge badge-yellow" id="countdown-active-badge" style="display:none; font-size:0.7rem;">Active</span>
+                  </div>
+                  <div id="countdown-fields-wrapper" style="display:none; margin-top:12px; padding-top:10px; border-top:1px dashed var(--border);">
+                    <div class="form-group" style="margin-bottom:10px;">
+                      <label for="blog-countdown-target" style="font-size:0.82rem;">Target Date &amp; Time *</label>
+                      <input type="datetime-local" id="blog-countdown-target" name="countdown_target" class="form-control">
+                      <span style="font-size:0.75rem; color:var(--text-muted); display:block; margin-top:3px;">Timer counts down to this target date/time.</span>
+                    </div>
+                    <div class="form-group" style="margin-bottom:10px;">
+                      <label for="blog-countdown-title" style="font-size:0.82rem;">Countdown Title / Label</label>
+                      <input type="text" id="blog-countdown-title" name="countdown_title" class="form-control" maxlength="160" placeholder="e.g. Special Promotion Ends In">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                      <label for="blog-countdown-end-text" style="font-size:0.82rem;">Expired Message</label>
+                      <input type="text" id="blog-countdown-end-text" name="countdown_end_text" class="form-control" maxlength="160" placeholder="e.g. This promotion has ended.">
+                    </div>
+                  </div>
+                </div>
                 <div class="form-group">
                   <div class="field-label-row">
                     <label for="blog-excerpt">Meta Description *</label>
@@ -1802,9 +1897,9 @@ $writerOptions = writer_options();
                 <div id="image-dropzone" class="image-dropzone" role="button" tabindex="0" aria-controls="blog-image-upload" style="min-height:120px;">
                   <div class="image-dropzone-icon">+</div>
                   <strong>Drop image to upload</strong>
-                  <span>JPEG, PNG, or WebP up to 3 MB.</span>
+                  <span>JPEG, PNG, WebP, or AVIF up to 10 MB.</span>
                 </div>
-                <input type="file" id="blog-image-upload" accept="image/jpeg,image/png,image/webp" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;" tabindex="-1">
+                <input type="file" id="blog-image-upload" accept="image/jpeg,image/png,image/webp,image/avif,.jpg,.jpeg,.png,.webp,.avif" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;" tabindex="-1">
                 <div id="image-upload-status" class="image-upload-status"></div>
                 <select id="blog-image-preset" class="form-control" style="margin-top:12px;">
                   <option value="/uploads/blogs/default-featured.svg">/uploads/blogs/default-featured.svg</option>
@@ -1814,7 +1909,7 @@ $writerOptions = writer_options();
                 </select>
                 <input type="text" id="blog-image-url" name="featured_image" class="form-control" value="<?= h(BLOG_DEFAULT_IMAGE) ?>" maxlength="180" style="margin-top:12px; font-size:0.85rem;">
                 <div style="width:100%; height:120px; border-radius:var(--radius-sm); border:1px solid var(--border); overflow:hidden; background:#0d0104; display:flex; align-items:center; justify-content:center; margin-top:12px;">
-                  <img id="featured-image-preview" src="<?= h(BLOG_DEFAULT_IMAGE) ?>" alt="Featured image preview" style="width:100%; height:100%; object-fit:cover;">
+                  <img id="featured-image-preview" src="<?= h(site_default_image(BLOG_DEFAULT_IMAGE)) ?>" alt="Featured image preview" style="width:100%; height:100%; object-fit:cover;">
                 </div>
                 <span id="image-path-badge" class="badge badge-yellow" style="font-size:0.72rem; margin-top:6px; display:inline-block; max-width:100%; overflow-wrap:anywhere;"><?= h(BLOG_DEFAULT_IMAGE) ?></span>
                 <button type="submit" id="save-current-post-btn" class="btn btn-primary" style="width:100%; margin-top:14px;" data-save-current="true">Save Post</button>
@@ -1858,6 +1953,8 @@ $writerOptions = writer_options();
             </div>
             <div class="yoast-panel">
               <div class="yoast-accordion-title"><span><span id="readability-analysis-icon" class="yoast-analysis-icon ok">!</span>Readability analysis</span><span>&#8964;</span></div>
+              <button type="button" id="readability-highlight-toggle" class="btn btn-secondary btn-sm" aria-pressed="false" style="margin-top:12px;">Highlight readability issues</button>
+              <p id="readability-highlight-status" class="yoast-help" role="status" aria-live="polite">Highlighting is off.</p>
               <ul id="readability-check-list" class="yoast-check-list"></ul>
             </div>
           </div>
@@ -1866,6 +1963,7 @@ $writerOptions = writer_options();
     </form>
   </div>
 
+  <script src="/admin/yoast-analysis.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       let csrfToken = document.getElementById('csrf-token').value;
@@ -1884,6 +1982,24 @@ $writerOptions = writer_options();
       const blogStatus = document.getElementById('blog-status-field');
       const publishedAtField = document.getElementById('blog-published-at');
       const scheduledAtField = document.getElementById('blog-scheduled-at');
+      const countdownEnabledCheckbox = document.getElementById('blog-countdown-enabled');
+      const countdownFieldsWrapper = document.getElementById('countdown-fields-wrapper');
+      const countdownActiveBadge = document.getElementById('countdown-active-badge');
+      const countdownTargetField = document.getElementById('blog-countdown-target');
+      const countdownTitleField = document.getElementById('blog-countdown-title');
+      const countdownEndTextField = document.getElementById('blog-countdown-end-text');
+
+      function updateCountdownVisibility() {
+        const isEnabled = countdownEnabledCheckbox && countdownEnabledCheckbox.checked;
+        if (countdownFieldsWrapper) countdownFieldsWrapper.style.display = isEnabled ? 'block' : 'none';
+        if (countdownActiveBadge) countdownActiveBadge.style.display = isEnabled ? 'inline-block' : 'none';
+        if (isEnabled && countdownTargetField && !countdownTargetField.value) {
+          countdownTargetField.value = (publishedAtField && publishedAtField.value) ? publishedAtField.value : currentDateTimeInput();
+        }
+      }
+      if (countdownEnabledCheckbox) {
+        countdownEnabledCheckbox.addEventListener('change', updateCountdownVisibility);
+      }
       const categoryField = document.getElementById('blog-category');
       const writerField = document.getElementById('blog-writer');
       const authorField = document.getElementById('blog-author');
@@ -1956,6 +2072,10 @@ $writerOptions = writer_options();
       const readabilityAnalysisIcon = document.getElementById('readability-analysis-icon');
       const seoCheckList = document.getElementById('seo-check-list');
       const readabilityCheckList = document.getElementById('readability-check-list');
+      const readabilityHighlightToggle = document.getElementById('readability-highlight-toggle');
+      const readabilityHighlightStatus = document.getElementById('readability-highlight-status');
+      let readabilityHighlightMode = null;
+      let currentReadabilityChecks = [];
       const yoastBottomScore = document.getElementById('yoast-bottom-score');
       const saveState = document.querySelector('.wp-save-state');
       const hasLinkToolbox = linkToolbox && linkTextInput && linkUrlInput && linkNofollowInput && linkToolboxStatus && applyLinkBtn && cancelLinkBtn;
@@ -1968,6 +2088,7 @@ $writerOptions = writer_options();
       let draggedEditorBlock = null;
       let editorDropMarker = null;
       let pendingSaveStatus = '';
+      let savedBlogStatus = 'draft';
       let tablePickerRows = 1;
       let tablePickerCols = 1;
       let isChoosingTableSize = false;
@@ -2159,7 +2280,7 @@ $writerOptions = writer_options();
 
       function updateViewPageButton() {
         if (!viewBlogPageBtn) return;
-        const status = blogStatus ? blogStatus.value : 'published';
+        const status = blogStatus ? blogStatus.value : 'draft';
         const publicUrl = currentBlogPublicUrl();
         const href = status === 'published' ? publicUrl : currentBlogPreviewUrl();
         const canView = Boolean(href);
@@ -2174,11 +2295,206 @@ $writerOptions = writer_options();
       }
 
       function updateSaveState(status) {
+        const publishButton = document.getElementById('publish-blog-btn');
+        if (publishButton) publishButton.textContent = savedBlogStatus === 'published' ? 'Update' : 'Publish';
         if (status === 'scheduled') {
           ensurePublishDateValue();
         }
         setText(saveState, status === 'draft' ? 'Draft' : (status === 'scheduled' ? 'Scheduled' : 'Publish ready'));
         updateViewPageButton();
+      }
+
+      // Auto-save system
+      let isDirty = false;
+      let isSaving = false;
+      let autosaveTimer = null;
+      let lastSavedAt = null;
+      const autosaveStatusEl = document.getElementById('autosave-status');
+      const autosaveMessageEl = document.getElementById('autosave-message');
+
+      function updateAutosaveIndicator(state, message) {
+        if (!autosaveStatusEl) return;
+        autosaveStatusEl.className = 'autosave-status is-' + state;
+        if (autosaveMessageEl) autosaveMessageEl.textContent = message;
+      }
+
+      function getStorageKey() {
+        const curId = editingId && editingId.value.trim() ? editingId.value.trim() : (initialEditId || 'new');
+        return 'cms_blog_autosave_' + curId;
+      }
+
+      function saveToLocalStorage() {
+        try {
+          const draft = {
+            id: editingId ? editingId.value : '',
+            title: title ? title.value : '',
+            slug: slug ? slug.value : '',
+            seoTitle: seoTitle ? seoTitle.value : '',
+            category: categoryField ? categoryField.value : '',
+            author: authorField ? authorField.value : '',
+            writerId: writerField ? writerField.value : '',
+            excerpt: excerpt ? excerpt.value : '',
+            content: blogContent ? blogContent.value : '',
+            imageUrl: imageUrl ? imageUrl.value : '',
+            status: blogStatus ? blogStatus.value : 'draft',
+            focusKeyphrase: focusKeyphrase ? focusKeyphrase.value : '',
+            savedAt: Date.now()
+          };
+          localStorage.setItem(getStorageKey(), JSON.stringify(draft));
+        } catch (e) {}
+      }
+
+      function clearLocalStorage() {
+        try {
+          localStorage.removeItem(getStorageKey());
+        } catch (e) {}
+      }
+
+      function markDirty() {
+        isDirty = true;
+        updateAutosaveIndicator('dirty', 'Unsaved changes');
+        saveToLocalStorage();
+        scheduleAutoSave();
+      }
+
+      function scheduleAutoSave() {
+        if (autosaveTimer) clearTimeout(autosaveTimer);
+        autosaveTimer = setTimeout(() => {
+          performAutoSave();
+        }, 2500);
+      }
+
+      async function performAutoSave() {
+        if (isSaving || !isDirty) return;
+
+        if (editorShell && editorShell.classList.contains('editor-mode-write')) {
+          syncMarkdownFromEditor();
+        }
+        updateWordCounter();
+
+        const titleVal = title ? title.value.trim() : '';
+        const contentVal = blogContent ? blogContent.value.trim() : '';
+
+        saveToLocalStorage();
+
+        if (!titleVal) {
+          updateAutosaveIndicator('dirty', 'Draft saved in browser');
+          return;
+        }
+
+        isSaving = true;
+        updateAutosaveIndicator('saving', 'Saving...');
+
+        try {
+          const currentStatus = blogStatus ? blogStatus.value : (savedBlogStatus || 'draft');
+          if (currentStatus !== 'draft') ensurePublishDateValue();
+
+          const data = new FormData(form);
+          const cleanSlug = slugify(data.get('slug') || titleVal);
+          data.set('slug', cleanSlug);
+          data.set('title', titleVal);
+          data.set('seo_title', data.get('seo_title') || (titleVal + ' | ' + websiteTitle));
+          data.set('status', currentStatus);
+          data.set('published_at', publishedAtField ? publishedAtField.value : '');
+          data.set('scheduled_at', currentStatus === 'scheduled' && publishedAtField ? publishedAtField.value : '');
+          data.set('countdown_enabled', countdownEnabledCheckbox && countdownEnabledCheckbox.checked ? '1' : '0');
+          data.set('countdown_target', countdownTargetField ? countdownTargetField.value : '');
+          data.set('countdown_title', countdownTitleField ? countdownTitleField.value : '');
+          data.set('countdown_end_text', countdownEndTextField ? countdownEndTextField.value : '');
+          data.set('focus_keyphrase', focusKeyphrase ? focusKeyphrase.value.trim() : '');
+          data.set('csrf_token', csrfToken);
+          data.set('autosave', '1');
+
+          let excerptVal = data.get('excerpt') ? String(data.get('excerpt')).trim() : '';
+          if (!excerptVal) {
+            const plain = contentVal.replace(/[#*_`~\[\]\(\)>!-]/g, ' ').replace(/\s+/g, ' ').trim();
+            excerptVal = plain.slice(0, 150) || titleVal;
+            data.set('excerpt', excerptVal);
+          }
+
+          if (!data.get('category_id') && categoryField && categoryField.options.length) {
+            data.set('category_id', categoryField.options[0].value);
+          }
+
+          if (!data.get('content') || !String(data.get('content')).trim()) {
+            data.set('content', contentVal || '\n');
+          }
+
+          const response = await fetch('/admin/blog-save.php', {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'fetch' },
+            body: data
+          });
+
+          const result = await parseJsonResponse(response);
+          if (result && result.csrfToken) {
+            updateCsrf(result.csrfToken);
+          }
+
+          if (!response.ok || !result.ok) {
+            throw new Error((result.errors || [result.error || 'Autosave failed']).join(' '));
+          }
+
+          if (result.blog) {
+            savedBlogStatus = result.blog.status || currentStatus;
+            const savedId = result.blog.id || result.blog.slug || cleanSlug;
+            if (editingId && !editingId.value) {
+              editingId.value = savedId;
+              const newUrl = '/admin/blog-publish.php?id=' + encodeURIComponent(savedId);
+              if (window.history && window.history.replaceState) {
+                window.history.replaceState({ id: savedId }, '', newUrl);
+              }
+            }
+            if (slug && result.blog.slug && !manualSlug) {
+              slug.value = result.blog.slug;
+              setText(slugPreview, result.blog.slug);
+            }
+            if (blogStatus) blogStatus.value = result.blog.status || currentStatus;
+          }
+
+          isDirty = false;
+          lastSavedAt = new Date();
+          const timeStr = lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          updateAutosaveIndicator('saved', 'Saved at ' + timeStr);
+          clearLocalStorage();
+        } catch (err) {
+          console.warn('Autosave warning:', err);
+          updateAutosaveIndicator('error', 'Saved locally (server offline)');
+        } finally {
+          isSaving = false;
+        }
+      }
+
+      function checkLocalStorageRecovery() {
+        try {
+          const raw = localStorage.getItem(getStorageKey());
+          if (!raw) return;
+          const draft = JSON.parse(raw);
+          if (!draft || (!draft.title && !draft.content)) return;
+
+          const isFormEmpty = (!title || !title.value.trim()) && (!blogContent || !blogContent.value.trim());
+          if (isFormEmpty && (draft.title || draft.content)) {
+            if (title && draft.title) title.value = draft.title;
+            if (slug && draft.slug) { slug.value = draft.slug; setText(slugPreview, draft.slug); }
+            if (seoTitle && draft.seoTitle) seoTitle.value = draft.seoTitle;
+            if (categoryField && draft.category) categoryField.value = draft.category;
+            if (authorField && draft.author) authorField.value = draft.author;
+            if (writerField && draft.writerId) writerField.value = draft.writerId;
+            if (excerpt && draft.excerpt) excerpt.value = draft.excerpt;
+            if (imageUrl && draft.imageUrl) setImage(draft.imageUrl);
+            if (focusKeyphrase && draft.focusKeyphrase) focusKeyphrase.value = draft.focusKeyphrase;
+            if (draft.content) {
+              setEditorMarkdown(draft.content);
+              resetEditorHistory(draft.content);
+              renderMarkdownPreview();
+            }
+            updateTitleDisplay();
+            updateExcerptCounter();
+            updateAutosaveIndicator('dirty', 'Restored draft (unsaved)');
+            showNotice('Restored unsaved draft from your browser.', 'ok');
+            isDirty = true;
+          }
+        } catch (e) {}
       }
 
       function escapeHtml(value) {
@@ -2265,7 +2581,7 @@ $writerOptions = writer_options();
       }
 
       function checkItem(label, state) {
-        const dotClass = state === 'good' ? 'ok' : (state === 'warn' ? 'warn' : '');
+        const dotClass = state === 'good' ? 'ok' : (state === 'warn' ? 'warn' : state === 'neutral' ? 'neutral' : '');
         return `<li><span class="dot ${dotClass}"></span><span>${escapeHtml(label)}</span></li>`;
       }
 
@@ -2287,52 +2603,77 @@ $writerOptions = writer_options();
         setClassName(seoMeterStatus, 'seo-meter-status ' + state.className);
         setText(seoMeterHelp, result.help);
         setText(yoastBottomScore, state.label + ' · ' + result.seoScore + '/100');
-        setClassName(seoAnalysisIcon, 'yoast-analysis-icon ' + (result.seoScore >= 80 ? 'ok' : ''));
-        setClassName(readabilityAnalysisIcon, 'yoast-analysis-icon ' + (result.readabilityScore >= 75 ? 'ok' : ''));
+        setClassName(seoAnalysisIcon, 'yoast-analysis-icon ' + (result.seoScore >= 80 ? 'ok' : result.seoScore >= 55 ? 'warn' : ''));
+        setClassName(readabilityAnalysisIcon, 'yoast-analysis-icon ' + (result.readabilityScore >= 75 ? 'ok' : result.readabilityScore >= 50 ? 'warn' : ''));
+        readabilityAnalysisIcon.title = 'Readability: ' + (result.readabilityScore >= 75 ? 'Good' : result.readabilityScore >= 50 ? 'OK' : 'Needs improvement');
         setHtml(seoCheckList, result.seoChecks.map((check) => checkItem(check.label, check.state)).join(''));
-        setHtml(readabilityCheckList, result.readabilityChecks.map((check) => checkItem(check.label, check.state)).join(''));
+        currentReadabilityChecks = result.readabilityChecks;
+        renderReadabilityChecks();
+        updateReadabilityHighlights();
       }
 
       function normalizeYoastScore(score) {
         if (typeof score !== 'number' || !Number.isFinite(score)) return 0;
-        return Math.max(0, Math.min(100, Math.round(score <= 10 ? score * 10 : score)));
-      }
-
-      function yoastCheckState(score) {
-        if (score >= 8 || score >= 80) return 'good';
-        if (score >= 5 || score >= 50) return 'warn';
-        return 'bad';
-      }
-
-      function getYoastResultValue(result, methodName, propertyName, fallback) {
-        if (!result) return fallback;
-        if (typeof result[methodName] === 'function') return result[methodName]();
-        return result[propertyName] ?? fallback;
+        return Math.max(0, Math.min(100, Math.round(score)));
       }
 
       function normalizeYoastChecks(results) {
-        if (!Array.isArray(results)) return [];
-        return results
-          .map((result) => {
-            const score = Number(getYoastResultValue(result, 'getScore', 'score', 0));
-            const rawText = getYoastResultValue(result, 'getText', 'text', '');
-            const label = String(rawText || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-            return {
-              label: label || 'Yoast assessment completed.',
-              state: yoastCheckState(score),
-            };
-          })
-          .filter((check) => check.label);
+        return window.BlogYoastAnalysis.checks(results);
       }
 
       function getYoastAssessorResults(assessor) {
-        if (!assessor) return [];
-        if (Array.isArray(assessor.results)) return assessor.results;
-        if (typeof assessor.getValidResults === 'function') return assessor.getValidResults();
-        if (typeof assessor.getAllResults === 'function') return assessor.getAllResults();
-        if (typeof assessor.getResults === 'function') return assessor.getResults();
-        return [];
+        return window.BlogYoastAnalysis.results(assessor);
       }
+
+      function renderReadabilityChecks() {
+        setHtml(readabilityCheckList, currentReadabilityChecks.map((check, index) => {
+          const item = checkItem(check.label, check.state);
+          if (!['bad', 'warn'].includes(check.state) || !check.passages?.length) return item;
+          const active = readabilityHighlightMode === 'all' || readabilityHighlightMode === check.id;
+          const button = `<button type="button" class="btn btn-secondary btn-sm yoast-highlight-check" data-readability-check="${index}" aria-pressed="${active}">${active ? 'Hide highlights' : 'Highlight passages'}</button>`;
+          return item.replace('</span></li>', button + '</span></li>');
+        }).join(''));
+      }
+
+      function updateReadabilityHighlights() {
+        window.CSS?.highlights?.delete('blog-readability');
+        readabilityHighlightToggle.setAttribute('aria-pressed', String(readabilityHighlightMode !== null));
+        readabilityHighlightToggle.textContent = readabilityHighlightMode === null ? 'Highlight readability issues' : 'Hide readability highlights';
+        if (readabilityHighlightMode === null) {
+          setText(readabilityHighlightStatus, 'Highlighting is off.');
+          return;
+        }
+        if (!window.CSS?.highlights || !window.Highlight) {
+          setText(readabilityHighlightStatus, 'This browser does not support text highlighting. The findings are listed below.');
+          return;
+        }
+        if (editorShell.classList.contains('editor-mode-markdown')) {
+          setText(readabilityHighlightStatus, 'Switch to Write, Preview or Split to see highlighted passages.');
+          return;
+        }
+        const root = editorShell.classList.contains('editor-mode-write') ? wysiwygEditor : markdownPreview;
+        const passages = currentReadabilityChecks.filter(check => ['bad', 'warn'].includes(check.state)
+          && (readabilityHighlightMode === 'all' || check.id === readabilityHighlightMode)).flatMap(check => check.passages || []);
+        const ranges = window.BlogYoastAnalysis.ranges(root, passages);
+        window.CSS.highlights.set('blog-readability', new Highlight(...ranges));
+        setText(readabilityHighlightStatus, ranges.length ? `${ranges.length} passage${ranges.length === 1 ? '' : 's'} highlighted. Highlights are not saved.`
+          : 'No matching passages to highlight. Some checks apply to the whole article.');
+      }
+
+      readabilityHighlightToggle.addEventListener('click', () => {
+        readabilityHighlightMode = readabilityHighlightMode === null ? 'all' : null;
+        renderReadabilityChecks();
+        updateReadabilityHighlights();
+      });
+      readabilityCheckList.addEventListener('click', event => {
+        const button = event.target.closest('[data-readability-check]');
+        if (!button) return;
+        const check = currentReadabilityChecks[Number(button.dataset.readabilityCheck)];
+        if (!check) return;
+        readabilityHighlightMode = readabilityHighlightMode === 'all' || readabilityHighlightMode === check.id ? null : check.id;
+        renderReadabilityChecks();
+        updateReadabilityHighlights();
+      });
 
       function getYoastOverallScore(assessor) {
         if (!assessor) return 0;
@@ -2694,12 +3035,24 @@ $writerOptions = writer_options();
         return `<section class="editor-block editor-slot-demo-block" data-block-type="slot-demo" data-game-slug="${escapeHtml(normalized.slug || '')}" draggable="true"><button type="button" class="editor-block-close" data-remove-block aria-label="Remove demo block" title="Remove demo block">&times;</button><div class="editor-slot-demo-search" contenteditable="false"><h3 class="editor-slot-demo-title" aria-live="polite">${escapeHtml(title)}</h3><input type="search" class="editor-slot-demo-query" placeholder="Search games..." aria-label="Search games" draggable="false"><div class="editor-slot-demo-results" role="listbox"></div></div><div class="editor-slot-demo-frame" contenteditable="false"><iframe src="${escapeHtml(normalized.url || '/playnow')}" title="${escapeHtml(title)}" loading="lazy"></iframe></div></section>`;
       }
 
-      function parseMarkdown(markdown) {
-        let html = escapeHtml(markdown || '');
+      function renderCustomCodePreview(code) {
+        const documentHtml = '<!doctype html><html><head><meta charset="utf-8"><style>' + code.css + '</style></head><body><section id="blog-custom-code-preview" class="blog-custom-code-block">' + code.html + '</section><script>(function(root){' + code.js + '\n})(document.getElementById("blog-custom-code-preview"));<\/script></body></html>';
+        return `<iframe title="Custom code preview" sandbox="allow-scripts" srcdoc="${escapeHtml(documentHtml)}" style="width:100%;min-height:320px;border:0;"></iframe>`;
+      }
+
+      function parseMarkdown(markdown, preview = false) {
+        const customCodeBlocks = [];
+        // Preserve code before escaping or applying Markdown transformations.
+        const source = String(markdown || '').replace(/\r\n?/g, '\n').replace(/^:::custom-code[ \t]*\n([\s\S]*?)^:::[ \t]*$/gm, (match, content) => {
+          const token = `@@CUSTOM_CODE_BLOCK_${customCodeBlocks.length}@@`;
+          const code = splitCustomCode(content);
+          customCodeBlocks.push(preview ? renderCustomCodePreview(code) : renderCustomCodeBlock(code));
+          return '\n\n' + token + '\n\n';
+        });
+        let html = escapeHtml(source);
         const faqBlocks = [];
         const buttonBlocks = [];
         const tableBlocks = [];
-        const customCodeBlocks = [];
         const slotDemoBlocks = [];
         html = html.replace(/:::faq\s*\n?([\s\S]*?)\n?:::/g, (match, content) => {
           const token = `@@FAQ_BLOCK_${faqBlocks.length}@@`;
@@ -2714,11 +3067,6 @@ $writerOptions = writer_options();
         html = html.replace(/:::table\s*\n?([\s\S]*?)\n?:::/g, (match, content) => {
           const token = `@@TABLE_BLOCK_${tableBlocks.length}@@`;
           tableBlocks.push(renderTableBlock(normalizeTableRows(content)));
-          return token;
-        });
-        html = html.replace(/:::custom-code\s*\n?([\s\S]*?)\n?:::/g, (match, content) => {
-          const token = `@@CUSTOM_CODE_BLOCK_${customCodeBlocks.length}@@`;
-          customCodeBlocks.push(renderCustomCodeBlock(splitCustomCode(content)));
           return token;
         });
         html = html.replace(/:::slot-demo\s*\n?([\s\S]*?)\n?:::/g, (match, content) => {
@@ -3069,11 +3417,13 @@ $writerOptions = writer_options();
         }
         isRestoringHistory = false;
         updateHistoryButtons();
+        markDirty();
       }
 
       function renderMarkdownPreview() {
-        const rendered = parseMarkdown(blogContent.value);
+        const rendered = parseMarkdown(blogContent.value, true);
         markdownPreview.innerHTML = rendered || '<p style="color:var(--text-muted); font-style:italic;">Markdown preview will render here.</p>';
+        updateReadabilityHighlights();
       }
 
       function setEditorMode(mode) {
@@ -3096,6 +3446,7 @@ $writerOptions = writer_options();
         }
         closeLinkToolbox();
         closeTablePicker();
+        updateReadabilityHighlights();
         scheduleFloatingEditorTabs();
       }
 
@@ -3849,6 +4200,7 @@ $writerOptions = writer_options();
         syncMarkdownFromEditor();
         scheduleEditorHistory(immediate);
         analyzeSeo();
+        markDirty();
       }
 
       function tableColumnCount(tableBlock) {
@@ -3962,7 +4314,7 @@ $writerOptions = writer_options();
         }
         results.innerHTML = '<div class="editor-slot-demo-status">Searching...</div>';
         try {
-          const request = new URL('/api/slot-list.php', window.location.origin);
+          const request = new URL('/game-api/slot-list.php', window.location.origin);
           request.searchParams.set('search', cleanQuery);
           request.searchParams.set('count', '5');
           request.searchParams.set('published', '1');
@@ -4320,10 +4672,17 @@ $writerOptions = writer_options();
         }
       }
 
+      function isAllowedBlogImageType(file) {
+        if (!file) return false;
+        const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
+        if (file.type && validTypes.includes(file.type)) return true;
+        return /\.(jpe?g|png|webp|avif)$/i.test(file.name || '');
+      }
+
       async function uploadArticleImage(file) {
         if (!file) return;
-        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-          setArticleImageStatus('Please upload a JPEG, PNG, or WebP image.', 'error');
+        if (!isAllowedBlogImageType(file)) {
+          setArticleImageStatus('Please upload a JPEG, PNG, WebP, or AVIF image.', 'error');
           return;
         }
 
@@ -4490,6 +4849,38 @@ $writerOptions = writer_options();
           return;
         }
 
+        if (command === 'countdown') {
+          const defaultCountdown = ':::countdown\ntitle: Limited Time Offer\ntarget: ' + currentDateTimeInput() + '\ntext: Claim your bonus before the timer runs out!\nlink: /playnow\nbutton: Claim Now\n:::';
+          if (editorShell.classList.contains('editor-mode-markdown') || editorShell.classList.contains('editor-mode-split')) {
+            const start = blogContent.selectionStart || 0;
+            const end = blogContent.selectionEnd || start;
+            const before = blogContent.value.slice(0, start);
+            const after = blogContent.value.slice(end);
+            const prefix = before && !before.endsWith('\n\n') ? '\n\n' : '';
+            const suffix = after && !after.startsWith('\n\n') ? '\n\n' : '';
+            blogContent.value = before + prefix + defaultCountdown + suffix + after;
+            const cursor = (before + prefix + defaultCountdown).length;
+            blogContent.focus();
+            blogContent.setSelectionRange(cursor, cursor);
+            syncEditorFromMarkdown();
+            if (editorShell.classList.contains('editor-mode-split')) renderMarkdownPreview();
+            scheduleEditorHistory(true);
+            return;
+          }
+
+          focusEditor();
+          const wrapper = document.createElement('div');
+          wrapper.innerHTML = `<div class="editor-block editor-countdown-block" contenteditable="false" style="padding:14px; margin:16px 0; border:1px solid #f59e0b; border-radius:8px; background:rgba(20,8,3,0.9); color:#fbbf24; text-align:center;">
+            <div style="font-weight:800; text-transform:uppercase; margin-bottom:6px;">⏳ Countdown: Limited Time Offer</div>
+            <div style="font-size:1.4rem; font-weight:900; letter-spacing:2px; color:#fff; font-family:monospace;">00d : 00h : 00m : 00s</div>
+            <div style="font-size:0.85rem; color:#f59e0b; margin-top:6px;">Target: ${escapeHtml(currentDateTimeInput())}</div>
+          </div>`;
+          insertEditorBlock(wrapper.firstElementChild);
+          syncMarkdownFromEditor();
+          scheduleEditorHistory(true);
+          return;
+        }
+
         if (command === 'link') {
           openLinkToolbox();
           return;
@@ -4511,10 +4902,17 @@ $writerOptions = writer_options();
         return (value || '').toLowerCase().trim().replace(/[^a-z0-9-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 96);
       }
 
+      const blogDefaultImage = <?= json_encode(site_default_image(BLOG_DEFAULT_IMAGE), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+      if (imagePreview) imagePreview.addEventListener('error', () => {
+        if (imagePreview.getAttribute('src') !== blogDefaultImage) imagePreview.src = blogDefaultImage;
+      });
+      function previewImagePath(path) {
+        return !path || path === '/uploads/blogs/default-featured.svg' || path.startsWith('/uploads/blogs/site-default-') ? blogDefaultImage : path;
+      }
       function setImage(path) {
         const value = path || '/uploads/blogs/default-featured.svg';
         if (imageUrl) imageUrl.value = value;
-        if (imagePreview) imagePreview.src = value;
+        if (imagePreview) imagePreview.src = previewImagePath(value);
         setText(imageBadge, value);
         if (imagePreset) {
           imagePreset.value = value;
@@ -4530,8 +4928,8 @@ $writerOptions = writer_options();
 
       async function uploadFeaturedImage(file) {
         if (!file) return;
-        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-          setUploadStatus('Please upload a JPEG, PNG, or WebP image.', 'error');
+        if (!isAllowedBlogImageType(file)) {
+          setUploadStatus('Please upload a JPEG, PNG, WebP, or AVIF image.', 'error');
           return;
         }
 
@@ -4571,6 +4969,7 @@ $writerOptions = writer_options();
         }
         updateTitleDisplay();
         analyzeSeo();
+        markDirty();
       });
 
       on(slug, 'input', () => {
@@ -4580,30 +4979,46 @@ $writerOptions = writer_options();
         setText(slugPreview, clean || 'blog-article');
         updateViewPageButton();
         analyzeSeo();
+        markDirty();
       });
 
       on(seoTitle, 'input', () => {
         manualSeoTitle = true;
         updateSeoTitleCounter();
         analyzeSeo();
+        markDirty();
       });
 
       if (imagePreset) {
         on(imagePreset, 'change', () => {
           setImage(imagePreset.value);
           analyzeSeo();
+          markDirty();
         });
       }
       on(imageUrl, 'input', () => {
-        if (imagePreview) imagePreview.src = imageUrl.value || '/uploads/blogs/default-featured.svg';
+        if (imagePreview) imagePreview.src = previewImagePath(imageUrl.value);
         setText(imageBadge, imageUrl.value || '/uploads/blogs/default-featured.svg');
         analyzeSeo();
+        markDirty();
       });
-      on(focusKeyphrase, 'input', analyzeSeo);
-      on(keyphraseSynonyms, 'input', analyzeSeo);
+      on(focusKeyphrase, 'input', () => { analyzeSeo(); markDirty(); });
+      on(keyphraseSynonyms, 'input', () => { analyzeSeo(); markDirty(); });
       on(blogStatus, 'change', () => {
         updateSaveState(blogStatus.value);
+        markDirty();
       });
+      if (categoryField) on(categoryField, 'change', markDirty);
+      if (writerField) on(writerField, 'change', markDirty);
+      if (authorField) on(authorField, 'input', markDirty);
+      if (publishedAtField) on(publishedAtField, 'input', markDirty);
+      if (scheduledAtField) on(scheduledAtField, 'input', markDirty);
+      if (countdownEnabledCheckbox) on(countdownEnabledCheckbox, 'change', markDirty);
+      if (countdownTargetField) on(countdownTargetField, 'input', markDirty);
+      if (countdownTitleField) on(countdownTitleField, 'input', markDirty);
+      if (countdownEndTextField) on(countdownEndTextField, 'input', markDirty);
+      document.querySelectorAll('#blog-tags input').forEach(input => on(input, 'change', markDirty));
+
       on(viewBlogPageBtn, 'click', () => {
         const href = viewBlogPageBtn.dataset.href || currentBlogPublicUrl();
         if (href) window.open(href, '_blank', 'noopener');
@@ -4618,6 +5033,7 @@ $writerOptions = writer_options();
       on(document.getElementById('blog-excerpt'), 'input', () => {
         updateExcerptCounter();
         analyzeSeo();
+        markDirty();
       });
 
       on(tabWrite, 'click', () => setEditorMode('write'));
@@ -4656,6 +5072,7 @@ $writerOptions = writer_options();
           renderMarkdownPreview();
         }
         scheduleEditorHistory(false);
+        markDirty();
       });
       on(wysiwygEditor, 'change', (event) => {
         const block = event.target.closest('.editor-button-block');
@@ -4676,6 +5093,7 @@ $writerOptions = writer_options();
           renderMarkdownPreview();
         }
         scheduleEditorHistory(false);
+        markDirty();
       });
       on(wysiwygEditor, 'keyup', saveEditorSelection);
       on(wysiwygEditor, 'mouseup', saveEditorSelection);
@@ -5032,18 +5450,19 @@ $writerOptions = writer_options();
       function resetForm() {
         form.reset();
         if (editingId) editingId.value = '';
+        savedBlogStatus = 'draft';
         manualSlug = false;
         manualSeoTitle = false;
         setText(slugPreview, 'blog-article');
         setImage('/uploads/blogs/default-featured.svg');
         setUploadStatus('');
         setArticleImageStatus('');
-        if (blogStatus) blogStatus.value = 'published';
+        if (blogStatus) blogStatus.value = 'draft';
         if (publishedAtField) publishedAtField.value = currentDateTimeInput();
         if (scheduledAtField) scheduledAtField.value = '';
         if (focusKeyphrase) focusKeyphrase.value = '';
         if (keyphraseSynonyms) keyphraseSynonyms.value = '';
-        updateSaveState(blogStatus ? blogStatus.value : 'published');
+        updateSaveState(blogStatus ? blogStatus.value : 'draft');
         setEditorMarkdown('');
         resetEditorHistory('');
         pendingSaveStatus = '';
@@ -5058,20 +5477,30 @@ $writerOptions = writer_options();
       on(form, 'reset', () => {
         window.setTimeout(() => {
           if (editingId) editingId.value = '';
+          savedBlogStatus = 'draft';
           manualSlug = false;
           manualSeoTitle = false;
           setText(slugPreview, 'blog-article');
           setImage('/uploads/blogs/default-featured.svg');
           setUploadStatus('');
           setArticleImageStatus('');
-          if (blogStatus) blogStatus.value = 'published';
+          if (blogStatus) blogStatus.value = 'draft';
           if (publishedAtField) publishedAtField.value = currentDateTimeInput();
           if (scheduledAtField) scheduledAtField.value = '';
+          if (countdownEnabledCheckbox) countdownEnabledCheckbox.checked = false;
+          if (countdownTargetField) countdownTargetField.value = '';
+          if (countdownTitleField) countdownTitleField.value = '';
+          if (countdownEndTextField) countdownEndTextField.value = '';
+          updateCountdownVisibility();
           if (focusKeyphrase) focusKeyphrase.value = '';
           if (keyphraseSynonyms) keyphraseSynonyms.value = '';
-          updateSaveState(blogStatus ? blogStatus.value : 'published');
+          updateSaveState(blogStatus ? blogStatus.value : 'draft');
           setEditorMarkdown('');
           resetEditorHistory('');
+          clearLocalStorage();
+          isDirty = false;
+          if (autosaveTimer) clearTimeout(autosaveTimer);
+          updateAutosaveIndicator('saved', 'All changes saved');
           pendingSaveStatus = '';
           updateTitleDisplay();
           updateSeoTitleCounter();
@@ -5088,8 +5517,8 @@ $writerOptions = writer_options();
         }
         updateWordCounter();
         const saveButton = event.submitter && event.submitter.dataset ? event.submitter : null;
-        const requestedStatus = saveButton && saveButton.dataset.saveStatus ? saveButton.dataset.saveStatus : ((blogStatus ? blogStatus.value : '') || 'published');
-        const normalizedStatus = ['draft', 'published', 'scheduled'].includes(requestedStatus) ? requestedStatus : 'published';
+        const requestedStatus = saveButton && saveButton.dataset.saveStatus ? saveButton.dataset.saveStatus : ((blogStatus ? blogStatus.value : '') || 'draft');
+        const normalizedStatus = ['draft', 'published', 'scheduled'].includes(requestedStatus) ? requestedStatus : 'draft';
         if (blogStatus) blogStatus.value = normalizedStatus;
         const currentStatus = blogStatus ? blogStatus.value : normalizedStatus;
         if (currentStatus !== 'draft') ensurePublishDateValue();
@@ -5100,10 +5529,14 @@ $writerOptions = writer_options();
         data.set('status', currentStatus);
         data.set('published_at', publishedAtField ? publishedAtField.value : '');
         data.set('scheduled_at', currentStatus === 'scheduled' && publishedAtField ? publishedAtField.value : '');
+        data.set('countdown_enabled', countdownEnabledCheckbox && countdownEnabledCheckbox.checked ? '1' : '0');
+        data.set('countdown_target', countdownTargetField ? countdownTargetField.value : '');
+        data.set('countdown_title', countdownTitleField ? countdownTitleField.value : '');
+        data.set('countdown_end_text', countdownEndTextField ? countdownEndTextField.value : '');
         data.set('focus_keyphrase', focusKeyphrase ? focusKeyphrase.value.trim() : '');
         data.set('csrf_token', csrfToken);
         const savedSlug = String(data.get('slug') || '').trim();
-        const shouldOpenPublicPage = saveButton && saveButton.id === 'publish-blog-btn' && currentStatus === 'published' && savedSlug;
+        const shouldOpenPublicPage = saveButton && saveButton.id === 'publish-blog-btn' && savedBlogStatus !== 'published' && currentStatus === 'published' && savedSlug;
         const publicUrl = savedSlug ? '/blog/' + encodeURIComponent(savedSlug) + '/' : '';
         const publicWindow = shouldOpenPublicPage ? window.open('', '_blank', 'noopener') : null;
 
@@ -5117,13 +5550,19 @@ $writerOptions = writer_options();
           updateCsrf(result.csrfToken);
           if (!response.ok || !result.ok) throw new Error((result.errors || [result.error || 'Blog post could not be saved.']).join(' '));
           if (result.blog) {
+            savedBlogStatus = result.blog.status || currentStatus;
             if (editingId) editingId.value = result.blog.id || result.blog.slug || savedSlug;
             if (slug && result.blog.slug) slug.value = result.blog.slug;
             if (blogStatus) blogStatus.value = result.blog.status || currentStatus;
           }
           pendingSaveStatus = '';
-          updateViewPageButton();
-          showNotice(currentStatus === 'draft' ? 'Draft saved.' : (currentStatus === 'scheduled' ? 'Post scheduled.' : 'Post published.'), 'ok');
+          updateSaveState(currentStatus);
+          isDirty = false;
+          if (autosaveTimer) clearTimeout(autosaveTimer);
+          const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          updateAutosaveIndicator('saved', (currentStatus === 'published' ? 'Published' : 'Saved') + ' at ' + timeNow);
+          clearLocalStorage();
+          showNotice(currentStatus === 'draft' ? 'Draft saved.' : (currentStatus === 'scheduled' ? 'Post scheduled.' : 'Published post saved. Changes are live.'), 'ok');
           if (publicWindow && publicUrl) {
             publicWindow.location.href = publicUrl;
           } else if (shouldOpenPublicPage && publicUrl) {
@@ -5131,6 +5570,7 @@ $writerOptions = writer_options();
           }
         } catch (error) {
           if (publicWindow) publicWindow.close();
+          updateAutosaveIndicator('error', 'Error saving');
           showNotice(error.message || 'Blog post could not be saved.', 'error');
         }
       });
@@ -5150,6 +5590,7 @@ $writerOptions = writer_options();
           throw new Error(result.error || 'Blog post could not be loaded.');
         }
         const blog = result.blog;
+        savedBlogStatus = blog.status || 'draft';
         if (editingId) editingId.value = blog.id || blog.slug || '';
         if (title) title.value = blog.title || '';
         if (seoTitle) seoTitle.value = blog.seoTitle || (blog.title ? blog.title + ' | ' + websiteTitle : '');
@@ -5158,11 +5599,16 @@ $writerOptions = writer_options();
         setText(slugPreview, slug && slug.value ? slug.value : 'blog-article');
         if (categoryField) categoryField.value = blog.categoryId || '';
         document.querySelectorAll('#blog-tags input').forEach(input => { input.checked = (blog.tagIds || []).includes(input.value); });
-        if (blogStatus) blogStatus.value = blog.status || 'published';
+        if (blogStatus) blogStatus.value = blog.status || 'draft';
         if (publishedAtField) publishedAtField.value = blog.scheduledAtInput || blog.publishedAtInput || currentDateTimeInput();
         if (scheduledAtField) scheduledAtField.value = blog.scheduledAtInput || '';
+        if (countdownEnabledCheckbox) countdownEnabledCheckbox.checked = Boolean(blog.countdownEnabled || blog.countdown_enabled);
+        if (countdownTargetField) countdownTargetField.value = blog.countdownTargetInput || blog.countdown_target || '';
+        if (countdownTitleField) countdownTitleField.value = blog.countdownTitle || blog.countdown_title || '';
+        if (countdownEndTextField) countdownEndTextField.value = blog.countdownEndText || blog.countdown_end_text || '';
+        updateCountdownVisibility();
         if (focusKeyphrase) focusKeyphrase.value = blog.focusKeyphrase || '';
-        updateSaveState(blogStatus ? blogStatus.value : (blog.status || 'published'));
+        updateSaveState(blogStatus ? blogStatus.value : (blog.status || 'draft'));
         if (authorField) authorField.value = blog.author || ' Editorial Team';
         const writerId = blog.writerId == null ? '' : String(blog.writerId);
         if (writerId && !Array.from(writerField.options).some(option => option.value === writerId)) writerField.add(new Option(blog.writer?.name || 'Assigned writer',writerId));
@@ -5179,6 +5625,10 @@ $writerOptions = writer_options();
         pendingSaveStatus = '';
         updateTitleDisplay();
         updateSeoTitleCounter();
+        isDirty = false;
+        if (autosaveTimer) clearTimeout(autosaveTimer);
+        updateAutosaveIndicator('saved', 'Saved');
+        clearLocalStorage();
         if (cancelBtn) cancelBtn.style.display = 'inline-block';
         showNotice('Blog post loaded for editing.', 'ok');
         analyzeSeo();
@@ -5186,7 +5636,23 @@ $writerOptions = writer_options();
 
       if (initialEditId) {
         loadBlogForEditing(initialEditId).catch((error) => showNotice(error.message || 'Blog post could not be loaded.', 'error'));
+      } else {
+        checkLocalStorageRecovery();
       }
+
+      setInterval(() => {
+        if (isDirty && !isSaving) {
+          performAutoSave();
+        }
+      }, 30000);
+
+      window.addEventListener('beforeunload', (event) => {
+        if (isDirty) {
+          event.preventDefault();
+          event.returnValue = '';
+        }
+      });
+
       updateTitleDisplay();
       updateExcerptCounter();
       updateViewPageButton();

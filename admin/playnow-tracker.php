@@ -51,16 +51,16 @@ function tracker_data(): array
     return is_array($data) ? $data : [];
 }
 
-function tracker_top(array $items, int $limit = 12): array
+function tracker_top(array $items): array
 {
     arsort($items);
-    return array_slice($items, 0, $limit, true);
+    return $items;
 }
 
-function tracker_recent(array $data, int $limit = 80): array
+function tracker_recent(array $data): array
 {
     $recent = isset($data['recent']) && is_array($data['recent']) ? $data['recent'] : [];
-    return array_reverse(array_slice($recent, -$limit));
+    return array_reverse($recent);
 }
 
 $data = tracker_data();
@@ -232,7 +232,7 @@ unset($_SESSION['tracker_notice']);
             <button class="btn btn-primary btn-sm" type="submit">Generate promo link</button>
           </form>
           <?php if ($promos !== []): ?>
-            <table class="tracker-table">
+            <table class="tracker-table" data-paginate>
               <thead><tr><th>Promo URL</th><th>Destination</th><th>Clicks</th><th>Last click</th><th>Edit</th></tr></thead>
               <tbody>
                 <?php foreach ($promos as $promo): ?>
@@ -261,7 +261,7 @@ unset($_SESSION['tracker_notice']);
         <div class="tracker-grid">
           <section class="tracker-card">
             <h2 style="font-size:1.05rem; color:var(--brand-dark);">Top Pages</h2>
-            <table class="tracker-table">
+            <table class="tracker-table" data-paginate>
               <thead><tr><th>Page</th><th>Clicks</th></tr></thead>
               <tbody>
                 <?php foreach (tracker_top($byPage) as $value => $count): ?>
@@ -273,7 +273,7 @@ unset($_SESSION['tracker_notice']);
 
           <section class="tracker-card">
             <h2 style="font-size:1.05rem; color:var(--brand-dark);">Top Buttons</h2>
-            <table class="tracker-table">
+            <table class="tracker-table" data-paginate>
               <thead><tr><th>Button</th><th>Clicks</th></tr></thead>
               <tbody>
                 <?php foreach (tracker_top($byButton) as $value => $count): ?>
@@ -285,7 +285,7 @@ unset($_SESSION['tracker_notice']);
 
           <section class="tracker-card">
             <h2 style="font-size:1.05rem; color:var(--brand-dark);">Top Targets</h2>
-            <table class="tracker-table">
+            <table class="tracker-table" data-paginate>
               <thead><tr><th>Target URL</th><th>Clicks</th></tr></thead>
               <tbody>
                 <?php foreach (tracker_top($byTarget) as $value => $count): ?>
@@ -297,7 +297,7 @@ unset($_SESSION['tracker_notice']);
 
           <section class="tracker-card">
             <h2 style="font-size:1.05rem; color:var(--brand-dark);">Top IPs</h2>
-            <table class="tracker-table">
+            <table class="tracker-table" data-paginate>
               <thead><tr><th>IP</th><th>Clicks</th></tr></thead>
               <tbody>
                 <?php foreach (tracker_top($byIp) as $value => $count): ?>
@@ -310,7 +310,7 @@ unset($_SESSION['tracker_notice']);
           <section class="tracker-card recent-card">
             <h2 style="font-size:1.05rem; color:var(--brand-dark);">Recent Clicks</h2>
             <p style="font-size:0.82rem; color:var(--text-muted);">Last updated: <?= h($updatedAt !== '' ? (admin_format_date($updatedAt) ?: $updatedAt) : 'No clicks yet') ?></p>
-            <table class="tracker-table">
+            <table class="tracker-table" data-paginate>
               <thead>
                 <tr>
                   <th>Time</th>

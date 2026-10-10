@@ -1,6 +1,7 @@
 /storage/
 /update-packages/
 /uploads/
+/admin/scripts/chat-socket/node_modules/
 # Private Google configuration (runtime storage must also remain outside the web root).
 .google-private*/
 google-config.json

@@ -490,7 +490,7 @@ if ($action !== '') {
 
     <section id="linksPanel" class="seo-panel active">
       <div class="seo-table-wrap">
-        <table class="seo-table">
+        <table class="seo-table" data-paginate>
           <thead>
             <tr>
               <th>Anchor Text</th>
@@ -507,7 +507,7 @@ if ($action !== '') {
 
     <section id="schemaPanel" class="seo-panel">
       <div class="seo-table-wrap">
-        <table class="seo-table">
+        <table class="seo-table" data-paginate>
           <thead>
             <tr>
               <th>Page</th>
@@ -524,7 +524,7 @@ if ($action !== '') {
 
     <section id="pagesPanel" class="seo-panel">
       <div class="seo-table-wrap">
-        <table class="seo-table">
+        <table class="seo-table" data-paginate>
           <thead>
             <tr>
               <th>Page</th>
@@ -545,7 +545,6 @@ if ($action !== '') {
 
 <script>
 (() => {
-  const rowLimit = <?= (int) SEO_V2_RENDER_ROW_LIMIT ?>;
   const state = { running: false, total: 0, offset: 0, pages: [], links: [], schemas: [] };
   const $ = (id) => document.getElementById(id);
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
@@ -580,23 +579,59 @@ if ($action !== '') {
   }
 
   function renderRows() {
-    $('linksBody').innerHTML = state.links.slice(0, rowLimit).map((link) => `
+    const sortedLinks = [...state.links].sort((a, b) => {
+      const aErr = Number(a.status) !== 200;
+      const bErr = Number(b.status) !== 200;
+      if (aErr !== bErr) return aErr ? -1 : 1;
+      const aSeverity = Number(a.status) >= 300 && Number(a.status) < 400 ? 2 : (aErr ? 1 : 3);
+      const bSeverity = Number(b.status) >= 300 && Number(b.status) < 400 ? 2 : (bErr ? 1 : 3);
+      if (aSeverity !== bSeverity) return aSeverity - bSeverity;
+      return (a.redirectLink || '').localeCompare(b.redirectLink || '');
+    });
+
+    const sortedSchemas = [...state.schemas].sort((a, b) => {
+      const rank = (s) => {
+        if (s.status === 'Invalid JSON-LD') return 1;
+        if (s.status === 'Missing') return 2;
+        if (s.status !== 'Valid JSON-LD') return 1;
+        return 3;
+      };
+      const diff = rank(a) - rank(b);
+      if (diff !== 0) return diff;
+      return (a.page || '').localeCompare(b.page || '');
+    });
+
+    const sortedPages = [...state.pages].sort((a, b) => {
+      const rank = (p) => {
+        const status = Number(p.status);
+        const isHttpError = status !== 200;
+        const missingMeta = !p.title || !p.description || !p.canonical;
+        if (isHttpError) return 1;
+        if (missingMeta) return 2;
+        return 3;
+      };
+      const diff = rank(a) - rank(b);
+      if (diff !== 0) return diff;
+      return (a.path || '').localeCompare(b.path || '');
+    });
+
+    window.AdminTables.setRows($('linksBody').closest('table'), sortedLinks, (link) => `
       <tr>
         <td>${esc(link.anchorText || '(empty anchor)')}</td>
         <td class="seo-url">${esc(link.redirectLink)}</td>
         <td class="seo-url">${esc(link.linkPageLocation)}</td>
         <td><span class="seo-pill ${statusClass(link.status)}">${esc(link.errorMessage)}</span></td>
       </tr>
-    `).join('');
-    $('schemaBody').innerHTML = state.schemas.slice(0, rowLimit).map((schema) => `
+    `);
+    window.AdminTables.setRows($('schemaBody').closest('table'), sortedSchemas, (schema) => `
       <tr>
         <td class="seo-url">${esc(schema.page)}</td>
         <td>${esc((schema.types || []).join(', ') || 'None')}</td>
         <td><span class="seo-pill ${schema.status === 'Valid JSON-LD' ? 'seo-ok' : 'seo-bad'}">${esc(schema.status)}</span></td>
         <td>${esc(schema.message)}</td>
       </tr>
-    `).join('');
-    $('pagesBody').innerHTML = state.pages.slice(0, rowLimit).map((page) => `
+    `);
+    window.AdminTables.setRows($('pagesBody').closest('table'), sortedPages, (page) => `
       <tr>
         <td class="seo-url">${esc(page.path)}</td>
         <td><span class="seo-pill ${statusClass(page.status)}">${esc(page.status)}</span></td>
@@ -605,10 +640,10 @@ if ($action !== '') {
         <td class="seo-url">${esc(page.canonical || '(missing canonical)')}</td>
         <td>${Number(page.htmlBytes || 0).toLocaleString()} bytes</td>
       </tr>
-    `).join('');
-    $('linksNote').textContent = state.links.length > rowLimit ? `Showing first ${rowLimit.toLocaleString()} of ${state.links.length.toLocaleString()} links. Export JSON for the full list.` : `${state.links.length.toLocaleString()} links found.`;
-    $('schemaNote').textContent = state.schemas.length > rowLimit ? `Showing first ${rowLimit.toLocaleString()} of ${state.schemas.length.toLocaleString()} schema rows. Export JSON for the full list.` : `${state.schemas.length.toLocaleString()} schema rows found.`;
-    $('pagesNote').textContent = state.pages.length > rowLimit ? `Showing first ${rowLimit.toLocaleString()} of ${state.pages.length.toLocaleString()} pages. Export JSON for the full list.` : `${state.pages.length.toLocaleString()} pages scanned.`;
+    `);
+    $('linksNote').textContent = `${state.links.length.toLocaleString()} links found.`;
+    $('schemaNote').textContent = `${state.schemas.length.toLocaleString()} schema rows found.`;
+    $('pagesNote').textContent = `${state.pages.length.toLocaleString()} pages scanned.`;
   }
 
   async function scanBatch() {

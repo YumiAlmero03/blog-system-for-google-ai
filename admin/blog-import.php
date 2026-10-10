@@ -74,8 +74,11 @@ if (!is_array($manifest) || ($manifest['format'] ?? '') !== 'blogs-export-v1' ||
     blog_import_error('blogs.json is invalid or unsupported.');
 }
 
-$uploadDir = __DIR__ . '/uploads/blogs';
-if (!is_dir($uploadDir) && !@mkdir($uploadDir, 0755, true) && !is_dir($uploadDir)) {
+$uploadDirAdmin = __DIR__ . '/uploads/blogs';
+$uploadDirWeb = dirname(__DIR__) . '/uploads/blogs';
+if (!is_dir($uploadDirAdmin)) @mkdir($uploadDirAdmin, 0755, true);
+if (!is_dir($uploadDirWeb)) @mkdir($uploadDirWeb, 0755, true);
+if (!is_dir($uploadDirAdmin) && !is_dir($uploadDirWeb)) {
     $zip->close();
     blog_import_error('Upload storage is unavailable.', 500);
 }
@@ -115,13 +118,24 @@ foreach (array_keys($entryNames) as $name) {
         blog_import_image_error($name, $reason);
     }
     $destinationName = bin2hex(random_bytes(16)) . '.' . $extension;
-    $destination = $uploadDir . '/' . $destinationName;
-    if (!@rename($temporaryImage, $destination)) {
-        @unlink($temporaryImage);
+    $destinationAdmin = $uploadDirAdmin . '/' . $destinationName;
+    $destinationWeb = $uploadDirWeb . '/' . $destinationName;
+    $restored = false;
+    if (@copy($temporaryImage, $destinationAdmin)) {
+        @chmod($destinationAdmin, 0644);
+        $restored = true;
+    }
+    if (@copy($temporaryImage, $destinationWeb)) {
+        @chmod($destinationWeb, 0644);
+        $restored = true;
+    }
+    @unlink($temporaryImage);
+    if (!$restored) {
         $zip->close();
         blog_import_error('An image could not be restored.', 500);
     }
-    @chmod($destination, 0644);
+    @chmod($destinationAdmin, 0644);
+    @chmod($destinationWeb, 0644);
     $imageMap['/' . ltrim((string) (($manifest['images'][$name] ?? '') ?: '/uploads/blogs/' . $basename), '/')] = '/uploads/blogs/' . $destinationName;
     $imageMap['/uploads/blogs/' . $basename] = '/uploads/blogs/' . $destinationName;
     $imagesRestored++;

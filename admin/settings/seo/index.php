@@ -131,7 +131,7 @@ $fields = ['website_name'=>'Website Name','website_url'=>'Website URL','google_a
   if (!upload.files[0]) return;
   save.disabled = upload.disabled = true; result.textContent = 'Uploading…';
   const data = new FormData(); data.set('image',upload.files[0]); data.set('csrf_token',csrf.value);
-  try { const payload = await send('/admin/upload-image.php',data); form.elements.default_og_image.value = payload.path; result.textContent = 'Image uploaded. Save SEO settings to apply it.'; }
+  try { const payload = await send('/admin/upload-image.php',data); if (payload.csrfToken) csrf.value = payload.csrfToken; form.elements.default_og_image.value = payload.path; result.textContent = 'Image uploaded. Save SEO settings to apply it.'; }
   catch (error) { result.textContent = error.message; }
   finally { save.disabled = upload.disabled = false; upload.value = ''; }
  });

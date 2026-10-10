@@ -22,10 +22,12 @@
     }
 
     .blog-slot-demo-frame {
+      display: flex;
+      flex-direction: column;
       width: 100%;
       max-width: none;
-      aspect-ratio: 16 / 9;
-      min-height: 320px;
+      min-width: 0;
+      box-sizing: border-box;
       border: 1px solid rgba(245, 158, 11, 0.3);
       border-radius: 0.85rem;
       overflow: hidden;
@@ -33,19 +35,60 @@
     }
 
     .blog-slot-demo-frame iframe {
+      display: block;
       width: 100%;
-      height: 100%;
+      height: auto;
+      aspect-ratio: 16 / 9;
+      min-height: 240px;
       border: 0;
     }
 
+    .blog-slot-demo-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      padding: 0.75rem;
+      color: #e7ded0;
+      background: #140803;
+    }
+
+    .blog-slot-demo-title { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+    .blog-slot-demo-actions .blog-slot-demo-link { border: 0; font: inherit; font-weight: 700; cursor: pointer; min-height: 44px; }
+    .blog-slot-demo-status:not(:empty) { flex-basis: 100%; }
+    .blog-demo-exit { display: none; }
+    .blog-slot-demo-frame:fullscreen { width: 100%; height: 100%; border: 0; border-radius: 0; }
+    .blog-slot-demo-frame:-webkit-full-screen { width: 100%; height: 100%; border: 0; border-radius: 0; }
+    .blog-slot-demo-frame:fullscreen iframe { flex: 1; min-height: 0; aspect-ratio: auto; }
+    .blog-slot-demo-frame:-webkit-full-screen iframe { flex: 1; min-height: 0; aspect-ratio: auto; }
+    .blog-slot-demo-frame:fullscreen .blog-demo-enter { display: none; }
+    .blog-slot-demo-frame:-webkit-full-screen .blog-demo-enter { display: none; }
+    .blog-slot-demo-frame:fullscreen .blog-demo-exit { display: inline; }
+    .blog-slot-demo-frame:-webkit-full-screen .blog-demo-exit { display: inline; }
+    .blog-slot-demo-link:focus-visible, .blog-faq-item summary:focus-visible { outline: 2px solid #fcd34d; outline-offset: 3px; }
+
+    @media (max-width: 600px) {
+      .blog-slot-demo-header { gap: 0.5rem; padding: 0.5rem; }
+      .blog-slot-demo-actions { width: 100%; }
+      .blog-slot-demo-actions .blog-slot-demo-link { flex: 1 1 auto; padding: 0.6rem; font-size: 0.85rem; }
+      .blog-slot-demo-frame iframe { aspect-ratio: 4 / 3; }
+    }
+
     .blog-table-block {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
       overflow-x: auto;
     }
 
     .blog-table-block table {
+      display: table;
       width: 100%;
-      min-width: 560px;
+      max-width: none;
+      border-collapse: collapse;
     }
+    .blog-table-block th, .blog-table-block td { overflow-wrap: anywhere; }
 
     .blog-faq-block {
       display: grid;
@@ -64,18 +107,36 @@
       background: rgba(42, 22, 11, 0.72);
     }
 
-    .blog-faq-item h3 {
-      margin: 0 0 0.45rem;
+    .blog-faq-item summary {
+      cursor: pointer;
       color: #fcd34d;
       font-size: 1rem;
+      font-weight: 700;
+      overflow-wrap: anywhere;
     }
+    .blog-faq-item[open] summary { margin-bottom: 0.65rem; }
 
     .blog-faq-item p {
       margin: 0;
       color: #e7ded0;
       font-size: 0.95rem;
+      overflow-wrap: anywhere;
     }
 .blog-table-block th,.blog-table-block td{padding:.65rem;border:1px solid #ccc;text-align:left}.blog-slot-demo-block{width:100%}
 
 /* Reuse the site's compact badge treatment for public taxonomy labels. */
 .blog-article-content .badge-tag { display:inline-flex; align-items:center; min-height:20px; padding:2px 7px; border-radius:6px; font-size:0.68rem; font-weight:900; letter-spacing:0; border:1px solid currentColor; }
+
+/* Countdown Timer styling */
+.blog-countdown-block { margin: 1.5rem 0; padding: 1.25rem; border: 1px solid rgba(245, 158, 11, 0.45); border-radius: 0.85rem; background: linear-gradient(135deg, rgba(20, 8, 3, 0.95), rgba(35, 12, 16, 0.95)); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4); text-align: center; }
+.blog-countdown-banner { margin-top: 0; margin-bottom: 2rem; border-color: rgba(234, 88, 12, 0.5); }
+.blog-countdown-title { margin: 0 0 1rem; font-size: 1.15rem; font-weight: 800; color: #fbbf24; letter-spacing: 0.5px; text-transform: uppercase; }
+.blog-countdown-timer { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap; }
+.cd-box { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 68px; padding: 0.6rem 0.75rem; background: rgba(10, 4, 3, 0.9); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 0.65rem; }
+.cd-num { font-size: 1.75rem; font-weight: 900; color: #f8fafc; line-height: 1; font-variant-numeric: tabular-nums; font-family: ui-monospace, monospace; }
+.cd-lbl { font-size: 0.65rem; font-weight: 700; color: #f59e0b; letter-spacing: 1px; margin-top: 4px; }
+.cd-sep { font-size: 1.5rem; font-weight: 900; color: #ea580c; line-height: 1; padding-bottom: 12px; }
+.blog-countdown-expired { padding: 0.75rem; background: rgba(180, 35, 24, 0.2); border: 1px solid rgba(180, 35, 24, 0.4); border-radius: 0.5rem; margin-top: 0.5rem; }
+.cd-expired-text { margin: 0; color: #fca5a5; font-weight: 700; font-size: 1rem; }
+.blog-countdown-cta { margin-top: 1.15rem; }
+

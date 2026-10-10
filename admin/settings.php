@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/blog-storage.php';
+require_once __DIR__ . '/includes/chat-realtime.php';
+require_once __DIR__ . '/includes/default-image.php';
 
 require_auth();
 
@@ -143,13 +145,48 @@ $result = null;
 $notice = '';
 $noticeType = '';
 $websiteTitle = blog_website_title();
+$chatAiName = chat_ai_name();
 $ignoredEngagementIps = blog_ignored_engagement_ips();
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     require_valid_csrf();
     $action = settings_post_value('action', 20);
 
-    if ($action === 'save_website_title') {
+    if ($action === 'save_default_image' || $action === 'clear_default_image') {
+        require_admin();
+        try {
+            if ($action === 'clear_default_image') blog_setting_set('default_image', '');
+            else site_default_image_upload(is_array($_FILES['default_image'] ?? null) ? $_FILES['default_image'] : []);
+            $notice = $action === 'clear_default_image' ? 'Default image removed.' : 'Default image saved.';
+            $noticeType = 'ok';
+            csrf_rotate();
+        } catch (InvalidArgumentException $exception) {
+            $notice = $exception->getMessage();
+            $noticeType = 'error';
+        } catch (Throwable $exception) {
+            error_log('Default image upload failed: '.$exception->getMessage());
+            $notice = 'Default image could not be saved.';
+            $noticeType = 'error';
+        }
+    } elseif ($action === 'save_chat_name') {
+        $chatAiName = chat_clean_string(settings_post_value('chat_ai_name', 80), 80);
+        if ($chatAiName === '') {
+            $notice = 'Chat name is required.';
+            $noticeType = 'error';
+        } else {
+            try {
+                blog_setting_set('chat_ai_name', $chatAiName, 80);
+                $chatAiName = chat_ai_name();
+                $notice = 'Chat name saved.';
+                $noticeType = 'ok';
+                csrf_rotate();
+            } catch (Throwable $exception) {
+                error_log('Settings chat name error: ' . $exception->getMessage());
+                $notice = 'Chat name could not be saved.';
+                $noticeType = 'error';
+            }
+        }
+    } elseif ($action === 'save_website_title') {
         $websiteTitle = settings_post_value('website_title', 120);
         if ($websiteTitle === '') {
             $notice = 'Website title is required.';
@@ -261,7 +298,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
       color: var(--brand-dark);
     }
     .form-row textarea,
-    .form-row input[type="text"] {
+    .form-row input[type="text"],
+    .form-row input[type="password"] {
       width: 100%;
       border: 1px solid var(--border-strong);
       border-radius: var(--radius-sm);
@@ -345,7 +383,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             <h1 style="font-size:1.6rem; color:var(--brand-dark);">Settings</h1>
             <p style="font-size:0.88rem; color:var(--text-muted);">Find and replace text across blog database fields.</p>
           </div>
-          <a href="/admin/games/settings.php" class="btn btn-secondary btn-sm">Games Settings</a>
           <a href="/admin/settings/seo/" class="btn btn-secondary btn-sm">SEO Settings</a>
           <a href="/admin/blogs.php" class="btn btn-secondary btn-sm">Back to Blogs</a>
         </div>
@@ -355,6 +392,35 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         <?php endif; ?>
 
         <div class="settings-grid">
+          <form method="post" enctype="multipart/form-data" class="settings-card">
+            <?= csrf_input() ?>
+            <div class="form-row">
+              <label for="default-image">Default fallback image</label>
+              <p>Used when a blog featured image or sports logo is missing. Existing images stay unchanged.</p>
+              <?php if (site_default_image() !== ''): ?>
+                <img src="<?= h(site_default_image()) ?>" alt="Current default image" width="160" style="max-height:120px;object-fit:contain;">
+              <?php endif; ?>
+              <input type="file" id="default-image" name="default_image" accept="image/png,image/jpeg,image/webp,image/avif">
+              <small>PNG, JPEG, WebP or AVIF. Maximum 10 MB.</small>
+            </div>
+            <div class="actions">
+              <button type="submit" name="action" value="save_default_image" class="btn btn-primary btn-sm">Upload Default Image</button>
+              <?php if (site_default_image() !== ''): ?><button type="submit" name="action" value="clear_default_image" class="btn btn-secondary btn-sm">Remove Default</button><?php endif; ?>
+            </div>
+          </form>
+
+
+          <form method="post" class="settings-card">
+            <?= csrf_input() ?>
+            <div class="form-row">
+              <label for="chat-ai-name">AI Chat Name</label>
+              <input type="text" id="chat-ai-name" name="chat_ai_name" maxlength="80" required value="<?= h($chatAiName) ?>">
+              <p style="font-size:0.82rem; color:var(--text-muted); margin:0;">Support waits three minutes before replying automatically. Follow-up replies have no added delay until a human agent takes over.</p>
+            </div>
+            <div class="actions">
+              <button type="submit" name="action" value="save_chat_name" class="btn btn-primary btn-sm">Save Chat Name</button>
+            </div>
+          </form>
           <form method="post" class="settings-card">
             <?= csrf_input() ?>
             <div class="form-row">
@@ -401,7 +467,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
           <?php if (is_array($result)): ?>
             <section class="settings-card" aria-label="Find and replace results">
               <h2 style="font-size:1.15rem; color:var(--brand-dark);">Results</h2>
-              <table class="summary-table">
+              <table class="summary-table" data-paginate data-pagination-label="Settings summary">
                 <thead>
                   <tr>
                     <th>Field</th>

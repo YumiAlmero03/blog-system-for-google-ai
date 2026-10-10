@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 // Extracted from the former blog/view.php renderer (Git e63bd79 parent).
-require_once __DIR__ . '/game-public.php';
+require_once __DIR__ . '/public-detail.php';
 
 function blog_h(mixed $value): string
 {
@@ -10,11 +10,23 @@ function blog_h(mixed $value): string
 
 function blog_render_inline_markdown(string $text): string
 {
-  $text = preg_replace_callback('/\[!\[([^\]]*)\]\((\/uploads\/blogs\/[A-Za-z0-9._\/-]+)\)\]\((https?:\/\/[^)\s]+|\/[^)\s]*)\)(\{nofollow\})?/', static function (array $matches): string {
+  // Protect complete image markup from the later link/emphasis replacements.
+  $images = [];
+  $prefix = '@@BLOG_IMAGE_' . bin2hex(random_bytes(8)) . '_';
+  $url = '(?:https?:\/\/[^)\s<>]+|\/[^)\s<>]*)';
+  $image = static function (string $src, string $alt): string {
+    return '<img src="' . $src . '" alt="' . $alt . '" width="1200" height="675" loading="lazy" decoding="async">';
+  };
+  $store = static function (string $html) use (&$images, $prefix): string {
+    $token = $prefix . count($images) . '@@';
+    $images[$token] = $html;
+    return $token;
+  };
+  $text = preg_replace_callback('/\[!\[([^\]]*)\]\((' . $url . ')\)\]\((' . $url . ')\)(\{nofollow\})?/i', static function (array $matches) use ($image, $store): string {
     $rel = 'noopener noreferrer' . (!empty($matches[4]) ? ' nofollow' : '');
-    return '<a href="' . $matches[3] . '" target="_blank" rel="' . $rel . '"><img src="' . $matches[2] . '" alt="' . $matches[1] . '" width="1200" height="675" loading="lazy" decoding="async"></a>';
+    return $store('<a href="' . $matches[3] . '" target="_blank" rel="' . $rel . '">' . $image($matches[2], $matches[1]) . '</a>');
   }, $text) ?? $text;
-  $text = preg_replace('/!\[([^\]]*)\]\((\/uploads\/blogs\/[A-Za-z0-9._\/-]+)\)/', '<img src="$2" alt="$1" width="1200" height="675" loading="lazy" decoding="async">', $text) ?? $text;
+  $text = preg_replace_callback('/!\[([^\]]*)\]\((' . $url . ')\)/i', static fn(array $matches): string => $store($image($matches[2], $matches[1])), $text) ?? $text;
   $text = preg_replace_callback('/\[([^\]]+)\]\((https?:\/\/[^)\s]+|\/[^)\s]*)\)(\{nofollow\})?/', static function (array $matches): string {
     $rel = 'noopener noreferrer' . (!empty($matches[3]) ? ' nofollow' : '');
     return '<a href="' . $matches[2] . '" target="_blank" rel="' . $rel . '">' . $matches[1] . '</a>';
@@ -23,7 +35,7 @@ function blog_render_inline_markdown(string $text): string
   $text = preg_replace('/\*([^*]+)\*/', '<em>$1</em>', $text) ?? $text;
   $text = preg_replace('/`([^`]+)`/', '<code>$1</code>', $text) ?? $text;
 
-  return $text;
+  return strtr($text, $images);
 }
 
 function blog_parse_faq_items(string $content): array
@@ -196,11 +208,12 @@ function blog_render_slot_demo_block(string $content): string
   $label = (string)$game['name'] . ' Demo';
   $url = blog_safe_block_url(slot_list_iframe_url($game['url'] ?? ''), '');
   if ($url === '') return '<p class="blog-slot-demo-unavailable">Game demo unavailable.</p>';
-  return '<section class="blog-slot-demo-block"><div class="blog-slot-demo-header"><h2>' . blog_h($label) . '</h2><div class="blog-slot-demo-actions">'
+  $fullscreen = 'const frame=this.closest(".blog-slot-demo-frame"); const active=document.fullscreenElement||document.webkitFullscreenElement; const action=active?(document.exitFullscreen||document.webkitExitFullscreen):(frame.requestFullscreen||frame.webkitRequestFullscreen); const status=frame.querySelector(".blog-slot-demo-status"); status.textContent=""; if(!action){status.textContent="Fullscreen is unavailable in this browser.";return;} try{Promise.resolve(action.call(active?document:frame)).catch(()=>{status.textContent="Unable to open fullscreen. Try View Game.";});}catch(error){status.textContent="Unable to open fullscreen. Try View Game.";}';
+  return '<section class="blog-slot-demo-block"><div class="blog-slot-demo-frame"><div class="blog-slot-demo-header"><p class="blog-slot-demo-title">' . blog_h($label) . '</p><div class="blog-slot-demo-actions">'
     . '<a class="blog-slot-demo-link" href="' . blog_h(public_url('/game/' . rawurlencode($slug) . '/')) . '">View Game</a>'
     . '<a class="blog-slot-demo-link blog-slot-demo-real" href="' . blog_h(public_url('/playnow')) . '">Play for Real</a>'
-    . '<button type="button" class="blog-slot-demo-link" onclick="this.closest(&quot;section&quot;).querySelector(&quot;iframe&quot;).requestFullscreen?.()">Fullscreen</button></div></div>'
-    . '<div class="blog-slot-demo-frame"><iframe src="' . blog_h(public_url($url)) . '" title="' . blog_h($label) . '" loading="lazy" allowfullscreen></iframe></div></section>';
+    . '<button type="button" class="blog-slot-demo-link" onclick="' . blog_h($fullscreen) . '"><span class="blog-demo-enter">Fullscreen</span><span class="blog-demo-exit">Exit fullscreen</span></button></div><span class="blog-slot-demo-status" role="status"></span></div>'
+    . '<iframe src="' . blog_h(public_url($url)) . '" title="' . blog_h($label) . '" loading="lazy" allow="fullscreen" allowfullscreen></iframe></div></section>';
 }
 
 function blog_render_table_block(string $content): string
@@ -231,13 +244,68 @@ function blog_render_table_block(string $content): string
   return '<div class="blog-table-block"><table>' . $body . '</table></div>';
 }
 
+function blog_render_countdown_banner(array $options): string
+{
+    $title = trim((string)($options['title'] ?? 'Limited Time Offer'));
+    $target = trim((string)($options['target'] ?? ''));
+    $endText = trim((string)($options['end_text'] ?? 'This promotion has ended.'));
+    $link = trim((string)($options['link'] ?? ''));
+    $button = trim((string)($options['button'] ?? ''));
+    if ($target === '') {
+        return '';
+    }
+    $id = 'blog-countdown-' . bin2hex(random_bytes(4));
+    $escapedTitle = blog_h($title);
+    $escapedTarget = blog_h($target);
+    $escapedEndText = blog_h($endText);
+
+    $ctaHtml = '';
+    if ($link !== '') {
+        $btnLabel = $button !== '' ? blog_h($button) : 'Claim Now';
+        $btnUrl = str_starts_with($link, '/') ? public_url($link) : $link;
+        $ctaHtml = '<div class="blog-countdown-cta"><a class="blog-button-link" href="' . blog_h($btnUrl) . '" target="_blank" rel="noopener noreferrer">' . $btnLabel . '</a></div>';
+    }
+
+    $js = '(()=>{const r=document.getElementById(' . json_encode($id) . ');if(!r)return;const t=new Date(r.dataset.target).getTime();if(isNaN(t))return;const d=r.querySelector(".cd-d"),h=r.querySelector(".cd-h"),m=r.querySelector(".cd-m"),s=r.querySelector(".cd-s"),exp=r.querySelector(".blog-countdown-expired"),timer=r.querySelector(".blog-countdown-timer");function u(){const diff=t-Date.now();if(diff<=0){if(timer)timer.style.display="none";if(exp)exp.style.display="block";return;}const days=Math.floor(diff/86400000),hours=Math.floor((diff%86400000)/3600000),mins=Math.floor((diff%3600000)/60000),secs=Math.floor((diff%60000)/1000);if(d)d.textContent=String(days).padStart(2,"0");if(h)h.textContent=String(hours).padStart(2,"0");if(m)m.textContent=String(mins).padStart(2,"0");if(s)s.textContent=String(secs).padStart(2,"0");}u();setInterval(u,1000);})();';
+
+    return '<section id="' . blog_h($id) . '" class="blog-countdown-block blog-countdown-banner" data-target="' . $escapedTarget . '">'
+        . '<div class="blog-countdown-inner">'
+        . ($title !== '' ? '<p class="blog-countdown-title">' . $escapedTitle . '</p>' : '')
+        . '<div class="blog-countdown-timer">'
+        . '<div class="cd-box"><span class="cd-num cd-d">00</span><span class="cd-lbl">DAYS</span></div>'
+        . '<span class="cd-sep">:</span>'
+        . '<div class="cd-box"><span class="cd-num cd-h">00</span><span class="cd-lbl">HOURS</span></div>'
+        . '<span class="cd-sep">:</span>'
+        . '<div class="cd-box"><span class="cd-num cd-m">00</span><span class="cd-lbl">MINS</span></div>'
+        . '<span class="cd-sep">:</span>'
+        . '<div class="cd-box"><span class="cd-num cd-s">00</span><span class="cd-lbl">SECS</span></div>'
+        . '</div>'
+        . '<div class="blog-countdown-expired" style="display:none;"><p class="cd-expired-text">' . $escapedEndText . '</p></div>'
+        . $ctaHtml
+        . '</div>'
+        . '<script>' . $js . '</script>'
+        . '</section>';
+}
+
+function blog_render_countdown_block(string $content): string
+{
+    $options = blog_parse_block_options($content);
+    return blog_render_countdown_banner([
+        'title' => $options['title'] ?? $options['label'] ?? 'Limited Time Offer',
+        'target' => $options['target'] ?? $options['date'] ?? $options['time'] ?? '',
+        'end_text' => $options['end_text'] ?? $options['expired'] ?? 'This promotion has ended.',
+        'link' => $options['link'] ?? $options['url'] ?? '',
+        'button' => $options['button'] ?? $options['btn_text'] ?? '',
+    ]);
+}
+
 function blog_render_markdown(string $markdown): string
 {
   $markdown = str_replace(["\r\n", "\r"], "\n", $markdown);
   $rendered = [];
   $prefix = '@@BLOG_BLOCK_' . bin2hex(random_bytes(8)) . '_';
   // Extract once: marker-like text inside trusted custom code is not parsed as Markdown.
-  $markdown = preg_replace_callback('/^:::(button|table|custom-code|slot-demo|faq|quote)[ \t]*\n([\s\S]*?)^:::[ \t]*$/m', static function(array $match) use (&$rendered,$prefix): string {
+  $markdown = preg_replace_callback('/^:::(button|table|custom-code|slot-demo|faq|quote|countdown)[ \t]*\n([\s\S]*?)^:::[ \t]*$/m', static function(array $match) use (&$rendered,$prefix): string {
     $content = $match[2];
     $html = match ($match[1]) {
       'button' => blog_render_button_block($content),
@@ -245,7 +313,8 @@ function blog_render_markdown(string $markdown): string
       'custom-code' => blog_render_custom_code_block($content,count($rendered)),
       'slot-demo' => blog_render_slot_demo_block($content),
       'quote' => '<blockquote>' . blog_render_inline_markdown(blog_h(trim($content))) . '</blockquote>',
-      'faq' => '<section class="blog-faq-block">' . implode('',array_map(static fn(array $item): string => '<div class="blog-faq-item"><h3>' . blog_render_inline_markdown(blog_h($item['question'])) . '</h3><p>' . blog_render_inline_markdown(blog_h($item['answer'])) . '</p></div>',blog_parse_faq_items($content))) . '</section>',
+      'faq' => '<section class="blog-faq-block">' . implode('',array_map(static fn(array $item): string => '<details class="blog-faq-item"><summary>' . blog_render_inline_markdown(blog_h($item['question'])) . '</summary><p>' . blog_render_inline_markdown(blog_h($item['answer'])) . '</p></details>',blog_parse_faq_items($content))) . '</section>',
+      'countdown' => blog_render_countdown_block($content),
     };
     $token = $prefix . count($rendered) . '@@';
     $rendered[$token] = $html;
@@ -285,7 +354,7 @@ function blog_render_markdown(string $markdown): string
   }
   $flush();
 
-  return implode("\n", $html);
+  return implode('', $html);
 }
 
 
@@ -299,28 +368,90 @@ function blog_render_content(string $markdown): array
         $doc = new DOMDocument();
         $doc->loadHTML('<?xml encoding="UTF-8"><html><body>' . $html . '</body></html>',LIBXML_NONET);
         $xpath = new DOMXPath($doc);
-        foreach ($xpath->query('//section[contains(concat(" ",normalize-space(@class)," ")," blog-faq-block ")]/div') as $item) {
-            $question = $xpath->query('./h3',$item)->item(0);
+        foreach ($xpath->query('//section[contains(concat(" ",normalize-space(@class)," ")," blog-faq-block ")]/details') as $item) {
+            $question = $xpath->query('./summary',$item)->item(0);
             $answer = $xpath->query('./p',$item)->item(0);
             if ($question && $answer) $faq[] = ['@type'=>'Question','name'=>$question->textContent,
                 'acceptedAnswer'=>['@type'=>'Answer','text'=>$answer->textContent]];
         }
     } finally { libxml_clear_errors(); libxml_use_internal_errors($previous); }
-    return ['content_html'=>'<style>' . file_get_contents(__DIR__ . '/blog-content.css') . '</style>' . $html,
+    // Compact our stylesheet only; author-supplied code may depend on newlines.
+    $css = preg_replace('/\s+/', ' ', (string) file_get_contents(__DIR__ . '/blog-content.css'));
+    return ['content_html'=>'<style>' . trim($css ?? '') . '</style>' . $html,
         'faq_schema'=>$faq ? ['@context'=>'https://schema.org','@type'=>'FAQPage','mainEntity'=>$faq] : null];
 }
 
 function public_blog_payload(array $post): array
 {
     $rendered = blog_render_content($post['content']);
+    $contentHtml = $rendered['content_html'];
+    $countdown = null;
+    $countdownHtml = null;
+    if (!empty($post['countdown_enabled']) && !empty($post['countdown_target'])) {
+        $banner = blog_render_countdown_banner([
+            'title' => (string)($post['countdown_title'] ?? '') ?: 'Limited Time Offer',
+            'target' => (string)($post['countdown_target'] ?? ''),
+            'end_text' => (string)($post['countdown_end_text'] ?? '') ?: 'This promotion has ended.',
+        ]);
+        if ($banner !== '') {
+            $countdownHtml = $banner;
+            $countdown = [
+                'enabled' => true,
+                'target' => (string)($post['countdown_target'] ?? ''),
+                'title' => (string)($post['countdown_title'] ?? '') ?: 'Limited Time Offer',
+                'end_text' => (string)($post['countdown_end_text'] ?? '') ?: 'This promotion has ended.',
+                'html' => $banner,
+            ];
+        }
+    }
+    if (preg_match('/<section[^>]*class="[^"]*blog-countdown-block[^"]*"[^>]*>[\s\S]*?<\/section>/i', $contentHtml, $cdMatch)) {
+        if (!$countdownHtml) {
+            $countdownHtml = $cdMatch[0];
+            $countdown = [
+                'enabled' => true,
+                'target' => (string)($post['countdown_target'] ?? ''),
+                'title' => (string)($post['countdown_title'] ?? '') ?: 'Limited Time Offer',
+                'end_text' => (string)($post['countdown_end_text'] ?? '') ?: 'This promotion has ended.',
+                'html' => $countdownHtml,
+            ];
+        }
+        $contentHtml = str_replace($cdMatch[0], '', $contentHtml);
+    }
+    $writer = $post['writer'] ?? ['name'=>$post['author'] ?: 'Editorial Team','role_name'=>'','profile_image'=>'','bio'=>'','socials'=>[]];
+    // Explicit public fields: never expose an entire database/admin record.
     return ['ok'=>true,'blog'=>[
+        'id'=>$post['id'],
+        'seoTitle'=>trim((string)($post['seoTitle'] ?? '')) ?: $post['title'],
+        'focusKeyphrase'=>(string)($post['focusKeyphrase'] ?? ''),
+        'content'=>$post['content'],
+        'categoryId'=>$post['categoryId'] ?? null,
+        'categoryName'=>$post['category'] ?? '',
+        'categoryLabel'=>$post['categoryLabel'] ?? $post['category'] ?? '',
+        'tagIds'=>$post['tagIds'] ?? [],
+        'writerId'=>$post['writerId'] ?? null,
+        'status'=>$post['status'] ?? 'published',
+        'isPublic'=>(bool)($post['isPublic'] ?? true),
+        'date'=>$post['date'] ?? '',
+        'scheduledAt'=>$post['scheduledAt'] ?? null,
+        'createdAt'=>$post['createdAt'] ?? null,
+        'views'=>(int)($post['views'] ?? 0),
+        'likes'=>(int)($post['likes'] ?? 0),
+        'dislikes'=>(int)($post['dislikes'] ?? 0),
+        'countdownEnabled'=>!empty($post['countdown_enabled']),
+        'countdownTarget'=>(string)($post['countdown_target'] ?? ''),
+        'countdownTitle'=>(string)($post['countdown_title'] ?? ''),
+        'countdownEndText'=>(string)($post['countdown_end_text'] ?? ''),
         'title'=>$post['title'],'slug'=>$post['slug'],'category'=>$post['categoryHierarchy'] ?? null,'tags'=>blog_public_tags($post),
         'author'=>$post['writer']['name'] ?? $post['author'],
-        'writer'=>$post['writer'] ?? ['name'=>$post['author'] ?: 'Editorial Team','role_name'=>'','profile_image'=>'','bio'=>'','socials'=>[]],'excerpt'=>$post['excerpt'],
-        'content_html'=>$rendered['content_html'],
-        'featuredImage'=>public_detail_url($post['featuredImage']),
+        'writer'=>$writer,
+        'about_author'=>$writer,
+        'excerpt'=>$post['excerpt'],
+        'content_html'=>$contentHtml,
+        'countdown'=>$countdown,
+        'countdown_html'=>$countdownHtml,
+        'featuredImage'=>public_detail_url(blog_display_image((string)$post['featuredImage'])),
         'blogUrl'=>public_url('/blog/' . rawurlencode($post['slug']) . '/'),
         'publishedAt'=>$post['publishedAt'] ?? $post['scheduledAt'], 'updatedAt'=>$post['updatedAt'],
         'readTime'=>blog_read_minutes($post['content']),
-    ],'faq_schema'=>$rendered['faq_schema']];
+    ],'countdown'=>$countdown,'countdown_html'=>$countdownHtml,'faq_schema'=>$rendered['faq_schema']];
 }

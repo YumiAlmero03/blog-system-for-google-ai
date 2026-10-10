@@ -14,7 +14,8 @@ if (!class_exists('ZipArchive')) {
 $pdo = blogs_pdo();
 $rows = $pdo->query('SELECT * FROM blog_posts ORDER BY created_at DESC')->fetchAll(PDO::FETCH_ASSOC);
 $blogs = array_map('blog_row_to_array', $rows);
-$uploadRoot = realpath(__DIR__ . '/uploads/blogs');
+$uploadRootAdmin = realpath(__DIR__ . '/uploads/blogs');
+$uploadRootWeb = realpath(dirname(__DIR__) . '/uploads/blogs');
 $images = [];
 
 foreach ($blogs as $index => $blog) {
@@ -29,12 +30,14 @@ foreach ($blogs as $index => $blog) {
 
     foreach (array_unique($references) as $reference) {
         $relative = ltrim(parse_url($reference, PHP_URL_PATH) ?: '', '/');
-        if (!str_starts_with($relative, 'uploads/blogs/') || !$uploadRoot) {
+        if (!str_starts_with($relative, 'uploads/blogs/')) {
             continue;
         }
         $filename = basename($relative);
-        $sourcePath = realpath(__DIR__ . '/../' . $relative);
-        if (!$sourcePath || !is_file($sourcePath) || !str_starts_with($sourcePath, $uploadRoot . DIRECTORY_SEPARATOR)) {
+        $sourcePath = ($uploadRootAdmin && is_file($uploadRootAdmin . '/' . $filename))
+            ? realpath($uploadRootAdmin . '/' . $filename)
+            : (($uploadRootWeb && is_file($uploadRootWeb . '/' . $filename)) ? realpath($uploadRootWeb . '/' . $filename) : false);
+        if (!$sourcePath || !is_file($sourcePath)) {
             continue;
         }
         $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));

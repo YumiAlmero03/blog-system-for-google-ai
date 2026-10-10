@@ -14,6 +14,13 @@ function chat_clean_string(mixed $value, int $maxLength): string
     return substr($value, 0, $maxLength);
 }
 
+function chat_clean_message(mixed $value, int $maxLength = 5000): string
+{
+    $value = trim(str_replace(["\r\n", "\r"], "\n", (string) $value));
+    $value = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $value) ?? $value;
+    return function_exists('mb_substr') ? mb_substr($value, 0, $maxLength) : substr($value, 0, $maxLength);
+}
+
 function chat_filename_part(string $value): string
 {
     $value = strtolower(trim($value));
@@ -42,7 +49,8 @@ function chat_client_ip(): string
 
 function chat_dir(): string
 {
-    return __DIR__ . '/../chats';
+    $directory = getenv('CHAT_STORAGE_DIR');
+    return is_string($directory) && $directory !== '' ? rtrim($directory,'/\\') : __DIR__ . '/../chats';
 }
 
 function chat_is_valid_session_id(string $sessionId): bool
@@ -78,7 +86,7 @@ function chat_normalize_messages(mixed $messages): array
             continue;
         }
 
-        $text = chat_clean_string($message['text'] ?? '', 5000);
+        $text = chat_clean_message($message['text'] ?? '');
         if ($text === '') {
             continue;
         }
@@ -139,12 +147,15 @@ function chat_update_session(string $sessionId, callable $update, bool $existing
 function chat_preserve_admin_replies(array $incoming, array $existing): array
 {
     foreach ($existing as $message) {
-        if (!is_array($message) || empty($message['adminReplyId'])) continue;
+        if (!is_array($message)) continue;
+        $idField = !empty($message['adminReplyId']) ? 'adminReplyId' : (!empty($message['autoReplyId']) ? 'autoReplyId' : null);
+        if ($idField === null) continue;
         $found = false;
         foreach ($incoming as &$candidate) {
-            if (($candidate['sender'] ?? '') === 'agent' && ($candidate['text'] ?? '') === ($message['text'] ?? '')
+            if (($candidate['sender'] ?? '') === ($message['sender'] ?? '') && ($candidate['text'] ?? '') === ($message['text'] ?? '')
                 && ($candidate['time'] ?? '') === ($message['time'] ?? '')) {
-                $candidate['adminReplyId'] = $message['adminReplyId'];
+                $candidate[$idField] = $message[$idField];
+                if (isset($message['ruleId'])) $candidate['ruleId'] = $message['ruleId'];
                 $found = true;
                 break;
             }
@@ -167,9 +178,15 @@ function chat_admin_reply(string $sessionId, string $text): void
 {
     chat_update_session($sessionId,static function(array $data) use ($text): array {
         $now = date('c');
-        $data['messages'][] = ['sender'=>'agent','text'=>chat_clean_string($text,5000),'time'=>$now,'type'=>'chat','adminReplyId'=>bin2hex(random_bytes(16))];
+        $data['messages'][] = ['sender'=>'agent','text'=>chat_clean_message($text),'time'=>$now,'type'=>'chat','adminReplyId'=>bin2hex(random_bytes(16))];
         $data['messages'] = array_slice($data['messages'],-200);
         $data['updatedAt'] = $now;
+        $data['pendingSince'] = null;
+        $data['aiLease'] = null;
+        $data['aiActive'] = false;
+        $data['aiRetryAt'] = null;
+        $data['aiFailures'] = 0;
+        $data['revision'] = ($data['revision'] ?? 0) + 1;
         return $data;
     },true);
 }

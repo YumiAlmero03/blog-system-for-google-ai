@@ -66,7 +66,7 @@ $routes = [
 if (is_file($dbPath)) {
     $pdo = blogs_pdo();
 
-    foreach ($pdo->query('SELECT slug FROM games WHERE ' . game_public_eligibility_sql()) as $row) {
+    foreach (function_exists('games_storage_attach') ? $pdo->query('SELECT slug FROM games WHERE ' . game_public_eligibility_sql()) : [] as $row) {
         $slug = route_sync_clean_slug($row['slug'] ?? '');
         if ($slug !== '') {
             $routes[] = 'games/' . $slug;

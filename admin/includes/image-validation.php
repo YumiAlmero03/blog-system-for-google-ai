@@ -77,3 +77,85 @@ function validate_blog_image_file(string $path, ?string $expectedExtension = nul
         'height' => (int) $dimensions[1],
     ];
 }
+
+function is_gd_image(mixed $image): bool
+{
+    return is_resource($image) || (class_exists('GdImage') && $image instanceof GdImage);
+}
+
+function optimize_uploaded_image(string $source, string $destination, string $mime, int $maxWidth = 1200, int $maxHeight = 675, int $quality = 60): bool
+{
+    if (!extension_loaded('gd')) {
+        return @move_uploaded_file($source, $destination) || @copy($source, $destination);
+    }
+
+    $image = match ($mime) {
+        'image/jpeg' => function_exists('imagecreatefromjpeg') ? @imagecreatefromjpeg($source) : false,
+        'image/png' => function_exists('imagecreatefrompng') ? @imagecreatefrompng($source) : false,
+        'image/webp' => function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($source) : false,
+        'image/avif' => function_exists('imagecreatefromavif') ? @imagecreatefromavif($source) : false,
+        default => false,
+    };
+
+    if (!is_gd_image($image)) {
+        return @move_uploaded_file($source, $destination) || @copy($source, $destination);
+    }
+
+    $sourceWidth = imagesx($image);
+    $sourceHeight = imagesy($image);
+    $scale = min(1, $maxWidth / max(1, $sourceWidth), $maxHeight / max(1, $sourceHeight));
+    $wasResized = $scale < 1;
+
+    if ($wasResized) {
+        $targetWidth = max(1, (int) floor($sourceWidth * $scale));
+        $targetHeight = max(1, (int) floor($sourceHeight * $scale));
+        $resized = imagecreatetruecolor($targetWidth, $targetHeight);
+        if (is_gd_image($resized)) {
+            if ($mime === 'image/png' || $mime === 'image/webp') {
+                imagealphablending($resized, false);
+                imagesavealpha($resized, true);
+                $transparent = imagecolorallocatealpha($resized, 0, 0, 0, 127);
+                imagefilledrectangle($resized, 0, 0, $targetWidth, $targetHeight, $transparent);
+            }
+            imagecopyresampled($resized, $image, 0, 0, 0, 0, $targetWidth, $targetHeight, $sourceWidth, $sourceHeight);
+            $image = $resized;
+        }
+    }
+
+    if ($mime === 'image/jpeg') {
+        imageinterlace($image, true);
+        $saved = imagejpeg($image, $destination, $quality);
+    } elseif ($mime === 'image/png') {
+        imagealphablending($image, false);
+        imagesavealpha($image, true);
+        $saved = imagepng($image, $destination, 6);
+    } elseif ($mime === 'image/webp' && function_exists('imagewebp')) {
+        imagepalettetotruecolor($image);
+        imagealphablending($image, true);
+        imagesavealpha($image, true);
+        $saved = imagewebp($image, $destination, $quality);
+    } elseif ($mime === 'image/avif' && function_exists('imageavif')) {
+        imagepalettetotruecolor($image);
+        imagealphablending($image, true);
+        imagesavealpha($image, true);
+        $saved = imageavif($image, $destination, $quality);
+    } else {
+        return @move_uploaded_file($source, $destination) || @copy($source, $destination);
+    }
+
+    if ($saved && is_file($destination)) {
+        $sourceSize = @filesize($source);
+        $destinationSize = @filesize($destination);
+        if (!$wasResized && is_int($sourceSize) && is_int($destinationSize) && $destinationSize > $sourceSize) {
+            @unlink($destination);
+            return @move_uploaded_file($source, $destination) || @copy($source, $destination);
+        }
+        return true;
+    }
+
+    if (is_file($destination)) {
+        @unlink($destination);
+    }
+
+    return @move_uploaded_file($source, $destination) || @copy($source, $destination);
+}
