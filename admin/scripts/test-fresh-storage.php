@@ -27,7 +27,7 @@ function fresh_run(string $code): string {
 }
 try {
     mkdir($temp, 0700);
-    foreach (['admin/includes', 'admin/games', 'api'] as $directory) {
+    foreach (['admin/includes', 'admin/plugin/games', 'api', 'game-api'] as $directory) {
         $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root . '/' . $directory, FilesystemIterator::SKIP_DOTS));
         foreach ($iterator as $file) {
             if ($file->getExtension() !== 'php') continue;
@@ -48,7 +48,7 @@ try {
         $counts = json_decode(fresh_run('require "admin/includes/blog-storage.php"; $pdo=blogs_pdo(); $counts=[]; foreach (["admin_users","writer_social_links","blog_posts","blog_engagements","games","game_providers","game_types","game_themes","game_theme_links"] as $table) $counts[$table]=$pdo->query("SELECT COUNT(*) FROM $table")->fetchColumn(); echo json_encode($counts);'), true, 512, JSON_THROW_ON_ERROR);
         fresh_check(count(array_filter($counts)) === 0, 'No sample users, blogs, games or engagement');
         foreach (['blog-post-list.php', 'blog-category-list.php', 'slot-list.php', 'provider-list.php', 'settings/seo.php'] as $endpoint) {
-            $response = json_decode(fresh_run('$_SERVER["REQUEST_METHOD"]="GET"; require ' . var_export('api/' . $endpoint, true) . ';'), true, 512, JSON_THROW_ON_ERROR);
+            $response = json_decode(fresh_run('$_SERVER["REQUEST_METHOD"]="GET"; require ' . var_export((in_array($endpoint, ['slot-list.php', 'provider-list.php'], true) ? 'game-api/' : 'api/') . $endpoint, true) . ';'), true, 512, JSON_THROW_ON_ERROR);
             fresh_check(($response['ok'] ?? false) === true, "$state storage: $endpoint");
             if ($endpoint === 'blog-post-list.php') fresh_check($response['blogs'] === [], 'Empty blog list');
             if ($endpoint === 'slot-list.php') fresh_check($response['slots'] === [], 'Empty game list');

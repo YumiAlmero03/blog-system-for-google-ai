@@ -5,7 +5,7 @@ $dir=sys_get_temp_dir().'/game-images-'.bin2hex(random_bytes(6)); mkdir($dir,070
 putenv('APP_STORAGE_DIR='.$dir.'/data'); putenv('GAME_IMAGE_UPLOAD_DIR='.$dir.'/images'); putenv('SITE_BASE_URL=https://example.test');
 putenv('PROVIDER_IMAGE_UPLOAD_DIR='.$dir.'/providers');
 require_once __DIR__ . '/import-slotslaunch-games.php';
-require_once __DIR__ . '/../includes/game-public.php';
+require_once __DIR__ . '/../includes/public-detail.php';
 function gi_check(bool $ok,string $message): void { if (!$ok) throw new RuntimeException($message); }
 function gi_remove(string $dir): void { foreach(scandir($dir) as $name) { if ($name==='.' || $name==='..') continue; $p=$dir.'/'.$name; is_dir($p)?gi_remove($p):unlink($p); } rmdir($dir); }
 try {
@@ -25,13 +25,13 @@ try {
     $pdo->exec('UPDATE games SET is_viewable=1 WHERE api_id=1');
     gi_check(slot_list_item($row)['thumbnail']===$local,'Shared list local upload thumbnail');
     gi_check(public_game_payload(public_game_find('image-game'))['thumbnail']==='https://example.test'.$local,'Detail absolute thumbnail');
-    foreach (['/api/slot-list.php','/api/game.php'] as $endpoint) {
+    foreach (['/game-api/slot-list.php','/game-api/game.php'] as $endpoint) {
         $runner='$_SERVER["REQUEST_METHOD"]="GET"; $_GET=["slug"=>"image-game"]; require '.var_export(dirname(__DIR__,2).$endpoint,true).';';
         $process=proc_open([PHP_BINARY,'-r',$runner],[1=>['pipe','w'],2=>['pipe','w']],$pipes);
         $json=stream_get_contents($pipes[1]); $errors=stream_get_contents($pipes[2]); fclose($pipes[1]); fclose($pipes[2]);
         gi_check(proc_close($process)===0 && $errors==='','API execution'); $data=json_decode($json,true);
         $image=$data['game']['thumbnail'] ?? $data['slots'][0]['thumbnail'] ?? '';
-        gi_check($image===($endpoint === '/api/game.php' ? 'https://example.test'.$local : $local) && !str_contains($image,'assets.slotslaunch'),'API uses local upload thumbnail');
+        gi_check($image===($endpoint === '/game-api/game.php' ? 'https://example.test'.$local : $local) && !str_contains($image,'assets.slotslaunch'),'API uses local upload thumbnail');
     }
     $hash=hash_file('sha256',$dir.'/images/'.basename($local));
     ini_set('error_log',$dir.'/failures.log');

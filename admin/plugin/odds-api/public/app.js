@@ -8,7 +8,7 @@ async function load(){
     const query=new URLSearchParams({id:new URLSearchParams(location.search).get('iframe')||'1'});
     const sportOverride=new URLSearchParams(location.search).get('sport');if(sportOverride)query.set('sport',sportOverride);
     const colsOverride=new URLSearchParams(location.search).get('columns');if(colsOverride)query.set('columns',colsOverride);
-    const response=await fetch('/api/sports-layout.php?'+query,{signal:active.signal,cache:'no-store'}),data=await response.json();
+    const response=await fetch('/odds-api/sports-layout.php?'+query,{signal:active.signal,cache:'no-store'}),data=await response.json();
     if(current!==generation)return;if(!response.ok||!data.ok)throw new Error(data.error||'Data unavailable.');
     const headerTitleEl=document.querySelector('#iframe-title'),headerTitleSection=document.querySelector('#iframe-title-section');
     if(data.title_blocks&&data.title_blocks.length){if(headerTitleEl)headerTitleEl.hidden=true;if(headerTitleSection)headerTitleSection.hidden=false;}

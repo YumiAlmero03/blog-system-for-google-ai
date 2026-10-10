@@ -24,7 +24,7 @@ try {
     $input['thumb']=''; unset($input['thumbnail']); import_provider($pdo,$input,$download);
     pi_check($pdo->query('SELECT thumbnail FROM game_providers WHERE api_id=123')->fetchColumn()===$fresh,'Missing source preserves image');
     $pdo->prepare('INSERT INTO games(api_id,name,slug,provider_id,provider,provider_slug,published,done_processing,is_viewable,created_at,updated_at) VALUES(?,?,?,?,?,?,1,1,1,?,?)')->execute([987,'Test Game','test-game',$row['id'],'Example Provider','custom-provider-slug',time(),time()]);
-    $runner='$_SERVER["REQUEST_METHOD"]="GET"; require '.var_export(dirname(__DIR__,2).'/api/provider-list.php',true).';';
+    $runner='$_SERVER["REQUEST_METHOD"]="GET"; require '.var_export(dirname(__DIR__,2).'/game-api/provider-list.php',true).';';
     $process=proc_open([PHP_BINARY,'-r',$runner],[1=>['pipe','w'],2=>['pipe','w']],$pipes);
     $json=stream_get_contents($pipes[1]); $errors=stream_get_contents($pipes[2]); fclose($pipes[1]); fclose($pipes[2]);
     pi_check(proc_close($process)===0 && $errors==='','API executes');

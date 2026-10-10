@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 // Extracted from the former blog/view.php renderer (Git e63bd79 parent).
-require_once __DIR__ . '/game-public.php';
+require_once __DIR__ . '/public-detail.php';
 
 function blog_h(mixed $value): string
 {

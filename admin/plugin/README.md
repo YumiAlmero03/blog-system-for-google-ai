@@ -12,3 +12,10 @@ Deploy the root `.htaccess` with the folders and adapters: it protects plugin in
 Checks: `php admin/scripts/test-plugin-removal.php`, `php admin/scripts/test-sports-api.php`, `php admin/scripts/test-odds-api.php`, `php admin/scripts/test-game-storage.php`, `php admin/scripts/test-game-visibility.php` and `php admin/scripts/test-public-details.php`.
 
 Public Games API implementations live in `admin/plugin/games/api/` (with canonical provider-list.php) and root `game-api/` (game.php, slot-list.php, provider-list.php adapter, game-play.php). Existing `/api/` and `/game-api/` URLs forward to the plugin endpoints and return JSON 404 when Games is uninstalled. Provider administration is located at `admin/plugin/games/providers/index.php` and `admin/plugin/games/providers.php` (with legacy shim at `admin/settings/providers/index.php`). The Games plugin supplies catalogue storage, provider settings, and shared helpers.
+
+
+### Removed compatibility files (October 2026)
+
+Game handlers now use `/game-api/{slot-list,provider-list,game,game-play}.php` and `/admin/plugin/games/` (`index.php`, `edit.php`, `save.php`). Removed `/api/` game forwarders and `/admin/slot*.php` are no longer supported. Sports layout reads use public `GET /odds-api/sports-layout.php?id=ID`; sports listings use `/odds-api/sports.php`. Methods, permissions, inputs and response shapes on surviving endpoints are unchanged. The public iframe and generated layout URLs use the canonical sports route.
+
+Shared `public_detail_slug()` and `public_detail_url()` live in `admin/includes/public-detail.php`, which loads optional game helpers and retains the absent-plugin fallback. Core/bootstrap and game import/sitemap code no longer require the deleted `admin/includes/game-*.php` wrappers. No flags or database schema changes. Regression tests target surviving routes.

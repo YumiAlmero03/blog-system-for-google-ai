@@ -129,11 +129,13 @@ function chat_realtime_action(array $input): array
             $row['pendingSince'] ??= $now;
             $row['revision'] = ($row['revision'] ?? 0)+1;
             $row['aiLease'] = null;
-            $rule = chat_auto_match($text,$rules);
+            $row['autoReplyRuleIds'] = chat_auto_used_rule_ids($row);
+            $rule = chat_auto_match($text,$rules,$row);
             if ($rule) {
                 $row['messages'][] = ['id'=>bin2hex(random_bytes(16)),'sender'=>'bot','text'=>$rule['response'],
                     'time'=>date('c',$now),'type'=>'auto_response','ruleId'=>$rule['id']];
                 $row['pendingSince'] = null;
+                $row['autoReplyRuleIds'] = array_values(array_unique(array_merge($row['autoReplyRuleIds'], [$rule['id']])));
             }
             $row['messages'] = array_slice($row['messages'],-200);
             $row['updatedAt'] = date('c',$now);

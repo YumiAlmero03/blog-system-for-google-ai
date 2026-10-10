@@ -353,3 +353,13 @@ Admin/super-user `GET /admin/plugin/odds-api/sports/?action=download&id=ID|all` 
 Authenticated multipart `POST` to the same page requires CSRF, `action=import` and `layout_file` (JSON, maximum 5 MB, 1–1000 layouts). Validation completes before writes; insertion is transactional. Imports always create new IDs switched OFF, preserving existing records. Success redirects to the first imported layout; invalid files return HTML errors (422). Review imported layouts, configure destination provider credentials and register the matching tournaments before enabling. Uses the existing `iframes` table; no schema changes. Regression: `php admin/scripts/test-sports-api.php`.
 
 Local Docker Nginx supports `/promo-api/*` as an internal alias for `/api/*` on the same project. Methods, parameters, authentication and response formats are those of the destination handler. No forwarding to sibling deployments or database changes.
+
+
+Automatic replies are limited to once per rule per chat session for matching phrases. Sending an exact enabled suggested-chat label (ignoring case and repeated whitespace) takes priority and can repeat that reply. Used rule IDs persist in session JSON as `autoReplyRuleIds`, including after the 200-message history is trimmed; existing sessions recover usage from saved automatic replies. Retries remain idempotent. Repeated keywords leave realtime chat pending for the existing AI fallback and its availability/timing rules; legacy transcript saves return `reply: null` without starting AI. Endpoint methods, permissions, inputs and response fields are unchanged; no new tables or configuration flags.
+
+
+### Removed compatibility files (October 2026)
+
+Game handlers now use `/game-api/{slot-list,provider-list,game,game-play}.php` and `/admin/plugin/games/` (`index.php`, `edit.php`, `save.php`). Removed `/api/` game forwarders and `/admin/slot*.php` are no longer supported. Sports layout reads use public `GET /odds-api/sports-layout.php?id=ID`; sports listings use `/odds-api/sports.php`. Methods, permissions, inputs and response shapes on surviving endpoints are unchanged. The public iframe and generated layout URLs use the canonical sports route.
+
+Shared `public_detail_slug()` and `public_detail_url()` live in `admin/includes/public-detail.php`, which loads optional game helpers and retains the absent-plugin fallback. Core/bootstrap and game import/sitemap code no longer require the deleted `admin/includes/game-*.php` wrappers. No flags or database schema changes. Regression tests target surviving routes.

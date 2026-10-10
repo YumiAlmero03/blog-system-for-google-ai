@@ -141,6 +141,7 @@ try {
             $merged = array_slice($merged,-200);
         }
         return array_replace($existingData, [
+            'autoReplyRuleIds'=>array_values(array_unique(array_merge(chat_auto_used_rule_ids($existingData), $reply !== null ? [$reply['ruleId']] : []))),
             'autoReplyKey'=>$replyKey ?? ($existingData['autoReplyKey'] ?? null),
             'autoReply'=>$replyKey !== null ? $reply : ($existingData['autoReply'] ?? null),
             'sessionId'=>$sessionId,

@@ -81,6 +81,12 @@ try {
     chat_auto_change('save',['label'=>'Deposit','keywords'=>'how to deposit','response'=>'Configured instructions','enabled'=>'1']);
     $auto=chat_realtime_action(array_replace($request,['client_message_id'=>'message-test-5','message'=>'how to deposit']));
     rt_check(end($auto['messages'])['type']==='auto_response' && $auto['status']['waitingSince']===null,'Keyword reply takes precedence');
+    $repeat=chat_realtime_action(array_replace($request,['client_message_id'=>'message-test-6','message'=>'how to deposit']));
+    rt_check(end($repeat['messages'])['sender']==='user' && $repeat['status']['waitingSince']!==null,'Used keyword reply leaves turn pending for AI');
+    $rule=chat_auto_rules()[0];
+    chat_auto_change('save',['id'=>$rule['id'],'label'=>'Deposit','keywords'=>'how to deposit','response'=>'Configured instructions','enabled'=>'1','suggested'=>'1']);
+    $suggestion=chat_realtime_action(array_replace($request,['client_message_id'=>'message-test-7','message'=>'Deposit']));
+    rt_check(end($suggestion['messages'])['type']==='auto_response' && $suggestion['status']['waitingSince']===null,'Suggested message repeats used reply');
     chat_agent_presence('test-agent',false);
     rt_check(chat_agent_presence('expired',true,$now-80) && !chat_agent_presence(null,false,$now),'Agent presence expires');
     chat_agent_presence('test-agent',false);

@@ -979,7 +979,7 @@ function sports_api_layouts_get_all(?string $sport = null, bool $onlyEnabled = f
             'bookmakers' => (string)($row['bookmakers'] ?? ''),
             'embed_url' => '/odds-api/?iframe=' . $id,
             'embed_code' => '<iframe src="/odds-api/?iframe=' . $id . '" title="' . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . '" width="100%" height="650" style="border:0" loading="lazy"></iframe>',
-            'api_url' => '/api/sports-layout.php?id=' . $id,
+            'api_url' => '/odds-api/sports-layout.php?id=' . $id,
             'created_at' => sports_api_layout_timestamp($row['created_at'] ?? 0),
             'updated_at' => sports_api_layout_timestamp($row['updated_at'] ?? 0),
         ];

@@ -2,7 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__ . '/../../../includes/blog-storage.php';
 require_once __DIR__ . '/game-restrictions.php';
-require_once __DIR__ . '/../../../includes/game-public.php';
+require_once __DIR__ . '/../../../includes/public-detail.php';
 const SLOT_IFRAME_TOKEN = 'KljjshkJEwm9XlVUTiGCzsyYkQw4mG22pOKNzS3enaABIHoTdj';
 
 function slot_list_json_array(mixed $value): array

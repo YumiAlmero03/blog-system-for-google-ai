@@ -18,7 +18,7 @@ try {
     file_put_contents($tmp.'/httpd.conf',$conf);
     $server=proc_open([$apache,'-X','-f',$tmp.'/httpd.conf'],[0=>['pipe','r'],1=>['file',$tmp.'/process.log','a'],2=>['file',$tmp.'/process.log','a']],$pipes);
     usleep(500000);
-    foreach(['/uploads/image.svg'=>[200,'image'],'/VerificationKey123.txt'=>[200,'VerificationKey123'],'/login.php'=>[200,'login'],'/login-handler.php'=>[200,'handler'],'/logout.php'=>[200,'logout'],'/admin/login.php'=>[200,'login'],'/api/test.php'=>[200,'api'],'/promo-code/example'=>[200,'promo'],'/sitemap-index.xml'=>[200,'sitemap'],'/robots.txt'=>[200,'robots'],'/admin/.env'=>[403,null],'/admin/includes/config.php'=>[403,null],'/admin/storage/blogs.sqlite'=>[403,null],'/admin/scripts/tool.php'=>[403,null],'/.git/config'=>[403,null]] as $url=>[$expected,$content]){
+    foreach(['/uploads/image.svg'=>[200,'image'],'/VerificationKey123.txt'=>[200,'VerificationKey123'],'/login.php'=>[200,'login'],'/login-handler.php'=>[200,'handler'],'/logout.php'=>[200,'logout'],'/admin/login.php'=>[200,'login'],'/api/test.php'=>[200,'api'],'/promo-code/example1'=>[200,'promo'],'/sitemap-index.xml'=>[200,'sitemap'],'/robots.txt'=>[200,'robots'],'/admin/.env'=>[403,null],'/admin/includes/config.php'=>[403,null],'/admin/storage/blogs.sqlite'=>[403,null],'/admin/scripts/tool.php'=>[403,null],'/.git/config'=>[403,null]] as $url=>[$expected,$content]){
         $curl=curl_init('http://'.$address.$url);curl_setopt_array($curl,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>5]);$body=curl_exec($curl);$status=curl_getinfo($curl,CURLINFO_RESPONSE_CODE);
         layout_check($status===$expected && ($content===null || $body===$content),'HTTP layout: '.$url.' returned '.$status);
     }

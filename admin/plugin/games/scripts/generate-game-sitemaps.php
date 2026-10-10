@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 // Run: php scripts/generate-game-sitemaps.php
 require_once __DIR__ . '/../../../includes/blog-storage.php';
-require_once __DIR__ . '/../../../includes/game-restrictions.php';
+require_once __DIR__ . '/../includes/game-restrictions.php';
 
 const GAME_SITEMAP_NS = 'http://www.sitemaps.org/schemas/sitemap/0.9';
 

@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+putenv('SITE_BASE_URL=https://example.test');
 require_once __DIR__ . '/generate-game-sitemaps.php';
 
 function check(bool $ok, string $message): void {

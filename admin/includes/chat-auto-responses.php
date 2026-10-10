@@ -63,12 +63,25 @@ function chat_auto_change(string $action, array $input): void
     }
 }
 
-function chat_auto_match(string $text, array $rules): ?array
+function chat_auto_used_rule_ids(array $session): array
+{
+    $ids = $session['autoReplyRuleIds'] ?? [];
+    foreach (array_merge($session['messages'] ?? [], [$session['autoReply'] ?? []]) as $message) {
+        if (($message['type'] ?? '') === 'auto_response' && isset($message['ruleId'])) $ids[] = $message['ruleId'];
+    }
+    return array_values(array_unique($ids));
+}
+
+function chat_auto_match(string $text, array $rules, array $session = []): ?array
 {
     $text = chat_auto_text($text);
+    $used = chat_auto_used_rule_ids($session);
+    foreach ($rules as $rule) {
+        if ($rule['enabled'] && $rule['suggested'] && $text === chat_auto_text($rule['label'])) return $rule;
+    }
     $match = null; $length = 0;
     foreach ($rules as $rule) {
-        if (!$rule['enabled']) continue;
+        if (!$rule['enabled'] || in_array($rule['id'], $used, true)) continue;
         foreach (array_merge([$rule['label']], $rule['keywords']) as $phrase) {
             $phrase = chat_auto_text($phrase);
             if ($phrase !== '' && strlen($phrase) > $length && str_contains($text,$phrase)) {
@@ -87,7 +100,7 @@ function chat_auto_reply(array $messages, array $existing, array $rules): array
     $users = array_values(array_filter($messages,static fn(array $m): bool => $m['sender'] === 'user'));
     $key = hash('sha256',json_encode($users,JSON_THROW_ON_ERROR));
     if (($existing['autoReplyKey'] ?? null) === $key) return [$existing['autoReply'] ?? null, $key];
-    $rule = chat_auto_match($last['text'],$rules);
+    $rule = chat_auto_match($last['text'],$rules,$existing);
     if (!$rule) return [null, $key];
     return [['sender'=>'bot','text'=>$rule['response'],'time'=>date('c'),'type'=>'auto_response',
         'autoReplyId'=>bin2hex(random_bytes(16)), 'ruleId'=>$rule['id']], $key];

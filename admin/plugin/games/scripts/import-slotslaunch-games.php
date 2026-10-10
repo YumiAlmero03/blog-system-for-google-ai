@@ -8,7 +8,7 @@ if (PHP_SAPI !== 'cli') {
 }
 
 require_once __DIR__ . '/../../../includes/blog-storage.php';
-require_once __DIR__ . '/../../../includes/game-images.php';
+require_once __DIR__ . '/../includes/game-images.php';
 require_once __DIR__ . '/../includes/provider-images.php';
 
 const SLOTSLAUNCH_DEFAULT_GAMES_URL = 'https://slotslaunch.com/api/games';

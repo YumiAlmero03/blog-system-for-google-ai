@@ -37,7 +37,13 @@ try {
     check_auto(count(chat_preserve_admin_replies(chat_normalize_messages($merged),$merged)) === 2,'Echoed reply not duplicated');
     check_auto(chat_auto_reply($merged,$existing,$rules)[0] === null,'Bot turn does not trigger reply');
     $messages[] = ['sender'=>'user','text'=>'bonus','time'=>'later','type'=>'chat'];
-    check_auto(chat_auto_reply($messages,$existing,$rules)[0]['autoReplyId'] !== $reply['autoReplyId'],'New turn creates new reply');
+    check_auto(chat_auto_reply($messages,$existing,$rules)[0] === null,'Repeated phrase does not reuse a rule');
+    $suggested = $bonus; $suggested['suggested'] = true;
+    check_auto(chat_auto_match('  CLAIM bonus ',[$suggested],$existing)['id'] === $bonus['id'],'Exact suggested message can repeat');
+    check_auto(chat_auto_match('please claim bonus',[$suggested],$existing) === null,'Suggested label containment cannot repeat');
+    check_auto(chat_auto_match('Claim bonus',[$bonus],$existing) === null,'Non-suggested label cannot repeat');
+    check_auto(chat_auto_match('bonus',[$bonus],['autoReplyRuleIds'=>chat_auto_used_rule_ids($existing)]) === null,'Used rules survive transcript trimming');
+    check_auto(chat_auto_match('phrase 0',$rules,$existing)['id'] === $rules[0]['id'],'Different unused rule still matches');
     chat_auto_change('save',['id'=>$bonus['id'],'label'=>'Bonus','keywords'=>'bonus','response'=>'Updated','enabled'=>'1']);
     check_auto(chat_auto_match('bonus',chat_auto_rules())['response'] === 'Updated','Edit response');
     chat_auto_change('delete',['id'=>$bonus['id']]);

@@ -4,7 +4,7 @@ if (!is_dir(__DIR__ . '/../admin/plugin/games')) { http_response_code(404); head
 
 
 require_once __DIR__ . '/../admin/includes/blog-storage.php';
-require_once __DIR__ . '/../admin/includes/game-public.php';
+require_once __DIR__ . '/../admin/includes/public-detail.php';
 
 const SLOT_LIST_CACHE_TTL = 60;
 

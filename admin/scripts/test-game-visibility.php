@@ -56,8 +56,7 @@ try {
     foreach (['game','slot-list','provider-list'] as $endpoint) {
         $request=['method'=>'GET','get'=>['slug'=>'visible']];
         [$newStatus,$newData]=visibility_handler($request+['path'=>'/game-api/'.$endpoint.'.php']);
-        [$oldStatus,$oldData]=visibility_handler($request+['path'=>'/api/'.$endpoint.'.php']);
-        visibility_check($newStatus===$oldStatus && $newData===$oldData,'Legacy API parity: '.$endpoint);
+        visibility_check($newStatus===200 && is_array($newData),'Canonical API responds: '.$endpoint);
     }
 
     foreach (['blocked','hidden','ph','unfinished','draft'] as $slug) {
@@ -96,18 +95,18 @@ try {
     $xml=file_get_contents($dir.'/sitemap-games-1.xml');
     foreach (['blocked','hidden','ph','unfinished','draft'] as $slug) visibility_check(!str_contains($xml,'/game/'.$slug.'/'),'Sitemap excludes '.$slug);
     visibility_check(str_contains($xml,'/game/visible/'),'Sitemap includes eligible game');
-    [$status,,$html]=visibility_handler(['path'=>'/admin/slots.php','role'=>'editor','method'=>'GET']);
+    [$status,,$html]=visibility_handler(['path'=>'/admin/plugin/games/index.php','role'=>'editor','method'=>'GET']);
     visibility_check($status===200 && str_contains($html,'Slug: hidden') && str_contains($html,'Slug: draft') && str_contains($html,'Slug: unfinished'),'Admin sees eligible games regardless of visibility or publish status');
     visibility_check(!str_contains($html,'Slug: blocked') && !str_contains($html,'Slug: ph') && !str_contains($html,'value="blocked"'),'Admin excludes PH restrictions and disabled providers');
     foreach (['admin','super_user'] as $role) {
-        [$status,,$html]=visibility_handler(['path'=>'/admin/settings/providers/index.php','role'=>$role,'method'=>'GET']);
+        [$status,,$html]=visibility_handler(['path'=>'/admin/plugin/games/providers/index.php','role'=>$role,'method'=>'GET']);
         visibility_check($status===200 && str_contains($html,'Blocked'),'Admin sees all providers');
     }
-    [$status]=visibility_handler(['path'=>'/admin/settings/providers/index.php','role'=>'editor','post'=>['provider_key'=>'slug:blocked','approved'=>'1']]);
+    [$status]=visibility_handler(['path'=>'/admin/plugin/games/providers/index.php','role'=>'editor','post'=>['provider_key'=>'slug:blocked','approved'=>'1']]);
     visibility_check($status===403,'Editor cannot approve providers');
-    [$status]=visibility_handler(['path'=>'/admin/settings/providers/index.php','role'=>'admin','bad_csrf'=>true,'post'=>['provider_key'=>'slug:blocked','approved'=>'1']]);
+    [$status]=visibility_handler(['path'=>'/admin/plugin/games/providers/index.php','role'=>'admin','bad_csrf'=>true,'post'=>['provider_key'=>'slug:blocked','approved'=>'1']]);
     visibility_check($status===403,'Provider CSRF');
-    [$status]=visibility_handler(['path'=>'/admin/settings/providers/index.php','role'=>'admin','post'=>['provider_key'=>'slug:approved','approved'=>'0']]);
+    [$status]=visibility_handler(['path'=>'/admin/plugin/games/providers/index.php','role'=>'admin','post'=>['provider_key'=>'slug:approved','approved'=>'0']]);
     visibility_check($status===200 && public_game_find('visible')===null,'Admin approval update');
     visibility_check(!str_contains(file_get_contents($dir.'/sitemap-games-1.xml'),'/game/visible/'),'Approval save refreshes sitemap');
     [$status,$data]=visibility_handler(['path'=>'/game-api/slot-list.php','method'=>'GET']);
@@ -115,14 +114,14 @@ try {
     game_provider_approval_save($pdo,'slug:approved',1); game_visibility_refresh();
     $id=(int)$pdo->query('SELECT id FROM games WHERE slug="visible"')->fetchColumn();
     $input=['id'=>(string)$id,'name'=>'visible','short_description'=>'Description','long_description'=>'<p>Body</p>','rtp'=>'95','volatility'=>'High','is_viewable'=>'0'];
-    [$status,$data]=visibility_handler(['path'=>'/admin/slot-save.php','role'=>'editor','post'=>$input]);
+    [$status,$data]=visibility_handler(['path'=>'/admin/plugin/games/save.php','role'=>'editor','post'=>$input]);
     visibility_check($status===200 && $data['ok'] && public_game_find('visible')===null,'Editor visibility update');
     visibility_check(!str_contains(file_get_contents($dir.'/sitemap-games-1.xml'),'/game/visible/'),'Editor update refreshes sitemap');
-    [$status]=visibility_handler(['path'=>'/admin/slot-save.php','role'=>'editor','post'=>$input+['done_processing'=>'1']]);
+    [$status]=visibility_handler(['path'=>'/admin/plugin/games/save.php','role'=>'editor','post'=>$input+['done_processing'=>'1']]);
     visibility_check($status===422,'Protected fields stay protected');
-    [$status]=visibility_handler(['path'=>'/admin/slot-save.php','role'=>'editor','post'=>array_replace($input,['is_viewable'=>'yes'])]);
+    [$status]=visibility_handler(['path'=>'/admin/plugin/games/save.php','role'=>'editor','post'=>array_replace($input,['is_viewable'=>'yes'])]);
     visibility_check($status===422,'Invalid visibility rejected');
-    [$status]=visibility_handler(['path'=>'/admin/slots.php','role'=>'editor','post'=>['slot_id'=>(string)$id,'action'=>'visibility','is_viewable'=>'1']]);
+    [$status]=visibility_handler(['path'=>'/admin/plugin/games/index.php','role'=>'editor','post'=>['slot_id'=>(string)$id,'action'=>'visibility','is_viewable'=>'1']]);
     visibility_check($status===303 && public_game_find('visible')!==null,'Slots list toggle');
     $pdo->exec('UPDATE games SET is_viewable=0 WHERE api_id=1');
     file_put_contents($dir.'/import.json',json_encode(['data'=>[['id'=>1,'name'=>'visible','slug'=>'visible','provider'=>['id'=>1,'name'=>'Approved'],'published'=>1]]]));

@@ -4,7 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/env.php';
 require_once __DIR__ . '/blog-links.php';
 if (is_file(__DIR__ . '/../plugin/games/includes/storage.php')) {
-    require_once __DIR__ . '/game-visibility.php';
+    require_once __DIR__ . '/../plugin/games/includes/game-visibility.php';
     require_once __DIR__ . '/../plugin/games/includes/storage.php';
 }
 require_once __DIR__ . '/blog-taxonomy.php';
