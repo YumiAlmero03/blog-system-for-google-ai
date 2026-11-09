@@ -4,15 +4,36 @@ require_once __DIR__ . '/seo-settings.php';
 
 function google_private_dir(): string
 {
-    $dir = env_value('GOOGLE_PRIVATE_DIR') ?: __DIR__ . '/../../../.google-private-' . substr(hash('sha256', site_root_path()), 0, 12);
-    // Resolve the parent too: never allow a symlink or ../ to place secrets inside the document root.
-    $parent = realpath(dirname($dir));
-    $resolved = realpath($dir) ?: ($parent ? $parent . '/' . basename($dir) : false);
-    $root = realpath(site_root_path());
-    if (!$resolved || $resolved === $root || str_starts_with($resolved, $root . '/') || is_link($dir)) {
-        throw new RuntimeException('Google private storage must be outside the public site directory.');
+    $custom = env_value('GOOGLE_PRIVATE_DIR');
+    $root = @realpath(site_root_path()) ?: site_root_path();
+    $storageDir = function_exists('blog_storage_dir') ? blog_storage_dir() : (__DIR__ . '/../storage');
+    $resolvedStorage = @realpath($storageDir) ?: $storageDir;
+
+    if ($custom !== null && $custom !== '') {
+        $parent = @realpath(dirname($custom));
+        $resolved = @realpath($custom) ?: ($parent ? $parent . '/' . basename($custom) : false);
+        if (!$resolved || $resolved === $root || is_link($custom)) {
+            throw new RuntimeException('Google private storage cannot be the public site directory or a symlink.');
+        }
+        // If within the public site root, it must reside in protected admin/storage.
+        if (str_starts_with($resolved, $root . '/') && !str_starts_with($resolved, $resolvedStorage . '/')) {
+            throw new RuntimeException('Google private storage within site root must be inside protected admin/storage.');
+        }
+        return $resolved;
     }
-    return $resolved;
+
+    // Default outside document root (standard Linux/VPS/macOS setups without strict open_basedir)
+    $outsideParent = dirname(site_root_path());
+    $outsideParentReal = @realpath($outsideParent);
+    if ($outsideParentReal && $outsideParentReal !== $root && @is_dir($outsideParentReal) && @is_writable($outsideParentReal)) {
+        $dir = $outsideParentReal . '/.google-private-' . substr(hash('sha256', site_root_path()), 0, 12);
+        return $dir;
+    }
+
+    // aaPanel / cPanel with open_basedir restricting access to site root:
+    // Store in protected admin/storage/.google-private
+    $dir = $resolvedStorage . '/.google-private';
+    return $dir;
 }
 
 function google_state(): array
@@ -27,7 +48,7 @@ function google_state(): array
 function google_write_state(array $state, ?array $expected = null): void
 {
     $dir = google_private_dir();
-    if (!is_dir($dir) && !@mkdir($dir, 0700)) throw new RuntimeException('Private Google storage is not writable.');
+    if (!is_dir($dir) && !@mkdir($dir, 0700, true)) throw new RuntimeException('Private Google storage is not writable.');
     if (!@chmod($dir,0700)) throw new RuntimeException('Cannot secure private Google storage.');
     $lock = fopen($dir . '/config.lock','c');
     if (!$lock || !flock($lock,LOCK_EX)) throw new RuntimeException('Cannot lock private Google configuration.');
@@ -61,9 +82,12 @@ function google_credentials(array $config = []): array
     $state = google_state();
     if (isset($state['credentials'])) return google_validate_credentials(json_encode($state['credentials']));
     if (!empty($state['removed'])) throw new RuntimeException('Google credentials are not configured.');
-    $path = realpath($config['credentials'] ?? env_value('GSC_SERVICE_ACCOUNT_FILE') ?: '');
-    $root = realpath(site_root_path());
-    if (!$path || !is_file($path) || str_starts_with($path,$root.'/') || filesize($path)>65536) throw new RuntimeException('Configure a private Google service-account file outside the public site directory.');
+    $path = @realpath($config['credentials'] ?? env_value('GSC_SERVICE_ACCOUNT_FILE') ?: '');
+    $root = @realpath(site_root_path()) ?: site_root_path();
+    $storageDir = function_exists('blog_storage_dir') ? blog_storage_dir() : (__DIR__ . '/../storage');
+    $resolvedStorage = @realpath($storageDir) ?: $storageDir;
+    $isAllowed = $path && is_file($path) && (!str_starts_with($path, $root . '/') || str_starts_with($path, $resolvedStorage . '/'));
+    if (!$isAllowed || filesize($path) > 65536) throw new RuntimeException('Configure a private Google service-account file outside the public site directory.');
     return google_validate_credentials((string) @file_get_contents($path));
 }
 

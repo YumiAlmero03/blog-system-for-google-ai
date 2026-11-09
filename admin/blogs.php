@@ -15,6 +15,8 @@ $blogCategoryOptions = blog_categories_all();
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Blogs | Admin</title>
   <link rel="preload" href="/admin/style.css" as="style"><link rel="stylesheet" href="/admin/style.css">
+  <link rel="stylesheet" href="/admin/tag-multiselect.css">
+  <script src="/admin/tag-multiselect.js"></script>
   <link rel="icon" href="/assets/favicon.svg">
   <style>
     .admin-container {
@@ -98,9 +100,9 @@ $blogCategoryOptions = blog_categories_all();
     }
     .quick-edit-form {
       display: grid;
-      grid-template-columns: minmax(180px, 1.4fr) minmax(160px, 1fr) minmax(150px, 0.9fr) minmax(130px, 0.7fr) minmax(170px, 0.9fr) minmax(170px, 0.9fr) auto;
+      grid-template-columns: minmax(170px, 1.3fr) minmax(140px, 1fr) minmax(180px, 1.2fr) minmax(140px, 0.9fr) minmax(130px, 0.8fr) minmax(110px, 0.7fr) minmax(140px, 0.8fr) minmax(140px, 0.8fr) auto;
       gap: 10px;
-      align-items: end;
+      align-items: start;
     }
     .quick-edit-form label {
       display: grid;
@@ -126,6 +128,7 @@ $blogCategoryOptions = blog_categories_all();
       display: flex;
       gap: 8px;
       white-space: nowrap;
+      margin-top: 18px;
     }
     .admin-actions {
       display: flex;
@@ -226,6 +229,7 @@ $blogCategoryOptions = blog_categories_all();
       }
     }
   </style>
+  <script src="/admin/blog-import.js"></script>
 </head>
 <body>
   <div class="page-shell">
@@ -242,7 +246,7 @@ $blogCategoryOptions = blog_categories_all();
         </div>
 
         <input type="hidden" id="csrf-token" value="<?= h(csrf_token()) ?>">
-        <input type="file" id="blog-import-file" accept=".zip,application/zip" hidden>
+        <input type="file" id="blog-import-file" accept=".zip,.xml,application/zip,application/xml,text/xml" hidden>
         <div id="notice" class="notice" role="status"></div>
         <div class="admin-actions" style="justify-content:flex-start; margin-bottom:12px;">
           <a href="/admin/blog-export.php" class="btn btn-secondary btn-sm">Download Blogs</a>
@@ -252,6 +256,26 @@ $blogCategoryOptions = blog_categories_all();
           <select id="blog-category-filter" class="blog-search-input" aria-label="Filter by category">
             <option value="">All categories</option>
             <?php foreach ($blogCategoryOptions as $category): ?><option value="<?= h($category['id']) ?>"><?= h($category['label']) ?></option><?php endforeach; ?>
+          </select>
+
+          <select id="blog-status-filter" class="blog-search-input" aria-label="Filter by status">
+            <option value="">All statuses</option>
+            <option value="published">Published</option>
+            <option value="scheduled">Scheduled</option>
+            <option value="draft">Draft</option>
+          </select>
+
+          <select id="blog-sort-filter" class="blog-search-input" aria-label="Sort blogs by">
+            <option value="publish_date" selected>Sort by: Publish Date (Newest)</option>
+            <option value="publish_date_asc">Sort by: Publish Date (Oldest)</option>
+            <option value="updated_at">Sort by: Last Updated (Newest)</option>
+            <option value="updated_at_asc">Sort by: Last Updated (Oldest)</option>
+            <option value="created_at">Sort by: Date Created (Newest)</option>
+            <option value="created_at_asc">Sort by: Date Created (Oldest)</option>
+            <option value="views">Sort by: Most Views</option>
+            <option value="likes">Sort by: Most Likes</option>
+            <option value="title">Sort by: Title (A-Z)</option>
+            <option value="title_desc">Sort by: Title (Z-A)</option>
           </select>
 
           <input type="search" id="blog-search" class="blog-search-input" placeholder="Search blogs..." autocomplete="off">
@@ -279,6 +303,8 @@ $blogCategoryOptions = blog_categories_all();
       const prevPageBtn = document.getElementById('blog-prev-page');
       const nextPageBtn = document.getElementById('blog-next-page');
       const pageStatus = document.getElementById('blog-page-status');
+      const statusFilter = document.getElementById('blog-status-filter');
+      const sortFilter = document.getElementById('blog-sort-filter');
       const searchInput = document.getElementById('blog-search');
       const clearSearchBtn = document.getElementById('blog-search-clear');
       const searchStatus = document.getElementById('blog-search-status');
@@ -313,6 +339,12 @@ $blogCategoryOptions = blog_categories_all();
       if (params.get('search') && searchInput) {
         searchInput.value = params.get('search');
       }
+      if (params.get('status') && statusFilter) {
+        statusFilter.value = params.get('status');
+      }
+      if (params.get('sort') && sortFilter) {
+        sortFilter.value = params.get('sort');
+      }
 
       function updateCsrf(value) {
         if (!value) return;
@@ -336,6 +368,16 @@ $blogCategoryOptions = blog_categories_all();
           nextParams.set('search', searchTerm);
         } else {
           nextParams.delete('search');
+        }
+        if (statusFilter && statusFilter.value) {
+          nextParams.set('status', statusFilter.value);
+        } else {
+          nextParams.delete('status');
+        }
+        if (sortFilter && sortFilter.value && sortFilter.value !== 'publish_date') {
+          nextParams.set('sort', sortFilter.value);
+        } else {
+          nextParams.delete('sort');
         }
         nextParams.delete('saved');
         const nextQuery = nextParams.toString();
@@ -397,7 +439,10 @@ $blogCategoryOptions = blog_categories_all();
                 <label>Slug
                   <input type="text" name="slug" value="${escapeHtml(blog.slug || id)}" maxlength="96" pattern="[a-z0-9-]+" required>
                 </label>
-<input type="hidden" name="tags_present" value="1"><label>Tags<span>${tagOptions.map(t => `<label><input type="checkbox" name="tag_ids[]" value="${escapeHtml(t.id)}" ${(blog.tagIds || []).includes(t.id) ? 'checked' : ''}> ${escapeHtml(t.name)}</label>`).join(' ')}</span></label>
+                <div class="quick-edit-tags-cell">
+                  <label>Tags</label>
+                  <div class="quick-edit-tags-mount"></div>
+                </div>
                 <label>Writer<select name="writer_id">${writerOptionList(blog)}</select></label>
                 <label>Category
                   <select name="category_id" required>${categoryOptions.map(c => `<option value="${escapeHtml(c.id)}" ${c.id === blog.categoryId ? 'selected' : ''}>${escapeHtml(c.label)}</option>`).join('')}</select>
@@ -634,6 +679,8 @@ $blogCategoryOptions = blog_categories_all();
         data.append('page', String(currentPage));
         data.append('search', currentSearchTerm());
         data.append('category', document.getElementById('blog-category-filter').value);
+        data.append('status', statusFilter ? statusFilter.value : '');
+        data.append('order_by', sortFilter ? sortFilter.value : 'publish_date');
 
         const response = await fetch('/admin/blog-list.php', {
           method: 'POST',
@@ -676,7 +723,11 @@ $blogCategoryOptions = blog_categories_all();
           const quickEditCategory = blog.category || defaultCategory;
           const internalLinkTitles = Array.isArray(blog.internalLinkTitles) ? blog.internalLinkTitles.join(', ') : '';
           const linkedFromTitles = Array.isArray(blog.linkedFromTitles) ? blog.linkedFromTitles.join(', ') : '';
-          const publishedDate = blog.publishedAtInput ? blog.publishedAtInput.replace('T', ' ') : (blog.date || '');
+          const publishedDate = blog.publishedAtInput
+            ? blog.publishedAtInput.replace('T', ' ')
+            : (blog.scheduledAtInput
+                ? `Scheduled: ${blog.scheduledAtInput.replace('T', ' ')}`
+                : (status === 'draft' ? `Draft (${blog.date || 'Unpublished'})` : (blog.date || '—')));
           const editRow = quickEditId === id ? quickEditRow(blog, id, status, quickEditCategory) : '';
           return `
             <tr>
@@ -690,7 +741,7 @@ $blogCategoryOptions = blog_categories_all();
               <td class="blog-number-cell">${Number(blog.views || 0).toLocaleString()}</td>
               <td class="blog-number-cell">${Number(blog.likes || 0).toLocaleString()}</td>
               <td class="blog-date-cell">
-                ${escapeHtml(publishedDate)}
+                <strong style="color:var(--brand-dark);">${escapeHtml(publishedDate)}</strong>
                 <small>Updated: ${escapeHtml(blog.updatedAt ? new Date(Number(blog.updatedAt) * 1000).toLocaleDateString() : '')}</small>
               </td>
               <td class="blog-number-cell" title="${escapeHtml(internalLinkTitles || 'No internal blog links')}">${Number(blog.internalLinks || 0).toLocaleString()}</td>
@@ -719,7 +770,7 @@ $blogCategoryOptions = blog_categories_all();
                   <th>Status</th>
                   <th>Views</th>
                   <th>Likes</th>
-                  <th>Publish/Updated</th>
+                  <th>Publish Date</th>
                   <th>Internal Links</th>
                   <th>Linked From</th>
                   <th>Yoast SEO</th>
@@ -735,6 +786,17 @@ $blogCategoryOptions = blog_categories_all();
         pageStatus.textContent = `Page ${currentPage} of ${totalPages}`;
         prevPageBtn.disabled = currentPage <= 1;
         nextPageBtn.disabled = currentPage >= totalPages;
+        if (quickEditId && window.TagMultiSelect) {
+          const quickBlog = blogs.find((b) => (b.id || b.slug) === quickEditId);
+          const mount = list.querySelector('.quick-edit-tags-mount');
+          if (mount && quickBlog) {
+            new window.TagMultiSelect(mount, {
+              tags: tagOptions,
+              selectedIds: quickBlog.tagIds || [],
+              placeholder: 'Select tags...',
+            });
+          }
+        }
         refreshYoastRatings();
       }
 
@@ -747,10 +809,17 @@ $blogCategoryOptions = blog_categories_all();
       }
 
       document.getElementById('blog-category-filter').addEventListener('change', scheduleSearchLoad);
+      if (statusFilter) statusFilter.addEventListener('change', scheduleSearchLoad);
+      if (sortFilter) sortFilter.addEventListener('change', scheduleSearchLoad);
       searchInput.addEventListener('input', scheduleSearchLoad);
       clearSearchBtn.addEventListener('click', async () => {
-        if (!searchInput.value) return;
+        const catFilter = document.getElementById('blog-category-filter');
+        const hasFilters = Boolean(searchInput.value || (catFilter && catFilter.value) || (statusFilter && statusFilter.value) || (sortFilter && sortFilter.value !== 'publish_date'));
+        if (!hasFilters) return;
         searchInput.value = '';
+        if (catFilter) catFilter.value = '';
+        if (statusFilter) statusFilter.value = '';
+        if (sortFilter) sortFilter.value = 'publish_date';
         currentPage = 1;
         await loadBlogs().catch((error) => showNotice(error.message || 'Blog list could not be loaded.', 'error'));
         searchInput.focus();
@@ -760,27 +829,20 @@ $blogCategoryOptions = blog_categories_all();
       importFile.addEventListener('change', async () => {
         const file = importFile.files && importFile.files[0];
         if (!file) return;
-        if (!file.name.toLowerCase().endsWith('.zip') || file.size <= 0 || file.size > 100 * 1024 * 1024) {
-          showNotice('Select a valid blog export ZIP file up to 100 MB.', 'error');
+        if (!/\.(zip|xml)$/i.test(file.name) || file.size <= 0 || file.size > 100 * 1024 * 1024) {
+          showNotice('Select a blog export ZIP or WordPress XML file up to 100 MB.', 'error');
           importFile.value = '';
           return;
         }
-        const data = new FormData();
-        data.append('csrf_token', csrfToken);
-        data.append('import_file', file);
         importButton.disabled = true;
         showNotice('Importing blogs...', 'ok');
         try {
-          const response = await fetch('/admin/blog-import.php', {
-            method: 'POST',
-            headers: { 'Accept': 'application/json', 'X-Requested-With': 'fetch' },
-            body: data
+          const result = await window.runBlogImport({
+            file, getCsrf: () => csrfToken, updateCsrf, parseJsonResponse,
+            onProgress: (message) => showNotice(message, 'ok'),
           });
-          const result = await parseJsonResponse(response);
-          updateCsrf(result.csrfToken);
-          if (!response.ok || !result.ok) throw new Error(result.error || 'Blog import failed.');
           const counts = result.counts || {};
-          showNotice(`Imported: ${Number(counts.imported || 0)} · Updated: ${Number(counts.updated || 0)} · Skipped: ${Number(counts.skipped || 0)} · Images restored: ${Number(counts.imagesRestored || 0)} · Failed: ${Number(counts.failed || 0)}`, 'ok');
+          showNotice(`Imported: ${Number(counts.imported || 0)} · Updated: ${Number(counts.updated || 0)} · Skipped: ${Number(counts.skipped || 0)} · Images restored: ${Number(counts.imagesRestored || 0)} · Failed: ${Number(counts.failed || 0)}${result.message ? ' · ' + result.message : ''}`, 'ok');
           await loadBlogs();
         } catch (error) {
           showNotice(error.message || 'Blog import failed.', 'error');

@@ -20,7 +20,7 @@ php admin/plugin/odds-api/scripts/sync-odds-participants.php [--sport=KEY] [--ca
 php admin/plugin/odds-api/scripts/sync-api-sports-teams.php --sport=SLUG_OR_ID [--competition=ID] [--season=YEAR]
 ```
 
-Update any cron jobs using the former `admin/scripts/` locations. Registry regression check: `php admin/scripts/test-sports-registry.php`.
+Update any cron jobs using the former `admin/scripts/` locations. Registry regression check: `php admin/test/test-sports-registry.php`.
 
 ## Free sports images
 
@@ -35,7 +35,7 @@ Run from the project root:
 ```sh
 php admin/plugin/odds-api/scripts/enrich-sports-images.php --tournament=basketball_nba --limit=5 --dry-run
 php admin/plugin/odds-api/scripts/enrich-sports-images.php --tournament=basketball_nba --limit=5
-php admin/plugin/odds-api/scripts/test-sports-images.php
+php admin/test/test-sports-images.php
 ```
 
 `--tournament` accepts a registry ID or Odds sport key; omit for all enabled tournaments. `--limit` is 1–25 (default 5); each run stops between items after roughly 45 seconds. Re-run to process remaining items. `--dry-run` previews matches without assigning images or recording attempts (the source cache/schema can initialize). Unmatched items cool down for seven days, errors for one hour; `--retry` retries them immediately. Existing images are always skipped. `SPORTS_IMAGE_UPLOAD_DIR` overrides the physical image folder for tests; public paths remain `/uploads/sports/`.
@@ -46,12 +46,12 @@ Provider references: [SportsDataverse manifest](https://github.com/sportsdataver
 
 `daily-sports-images.php` repeatedly fills missing logos using SportsDataverse then Wikidata/Commons. It uses an exclusive storage lock, skips already attempted items within a run, and resumes the eligible queue next time. It does not refresh existing/manual logos or import new participants; continue using the registry participant sync for newly added teams.
 
-Defaults: target **100 saved images**; at most **1,000 items**, **1,800 seconds**, **25 items per batch**, **1 second between batches**. Time limits are checked between items; an in-flight request can finish after the limit. HTTP 429 waits 30 minutes and retries automatically; waiting does not consume the active time budget. Logs go to stdout and private `sports-images-daily.log` beside `sports-registry.sqlite` (`APP_STORAGE_DIR` when configured), rotating at 10 MB with one retained archive. A concurrent job exits successfully with a skipped message. Provider failures exit 1; normal completion, item/time limits and overlap skips exit 0.
+Defaults: **all eligible missing images**, **100 items per batch**, **1 second between batches**, and **no total item/time cap**. Existing/manual images are skipped. Completed saved/unmatched lookups are checkpointed after each item in private `sports-images-checklist.json` under the existing storage directory, using atomic replacement and the daily job lock. Later runs skip those tournament/participant IDs; new IDs are processed. Errors remain retryable on later runs. Invalid JSON stops the job rather than losing the checklist. The daily worker has no 45-second per-batch cutoff. Time limits are checked between items; an in-flight request can finish after the limit. HTTP 429 waits 30 minutes and retries automatically; waiting does not consume the active time budget. Logs go to stdout and private `sports-images-daily.log` beside `sports-registry.sqlite` (`APP_STORAGE_DIR` when configured), rotating at 10 MB with one retained archive. A concurrent job exits successfully with a skipped message. Provider failures exit 1; normal completion, item/time limits and overlap skips exit 0.
 
 In **aaPanel → Cron → Add Task**, choose **Shell Script**, a **Daily** schedule (for example 03:00 server time), and the site's execution user (`www` where applicable). Replace the site directory and `82` with the installed PHP CLI version (PHP 8.1+ with cURL and PDO SQLite):
 
 ```sh
-/www/server/php/82/bin/php '/www/wwwroot/YOUR_SITE/admin/plugin/odds-api/scripts/daily-sports-images.php' --max-items=1000 --max-seconds=1800
+/www/server/php/82/bin/php '/www/wwwroot/YOUR_SITE/admin/plugin/odds-api/scripts/daily-sports-images.php'
 ```
 
 Cron already runs unattended; do not add `&` or `nohup` to the aaPanel task. Use **Execute** to test and **Log** to inspect output. [aaPanel Cron documentation](https://www.aapanel.com/docs/Function/Cron.html).
@@ -59,26 +59,26 @@ Cron already runs unattended; do not add `&` or `nohup` to the aaPanel task. Use
 For a manual detached terminal run:
 
 ```sh
-nohup /www/server/php/82/bin/php '/www/wwwroot/YOUR_SITE/admin/plugin/odds-api/scripts/daily-sports-images.php' --max-items=1000 --max-seconds=1800 > /tmp/sports-images-background.log 2>&1 < /dev/null &
+nohup /www/server/php/82/bin/php '/www/wwwroot/YOUR_SITE/admin/plugin/odds-api/scripts/daily-sports-images.php' > /tmp/sports-images-background.log 2>&1 < /dev/null &
 ```
 
-Optional flags: `--max-images=100`, `--tournament=ID_OR_ODDS_KEY`, `--max-items=1..100000`, `--max-seconds=1..86400`, `--batch-size=1..25`, `--pause-ms=0..5000`, `--help`. The daily job respects the normal seven-day unmatched / one-hour error cooldowns. No scheduler is registered automatically by deploying these files.
+Optional flags: `--tournament=ID_OR_ODDS_KEY`, `--max-items=0..100000`, `--max-seconds=0..86400`, `--batch-size=1..100`, `--pause-ms=0..5000`, `--help`. Item/time limits default to 0 (unlimited). Remove old explicit limits from cron to scan the entire eligible queue. The saved-image limit flag has been removed. The daily job skips completed checklist entries permanently, including unmatched results, and retries errors once per run; interactive enrichment retains its normal cooldowns. The checklist starts with work completed after this update. Back it up with storage; removing an entry deliberately allows that entity to be attempted again. No new database tables or flags. No scheduler is registered automatically by deploying these files.
 
 Iframe and editor registry images use same-origin `/uploads/...` paths, including saved tournament logos. This works even before `SITE_BASE_URL` is configured. Missing registry logos remain empty instead of using team names as image URLs; explicit custom-image fallbacks remain supported. HTTPS custom image sources are permitted by the iframe's image CSP. Public registry helper callers retain absolute URLs by default; the iframe opts into local paths.
 
 Checks:
 
 ```sh
-php admin/plugin/odds-api/scripts/test-sports-images-daily.php
-php admin/plugin/odds-api/scripts/test-sports-images.php
-node admin/plugin/odds-api/scripts/test-iframe-images.cjs
+php admin/test/test-sports-images-daily.php
+php admin/test/test-sports-images.php
+node admin/test/test-iframe-images.cjs
 ```
 
 The browser check requires Chrome (or `CHROME_BINARY`) and uses a temporary registry/server without contacting providers.
 
 Daily image eligibility: both `sports_categories.enabled=1` and `tournaments.enabled=1` are required. The daily runner also ignores provider-inactive tournaments (`active=0`). Participants qualify only through eligible tournaments. `--tournament` does not bypass these filters; interactive enrichment behavior is unchanged.
 
-Daily sports images HTTP 429 behavior: persist the 30-minute cooldown, keep the worker and lock alive, wait in 30-second intervals, and retry automatically. Existing cooldowns are awaited on startup. Waiting time is excluded from the active processing time budget. Repeated 429 responses repeat the wait; progress is retained. Default target is 100 successfully saved images (`--max-images=100`); skipped/unmatched/failed images do not count. Existing item/time safety limits still apply. No database changes.
+Daily sports images HTTP 429 behavior: persist the 30-minute cooldown, keep the worker and lock alive, wait in 30-second intervals, and retry automatically. Existing cooldowns are awaited on startup. Waiting time is excluded from the active processing time budget. Repeated 429 responses repeat the wait; progress is retained. Default runs scan all eligible missing tournament and participant images in batches of 100, with no saved-image target or total item/time cap. Completed saved/unmatched results are persisted per entity in private APP_STORAGE_DIR/sports-images-checklist.json and skipped on subsequent daily runs; existing and manual images are preserved. Failed requests and rate-limited items remain retryable. Optional item/time limits still apply when explicitly set. No database changes.
 
 ## Default image
 

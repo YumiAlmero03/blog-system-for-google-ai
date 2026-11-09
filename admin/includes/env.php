@@ -83,18 +83,23 @@ function site_base_url(): string
 {
     $configured = env_value('SITE_BASE_URL');
     if (is_string($configured) && trim($configured) !== '') {
-        $configured = str_replace(
-            ['http://freecasinogames.ph', 'https://freeonlinegames.info', 'http://freeonlinegames.info'],
-            ['[insert_domain_here]', '[insert_domain_here]', '[insert_domain_here]'],
-            trim($configured)
-        );
-
-        return rtrim($configured, '/');
+        return rtrim(trim($configured), '/');
     }
 
     require_once __DIR__ . '/seo-settings.php';
     $configured = seo_stored_settings()['site_base_url'] ?? '';
-    return $configured !== '' ? rtrim($configured,'/') : '[insert_domain_here]';
+    return $configured !== '' ? rtrim($configured, '/') : '';
+}
+
+// Resolve legacy template domains using the deployment's configured URL.
+function site_replace_domain_placeholders(string $value, ?string $baseUrl = null): string
+{
+    $baseUrl = rtrim($baseUrl ?? site_base_url(), '/');
+    return strtr($value, array_fill_keys(
+        ['https://[insert_domain_here]', 'http://[insert_domain_here]', '//[insert_domain_here]', '[insert_domain_here]',
+         'http://freecasinogames.ph', 'https://freeonlinegames.info', 'http://freeonlinegames.info', 'https://bygame.ph'],
+        $baseUrl
+    ));
 }
 
 function public_url(string $url, ?string $baseUrl = null): string
@@ -104,16 +109,14 @@ function public_url(string $url, ?string $baseUrl = null): string
         return '';
     }
 
+    $url = site_replace_domain_placeholders($url, $baseUrl);
+
     if (
         str_starts_with($url, '#')
         || str_starts_with($url, '//')
         || preg_match('/^(?:https?:|mailto:|tel:|javascript:|data:|blob:)/i', $url) === 1
     ) {
-        return str_replace(
-            ['http://freecasinogames.ph', 'https://freeonlinegames.info', 'http://freeonlinegames.info'],
-            ['[insert_domain_here]', '[insert_domain_here]', '[insert_domain_here]'],
-            $url
-        );
+        return $url;
     }
 
     $baseUrl = rtrim($baseUrl ?? site_base_url(), '/');
@@ -123,11 +126,7 @@ function public_url(string $url, ?string $baseUrl = null): string
 function public_html_absolute_urls(string $html, ?string $baseUrl = null): string
 {
     $baseUrl = rtrim($baseUrl ?? site_base_url(), '/');
-    $html = str_replace(
-        ['http://freecasinogames.ph', 'https://freeonlinegames.info', 'http://freeonlinegames.info'],
-        [$baseUrl, $baseUrl, $baseUrl],
-        $html
-    );
+    $html = site_replace_domain_placeholders($html, $baseUrl);
 
     $absoluteAttribute = static function (array $matches) use ($baseUrl): string {
         $attribute = $matches[1];

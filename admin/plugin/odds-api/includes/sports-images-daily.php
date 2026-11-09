@@ -5,13 +5,12 @@ require_once __DIR__ . '/sports-images.php';
 /** Run bounded, resumable batches. Dependencies are injectable for offline regression checks. */
 function sports_images_daily(array $options = [], ?callable $batch = null, ?callable $logger = null, ?callable $wait = null): array
 {
-    $maxImages = (int)($options['max_images'] ?? 100);
-    $maxItems = (int)($options['max_items'] ?? 1000);
-    $maxSeconds = (int)($options['max_seconds'] ?? 1800);
-    $batchSize = (int)($options['batch_size'] ?? 25);
+    $maxItems = (int)($options['max_items'] ?? 0);
+    $maxSeconds = (int)($options['max_seconds'] ?? 0);
+    $batchSize = (int)($options['batch_size'] ?? 100);
     $pauseMs = (int)($options['pause_ms'] ?? 1000);
-    if ($maxImages < 1 || $maxImages > 100000 || $maxItems < 1 || $maxItems > 100000 || $maxSeconds < 1 || $maxSeconds > 86400 || $batchSize < 1 || $batchSize > 25 || $pauseMs < 0 || $pauseMs > 5000) {
-        throw new InvalidArgumentException('Invalid limits: max-items 1–100000, max-seconds 1–86400, batch-size 1–25, pause-ms 0–5000.');
+    if ($maxItems < 0 || $maxItems > 100000 || $maxSeconds < 0 || $maxSeconds > 86400 || $batchSize < 1 || $batchSize > 100 || $pauseMs < 0 || $pauseMs > 5000) {
+        throw new InvalidArgumentException('Invalid limits: max-items 0–100000, max-seconds 0–86400, batch-size 1–100, pause-ms 0–5000.');
     }
     $storage = blog_storage_dir();
     if (!is_dir($storage) && !mkdir($storage,0700,true) && !is_dir($storage)) throw new RuntimeException('Storage directory unavailable.');
@@ -43,6 +42,26 @@ function sports_images_daily(array $options = [], ?callable $batch = null, ?call
         }
     };
     try {
+        $checklistFile = $storage.'/sports-images-checklist.json';
+        $completed = [];
+        if (is_file($checklistFile)) {
+            $saved = json_decode((string)file_get_contents($checklistFile), true);
+            if (!is_array($saved) || ($saved['version'] ?? null) !== 1 || !is_array($saved['completed'] ?? null)) {
+                throw new RuntimeException('Invalid sports image checklist; restore the file before retrying.');
+            }
+            $completed = $saved['completed'];
+        }
+        $markCompleted = static function(string $type, int $id, string $status) use (&$completed, $checklistFile, $storage): void {
+            $completed[$type.':'.$id] = ['status'=>$status,'checked_at'=>time()];
+            $json = json_encode(['version'=>1,'completed'=>$completed], JSON_THROW_ON_ERROR);
+            $tmp = tempnam($storage, '.sports-checklist-');
+            if ($tmp === false) throw new RuntimeException('Cannot create sports image checklist.');
+            try {
+                if (!chmod($tmp,0600) || file_put_contents($tmp,$json) !== strlen($json) || !rename($tmp,$checklistFile)) {
+                    throw new RuntimeException('Cannot save sports image checklist.');
+                }
+            } finally { if (is_file($tmp)) unlink($tmp); }
+        };
         $cooldownFile = $storage.'/sports-images-cooldown.json';
         $cooldown = is_file($cooldownFile) ? json_decode((string)file_get_contents($cooldownFile), true) : [];
         $retryAt = (int)($cooldown['retry_at'] ?? 0);
@@ -65,10 +84,10 @@ function sports_images_daily(array $options = [], ?callable $batch = null, ?call
             $summary['wait_seconds']=1800;
         };
         $started=time();
-        $deadline=microtime(true)+$maxSeconds;
+        $deadline=$maxSeconds > 0 ? microtime(true)+$maxSeconds : INF;
         $id=$options['tournament_id'] ?? null;
-        $batchOptions=['checked_since'=>$started,'active_only'=>true];
-        $log(['event'=>'start','tournament_id'=>$id,'max_images'=>$maxImages,'max_items'=>$maxItems,'max_seconds'=>$maxSeconds]);
+        $batchOptions=['checked_since'=>$started,'active_only'=>true,'retry'=>true,'batch_seconds'=>0,'on_completed'=>$markCompleted];
+        $log(['event'=>'start','tournament_id'=>$id,'max_items'=>$maxItems,'max_seconds'=>$maxSeconds]);
         $waitForProvider = static function() use ($rateLimited, $wait, $log, &$summary, &$deadline): void {
             $rateLimited();
             $log(['event'=>'waiting','message'=>'HTTP 429: waiting 30 minutes, then retrying automatically.']+$summary);
@@ -90,9 +109,10 @@ function sports_images_daily(array $options = [], ?callable $batch = null, ?call
             }
             $batch='sports_images_enrich';
         }
-        while ($summary['enriched'] < $maxImages && $summary['processed'] < $maxItems && microtime(true)<$deadline) {
-            $batchOptions['limit']=min($batchSize,$maxItems-$summary['processed'],$maxImages-$summary['enriched']);
+        while (($maxItems === 0 || $summary['processed'] < $maxItems) && microtime(true)<$deadline) {
+            $batchOptions['limit']=$maxItems > 0 ? min($batchSize,$maxItems-$summary['processed']) : $batchSize;
             $batchOptions['deadline']=$deadline;
+            $batchOptions['completed']=$completed;
             $result=$batch($id,$batchOptions);
             $summary['batches']++;
             foreach (['processed','enriched','sportsdataverse','wikimedia','unmatched','image_failures'] as $key) $summary[$key]+=(int)($result[$key] ?? 0);
@@ -101,12 +121,11 @@ function sports_images_daily(array $options = [], ?callable $batch = null, ?call
             $log(['event'=>'batch','number'=>$summary['batches'],'processed'=>$result['processed'],'enriched'=>$result['enriched'],
                 'unmatched'=>$result['unmatched'],'image_failures'=>$result['image_failures'],'remaining'=>$summary['remaining'],'skipped_existing'=>$summary['skipped_existing'],'skipped_manual'=>$summary['skipped_manual'],'deferred'=>$summary['deferred'],'errors'=>$result['errors'] ?? []]);
             if (!empty($result['stopped'])) { $waitForProvider();continue; }
-            if ($summary['enriched'] >= $maxImages) { $summary['status']='image_target';break; }
             if ($summary['remaining']===0) { $summary['status']='complete';break; }
             if ((int)$result['processed']===0) { $summary['status']=microtime(true)>=$deadline?'time_limit':'no_progress';break; }
-            if ($summary['processed']<$maxItems && microtime(true)<$deadline) usleep((int)(min($pauseMs/1000,max(0,$deadline-microtime(true)))*1000000));
+            if (($maxItems === 0 || $summary['processed']<$maxItems) && microtime(true)<$deadline) usleep((int)(min($pauseMs/1000,max(0,$deadline-microtime(true)))*1000000));
         }
-        if ($summary['status']==='running') $summary['status']=$summary['processed']>=$maxItems?'item_limit':'time_limit';
+        if ($summary['status']==='running') $summary['status']=$maxItems > 0 && $summary['processed']>=$maxItems?'item_limit':'time_limit';
         $log(['event'=>'finish','elapsed_seconds'=>time()-$started]+$summary);
         return $summary;
     } finally { flock($lock,LOCK_UN);fclose($lock); }

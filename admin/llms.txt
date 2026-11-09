@@ -4,30 +4,30 @@
 
 ## Main Pages
 
-- [Home]([insert_domain_here]/): Website overview and game discovery.
-- [Slots]([insert_domain_here]/slots/): Free slot games.
-- [Arcade]([insert_domain_here]/arcade/): Arcade-style casino games.
-- [Perya Games]([insert_domain_here]/perya-games/): Perya and carnival-style games.
-- [Live Casino]([insert_domain_here]/live-casino/): Live casino game information.
-- [Card Games]([insert_domain_here]/card-games/): Card and table games.
-- [Virtual Sports]([insert_domain_here]/virtual-sports-betting/): Virtual sports game information.
-- [Search]([insert_domain_here]/search/): Search the game catalog.
+- [Home](https://bygame.ph/): Website overview and game discovery.
+- [Slots](https://bygame.ph/slots/): Free slot games.
+- [Arcade](https://bygame.ph/arcade/): Arcade-style casino games.
+- [Perya Games](https://bygame.ph/perya-games/): Perya and carnival-style games.
+- [Live Casino](https://bygame.ph/live-casino/): Live casino game information.
+- [Card Games](https://bygame.ph/card-games/): Card and table games.
+- [Virtual Sports](https://bygame.ph/virtual-sports-betting/): Virtual sports game information.
+- [Search](https://bygame.ph/search/): Search the game catalog.
 
 ## Games
 
-- [Sitemap Index]([insert_domain_here]/sitemap-index.xml): Page, blog, and game sitemaps; game chunks list processed, published games excluding Philippines restrictions.
+- [Sitemap Index](https://bygame.ph/sitemap-index.xml): Page, blog, and game sitemaps; game chunks list processed, published games excluding Philippines restrictions.
 
 ## Blog
 
-- [Blog]([insert_domain_here]/blog/): Game guides and informational articles.
+- [Blog](https://bygame.ph/blog/): Game guides and informational articles.
 
 ## About and Trust
 
-- [About Us]([insert_domain_here]/about-us/): Website background and purpose.
-- [Responsible Gaming]([insert_domain_here]/responsible-gaming/): Responsible gaming information and support.
-- [Terms and Conditions]([insert_domain_here]/terms-and-conditions/): Terms for using the website.
-- [Contact]([insert_domain_here]/contact/): Contact and support information.
+- [About Us](https://bygame.ph/about-us/): Website background and purpose.
+- [Responsible Gaming](https://bygame.ph/responsible-gaming/): Responsible gaming information and support.
+- [Terms and Conditions](https://bygame.ph/terms-and-conditions/): Terms for using the website.
+- [Contact](https://bygame.ph/contact/): Contact and support information.
 
 ## Partners
 
-- [Become a Partner]([insert_domain_here]/become-a-partner/): Partnership information and inquiries.
+- [Become a Partner](https://bygame.ph/become-a-partner/): Partnership information and inquiries.
