@@ -59,7 +59,7 @@ You can skip releases when the server already uses **`admin/includes/blog-storag
 
 If the server uses an older root-level backend layout, migrate its runtime data and `.env` to the correct locations first. The updater stops rather than guesses which database to use. Preserve the server's `APP_STORAGE_DIR` setting when configured.
 
-For Nginx, retain rules blocking private paths such as `admin/storage`, `admin/includes`, `admin/scripts`, `admin/chats`, `admin/data`, `admin/update-packages`, and hidden files. Nginx does not read `.htaccess`.
+For Nginx, retain rules blocking private paths such as `admin/storage`, `admin/includes`, `admin/scripts`, `admin/test`, `admin/chats`, `admin/data`, `admin/update-packages`, and hidden files. Nginx does not read `.htaccess`.
 
 ## Games module database update
 

@@ -52,7 +52,7 @@ and uploads remain in their separate directories. Schema definitions live in
 `/includes`, not in runtime storage. PHP with PDO SQLite and a writable storage
 parent (or configured storage directory) is required.
 
-Run `php admin/scripts/test-fresh-storage.php` to check missing and empty storage,
+Run `php admin/test/test-fresh-storage.php` to check missing and empty storage,
 schema creation, public list/settings handlers, and preservation of existing data
 in an isolated source-only copy.
 
@@ -139,7 +139,7 @@ On first initialization, migration takes an exclusive application lock, creates 
 
 The Games switch defaults to enabled. When disabled, shared public eligibility excludes all games, cached list responses cannot bypass the switch, details return not found, game demos disappear, and game sitemap chunks are removed. Imports and enrichment jobs skip new work; Python enrichment also checks before each game and before saving. Admin editing stays available. A new successful enrichment still sets `done_processing=1`, and the daily job selects at most 20 unfinished records.
 
-Regression checks: `php admin/scripts/test-game-storage.php`, `php admin/scripts/test-game-visibility.php`, and `php admin/scripts/test-fresh-storage.php`. Use a valid `SITE_BASE_URL` when testing public absolute URLs.
+Regression checks: `php admin/test/test-game-storage.php`, `php admin/test/test-game-visibility.php`, and `php admin/test/test-fresh-storage.php`. Use a valid `SITE_BASE_URL` when testing public absolute URLs.
 
 ### Optional plugins
 

@@ -179,10 +179,10 @@ Connect to `/chat-ws`; authenticate within five seconds by sending:
 ## Verification
 
 ```sh
-php admin/scripts/test-chat-realtime.php
-php admin/scripts/test-chat-auto-responses.php
-php admin/scripts/test-admin-support.php
-node admin/scripts/chat-socket/test.mjs
+php admin/test/test-chat-realtime.php
+php admin/test/test-chat-auto-responses.php
+php admin/test/test-admin-support.php
+node admin/test/test-chat-socket.mjs
 ```
 
 Tests use temporary databases/chat files and a local mock Ollama server. They cover session access, legacy-write rejection, origin checks, message retries, AI eligibility and races, retry delays, WebSocket AI/human delivery, and presence expiry. The HTTP/WebSocket test requires permission to bind localhost ports.

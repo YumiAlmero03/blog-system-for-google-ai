@@ -260,6 +260,8 @@ function blogs_schema(PDO $pdo): void
     }
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_blog_posts_updated_at ON blog_posts(updated_at DESC)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_blog_posts_status_updated_at ON blog_posts(status, updated_at DESC)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_blog_posts_published_at ON blog_posts(published_at DESC)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_blog_posts_status_published_at ON blog_posts(status, published_at DESC)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_blog_posts_scheduled_at ON blog_posts(status, scheduled_at)');
     $pdo->exec(
         'CREATE TABLE IF NOT EXISTS blog_categories (
@@ -1146,7 +1148,7 @@ function blog_add_internal_link_metrics(PDO $pdo, array $items): array
     return $items;
 }
 
-function blogs_page(int $count, int $page, ?string $category = null, ?string $status = null, ?string $search = null): array
+function blogs_page(int $count, int $page, ?string $category = null, ?string $status = null, ?string $search = null, ?string $orderBy = 'publish_date'): array
 {
     $count = max(1, min(100, $count));
     $page = max(1, $page);
@@ -1186,6 +1188,19 @@ function blogs_page(int $count, int $page, ?string $category = null, ?string $st
     $totalStmt->execute($params);
     $total = (int) $totalStmt->fetchColumn();
 
+    $orderSql = match ($orderBy) {
+        'publish_date_asc' => 'COALESCE(p.published_at, p.scheduled_at, p.created_at) ASC, p.created_at ASC',
+        'updated_at' => 'p.updated_at DESC, p.created_at DESC',
+        'updated_at_asc' => 'p.updated_at ASC, p.created_at ASC',
+        'created_at' => 'p.created_at DESC',
+        'created_at_asc' => 'p.created_at ASC',
+        'title' => 'p.title COLLATE NOCASE ASC, p.created_at DESC',
+        'title_desc' => 'p.title COLLATE NOCASE DESC, p.created_at DESC',
+        'views' => 'views DESC, COALESCE(p.published_at, p.scheduled_at, p.created_at) DESC',
+        'likes' => 'likes DESC, COALESCE(p.published_at, p.scheduled_at, p.created_at) DESC',
+        default => 'COALESCE(p.published_at, p.scheduled_at, p.created_at) DESC, p.created_at DESC',
+    };
+
     $stmt = $pdo->prepare(
         'SELECT p.*,
             SUM(CASE WHEN e.action = "view" THEN 1 ELSE 0 END) AS views,
@@ -1195,7 +1210,7 @@ function blogs_page(int $count, int $page, ?string $category = null, ?string $st
          LEFT JOIN blog_engagements e ON e.post_id = p.id' .
          $whereSql .
         ' GROUP BY p.id
-          ORDER BY  p.created_at DESC
+          ORDER BY ' . $orderSql . '
           LIMIT :limit OFFSET :offset'
     );
     foreach ($params as $key => $value) {
@@ -1213,6 +1228,7 @@ function blogs_page(int $count, int $page, ?string $category = null, ?string $st
         'page' => $page,
         'category' => $category,
         'search' => $search,
+        'orderBy' => $orderBy ?? 'publish_date',
         'totalPages' => max(1, (int) ceil($total / $count)),
     ];
 }

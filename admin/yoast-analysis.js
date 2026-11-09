@@ -7,6 +7,11 @@
     template.innerHTML = String(html || '').replace(/<br\s*\/?\s*>|<\/(?:p|div|li|h[1-6])>/gi, ' ');
     return (template.content.textContent || '').replace(/\s+/g, ' ').trim();
   };
+  const fold = s => String(s || '')
+    .replace(/[\u2018\u2019\u201A\u201B\u2032]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u201F\u2033]/g, '"')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/\u00A0/g, ' ');
   function checkState(score) {
     if (!Number.isFinite(score) || score <= 0) return 'neutral';
     const normalized = score > 10 ? score / 10 : score;
@@ -19,9 +24,10 @@
     if (typeof assessor?.getResults === 'function') return assessor.getResults();
     return [];
   }
-  function checks(items) {
-    if (!Array.isArray(items)) return [];
-    return items.flatMap((result, index) => {
+  function checks(items, sourceText = '') {
+    const list = Array.isArray(items) ? items : results(items);
+    const textSource = sourceText || (typeof items?._lastPaper?.getText === 'function' ? items._lastPaper.getText() : '');
+    return list.flatMap((result, index) => {
       if (typeof result?.hasScore === 'function' && !result.hasScore()) return [];
       if (typeof result?.hasText === 'function' && !result.hasText()) return [];
       const label = plain(value(result, 'getText', 'text', ''));
@@ -31,14 +37,20 @@
       const passages = Array.isArray(marks) ? marks.flatMap(mark => {
         const fields = value(mark, 'getFieldsToMark', 'fieldsToMark', []);
         if (fields.length && !fields.includes('text')) return [];
-        const text = plain(value(mark, 'getOriginal', 'original', mark?._properties?.original || ''));
+        let text = plain(value(mark, 'getOriginal', 'original', mark?._properties?.original || ''));
+        if (!text && textSource) {
+          const pos = typeof mark?.getPosition === 'function' ? mark.getPosition() : mark?._properties?.position;
+          if (pos && typeof pos.startOffset === 'number' && typeof pos.endOffset === 'number') {
+            text = plain(textSource.slice(pos.startOffset, pos.endOffset));
+          }
+        }
         return text ? [text] : [];
       }) : [];
       return [{ id: String(value(result, 'getIdentifier', '_identifier', index)), label, state: checkState(score), passages }];
     });
   }
   function ranges(root, passages) {
-    if (!root) return [];
+    if (!root || !Array.isArray(passages) || !passages.length) return [];
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
       acceptNode(node) {
         const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
@@ -62,21 +74,38 @@
         text += char; positions.push({ node, offset });
       }
     }
+    const foldedText = fold(text);
     const found = [], seen = new Set();
     for (const passage of new Set(passages)) {
       const needle = passage.replace(/\s+/g, ' ').trim();
       if (!needle) continue;
-      let offset = 0, start;
-      while ((start = text.indexOf(needle, offset)) !== -1) {
-        const end = start + needle.length - 1;
-        const key = `${start}:${end}`;
-        if (positions[start] && positions[end] && !seen.has(key)) {
-          const range = document.createRange();
-          range.setStart(positions[start].node, positions[start].offset);
-          range.setEnd(positions[end].node, positions[end].offset + 1);
-          found.push(range); seen.add(key);
+      const foldedNeedle = fold(needle);
+      const candidates = [foldedNeedle];
+      const stripped = foldedNeedle.replace(/^[.,:;!?'"“”‘’()\[\]]+|[.,:;!?'"“”‘’()\[\]]+$/g, '').trim();
+      if (stripped && stripped !== foldedNeedle && stripped.length >= 10) {
+        candidates.push(stripped);
+      }
+      for (const target of candidates) {
+        let offset = 0, start;
+        let matched = false;
+        while ((start = foldedText.indexOf(target, offset)) !== -1) {
+          const end = start + target.length - 1;
+          let startPos = start;
+          while (startPos <= end && !positions[startPos]) startPos++;
+          let endPos = end;
+          while (endPos >= startPos && !positions[endPos]) endPos--;
+          const key = `${startPos}:${endPos}`;
+          if (positions[startPos] && positions[endPos] && !seen.has(key)) {
+            const range = document.createRange();
+            range.setStart(positions[startPos].node, positions[startPos].offset);
+            range.setEnd(positions[endPos].node, positions[endPos].offset + 1);
+            found.push(range);
+            seen.add(key);
+            matched = true;
+          }
+          offset = start + target.length;
         }
-        offset = start + needle.length;
+        if (matched) break;
       }
     }
     return found;

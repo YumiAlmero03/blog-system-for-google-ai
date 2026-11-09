@@ -15,7 +15,7 @@ GSC_SERVICE_ACCOUNT_FILE=/private/server/path/search-console-service-account.jso
 GSC_PROPERTY=sc-domain:freecasinogames.ph
 ```
 
-Use the exact property registered in Search Console. URL-prefix properties are also supported, for example `[insert_domain_here]/` (trailing slash required). Saved settings take precedence; removing credentials also disables the legacy file fallback. If neither a saved property nor `GSC_PROPERTY` exists, the worker uses the existing SEO website URL, respecting `SITE_BASE_URL` precedence. The site origin is always the existing SEO website URL; sitemap discovery starts at its `/sitemap-index.xml`.
+Use the exact property registered in Search Console. URL-prefix properties are also supported, for example `https://bygame.ph/` (trailing slash required). Saved settings take precedence; removing credentials also disables the legacy file fallback. If neither a saved property nor `GSC_PROPERTY` exists, the worker uses the existing SEO website URL, respecting `SITE_BASE_URL` precedence. The site origin is always the existing SEO website URL; sitemap discovery starts at its `/sitemap-index.xml`.
 
 PHP needs PDO SQLite, DOM, cURL and OpenSSL. No Composer packages are required. Inspection and connection tests request `webmasters.readonly`; sitemap submission requests `webmasters`. Access tokens are held in process memory; key material and raw Google responses are not stored in SQLite.
 
@@ -69,7 +69,7 @@ This inspects Google's stored index information. It neither submits URLs for ind
 ## Verification
 
 ```sh
-php admin/scripts/test-index-checker.php
+php admin/test/test-index-checker.php
 ```
 
 Tests use temporary SQLite storage, sitemap fixtures, a temporary signing key, mocked Google transports and the existing isolated admin handler harness. They do not require production credentials or consume Google quota. Live credentials, property access and server cron execution must be verified after setup.
@@ -86,4 +86,4 @@ Super users configure **SEO Settings → IndexNow**: enable/disable, save an exi
 
 The existing cron sends at most 10,000 pending IndexNow URLs per batch. HTTP 200/202 clears only the submitted versions; concurrent edits remain queued. Failures retain notifications with exponential backoff (10 minutes to one day), honoring longer `Retry-After` values. HTTP 400/403/422 waits at least one day; saving a replacement key or enabling IndexNow resets the retry delay. A worker lock prevents overlapping IndexNow batches. A Google sitemap failure has its own one-hour-to-one-day backoff. No ordinary content is sent to Google's Indexing API.
 
-Tests: `php admin/scripts/test-indexnow.php`, `php admin/scripts/test-google-credentials.php`, and `php admin/scripts/test-index-checker.php`. Remote engine responses are mocked.
+Tests: `php admin/test/test-indexnow.php`, `php admin/test/test-google-credentials.php`, and `php admin/test/test-index-checker.php`. Remote engine responses are mocked.

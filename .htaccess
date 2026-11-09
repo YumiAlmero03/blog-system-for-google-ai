@@ -23,7 +23,7 @@ Options -Indexes
     RewriteRule ^\.(?:git|gitignore|htaccess)(?:/|$) - [F,L]
 
     # Backend runtime/configuration is never served directly.
-    RewriteRule ^admin/(?:includes|scripts|storage|chats|data|update-packages|\.github|\.vscode)(?:/|$) - [F,L]
+    RewriteRule ^admin/(?:includes|scripts|test|storage|chats|data|update-packages|\.github|\.vscode)(?:/|$) - [F,L]
     RewriteRule ^admin/games/(?:includes|scripts)(?:/|$) - [F,L]
     RewriteRule ^admin/sports-livescore/(?:includes|scripts)(?:/|$) - [F,L]
     RewriteRule ^admin/sports-livescore/.*\.md$ - [F,L]

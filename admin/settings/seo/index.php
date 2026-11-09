@@ -61,7 +61,7 @@ $fields = ['website_name'=>'Website Name','website_url'=>'Website URL','google_a
 <?php if ($key === 'default_meta_description'): ?>
 <textarea id="<?= h($key) ?>" name="<?= h($key) ?>" maxlength="500" rows="3"><?= h($settings[$key]) ?></textarea>
 <?php else: ?>
-<input id="<?= h($key) ?>" name="<?= h($key) ?>" value="<?= h($settings[$key]) ?>" style="width:100%;max-width:720px" maxlength="<?= in_array($key,['website_url','default_og_image'],true) ? 2048 : ($key === 'google_search_console_verification' ? 512 : ($key === 'default_seo_title' ? 200 : ($key === 'google_analytics_id' ? 32 : 120))) ?>" <?= in_array($key,['website_name','website_url'],true) ? 'required' : '' ?> <?= $key === 'website_url' && env_value('SITE_BASE_URL') ? 'readonly' : '' ?>>
+<input id="<?= h($key) ?>" name="<?= h($key) ?>" value="<?= h($settings[$key]) ?>" style="width:100%;max-width:720px" maxlength="<?= in_array($key,['website_url','default_og_image'],true) ? 2048 : ($key === 'google_search_console_verification' ? 512 : ($key === 'default_seo_title' ? 200 : ($key === 'google_analytics_id' ? 32 : 120))) ?>" <?= $key === 'website_url' && env_value('SITE_BASE_URL') ? 'readonly' : '' ?>>
 <?php endif; ?>
 <?php if ($key === 'website_url' && env_value('SITE_BASE_URL')): ?><small>Controlled by SITE_BASE_URL for this environment.</small><?php endif; ?>
 <?php if ($key === 'google_search_console_verification'): ?><small>Enter the verification token, without the HTML meta tag.</small><?php endif; ?>
@@ -79,13 +79,13 @@ $fields = ['website_name'=>'Website Name','website_url'=>'Website URL','google_a
 <?php if (($_SESSION['user']['role'] ?? '') === 'super_user'): ?>
 <form method="post" enctype="multipart/form-data">
 <?= csrf_input() ?>
-<p><label>Search Console Property<br><input name="google_property" value="<?= h($googleStatus['property']) ?>" maxlength="2048" required style="width:100%;max-width:720px"></label></p>
+<p><label>Search Console Property<br><input name="google_property" value="<?= h($googleStatus['property'] ?: (seo_settings()['website_url'] ?? '')) ?>" placeholder="https://bygame.ph/ or sc-domain:bygame.ph" maxlength="2048" style="width:100%;max-width:720px"></label><br><small style="color:var(--text-muted);">Enter the exact property name from Google Search Console (e.g. <code>https://bygame.ph/</code> with trailing slash, or <code>sc-domain:bygame.ph</code> for Domain property).</small></p>
 <p><label>Service Account JSON<br><input type="file" name="service_account" accept=".json,application/json"></label></p>
-<p><small>Add the displayed service-account email to this property's Search Console permissions. Uploaded keys are never displayed.</small></p>
+<p><small>Add the displayed service-account email to this property's Search Console permissions (Settings → Users and permissions). Uploaded keys are stored privately and never displayed.</small></p>
 <button class="btn btn-primary btn-sm" name="google_action" value="save">Save / Replace Credentials</button>
 <button class="btn btn-secondary btn-sm" name="google_action" value="test" formnovalidate>Test Google Connection</button>
 <button class="btn btn-secondary btn-sm" name="google_action" value="queue" formnovalidate>Queue Sitemap Submission</button>
-<button class="btn btn-secondary btn-sm" name="google_action" value="remove">Remove Credentials</button>
+<button class="btn btn-secondary btn-sm" name="google_action" value="remove" formnovalidate>Remove Credentials</button>
 </form>
 <?php else: ?><p>Search Console Property: <?= h($googleStatus['property']) ?></p><?php endif; ?>
 </section>
