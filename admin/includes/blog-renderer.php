@@ -449,7 +449,9 @@ function public_blog_payload(array $post): array
         'content_html'=>$contentHtml,
         'countdown'=>$countdown,
         'countdown_html'=>$countdownHtml,
-        'featuredImage'=>public_detail_url(blog_display_image((string)$post['featuredImage'])),
+        // Keep API image fields as deployment-relative paths. Consumers can
+        // resolve them against their own asset origin when needed.
+        'featuredImage'=>blog_display_image((string)$post['featuredImage']),
         'blogUrl'=>public_url('/blog/' . rawurlencode($post['slug']) . '/'),
         'publishedAt'=>$post['publishedAt'] ?? $post['scheduledAt'], 'updatedAt'=>$post['updatedAt'],
         'readTime'=>blog_read_minutes($post['content']),
