@@ -181,15 +181,15 @@ require __DIR__ . '/../../../partials/support-head.php';
         <?php endif; ?>
         <?php foreach ($tournaments as $t): ?>
           <tr>
-            <td><code><strong><a href="/admin/plugin/odds-api/registry/tournaments/<?= (int) $t['id'] ?>/edit/"><?= h($t['odds_sport_key']) ?></a></strong></code></td>
+            <td><code><strong><a href="/admin/plugin/odds-api/registry/tournament-edit.php?id=<?= (int) $t['id'] ?>"><?= h($t['odds_sport_key']) ?></a></strong></code></td>
             <td>
-              <strong><a href="/admin/plugin/odds-api/registry/tournaments/<?= (int) $t['id'] ?>/edit/"><?= h($t['title']) ?></a></strong>
+              <strong><a href="/admin/plugin/odds-api/registry/tournament-edit.php?id=<?= (int) $t['id'] ?>"><?= h($t['title']) ?></a></strong>
               <?php if (!empty($t['enrich_api_url'])): ?>
                 <div style="font-size:0.75rem;color:var(--text-muted);font-family:monospace;" title="<?= h($t['enrich_api_url']) ?>">Enrich: <?= h($t['enrich_api_url']) ?></div>
               <?php endif; ?>
             </td>
             <td><small><?= h($t['description'] ?: '—') ?></small></td>
-            <td><a href="/admin/plugin/odds-api/registry/tournaments/<?= (int) $t['id'] ?>/edit/#participants"><strong><?= (int) $t['participants_count'] ?> participant(s)</strong></a></td>
+            <td><a href="/admin/plugin/odds-api/registry/tournament-edit.php?id=<?= (int) $t['id'] ?>#participants"><strong><?= (int) $t['participants_count'] ?> participant(s)</strong></a></td>
             <td><span class="badge <?= $t['active'] ? 'badge-on' : 'badge-off' ?>"><?= $t['active'] ? 'Active' : 'Inactive' ?></span></td>
             <td>
               <form method="post" style="margin:0;display:inline;">
@@ -202,7 +202,7 @@ require __DIR__ . '/../../../partials/support-head.php';
               </form>
             </td>
             <td>
-              <a class="btn btn-primary btn-sm" href="/admin/plugin/odds-api/registry/tournaments/<?= (int) $t['id'] ?>/edit/">Manage</a> ·
+              <a class="btn btn-primary btn-sm" href="/admin/plugin/odds-api/registry/tournament-edit.php?id=<?= (int) $t['id'] ?>">Manage</a> ·
               <form method="post" style="display:inline;margin:0;">
                 <?= csrf_input() ?>
                 <input type="hidden" name="action" value="sync_odds_participants">

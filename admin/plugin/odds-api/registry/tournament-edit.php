@@ -196,12 +196,12 @@ require __DIR__ . '/../../../partials/support-head.php';
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
         <span style="font-size:1.05rem;font-weight:700;">Diagnostic Information</span>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-          <form method="post" style="margin:0;">
+          <form method="post" action="/admin/plugin/odds-api/registry/tournament-edit.php?id=<?= $id ?>" style="margin:0;">
             <?= csrf_input() ?>
             <input type="hidden" name="action" value="sync_participants">
             <button type="submit" class="btn btn-primary btn-sm">👥 Sync Participants</button>
           </form>
-          <form method="post" style="margin:0;">
+          <form method="post" action="/admin/plugin/odds-api/registry/tournament-edit.php?id=<?= $id ?>" style="margin:0;">
             <?= csrf_input() ?>
             <input type="hidden" name="action" value="enrich_logos">
             <button type="submit" class="btn btn-secondary btn-sm" <?= empty($tournament['enrich_api_url']) ? 'title="Configure Enrich API URL in tournament settings"' : 'title="Fetch logos via API-Sports"' ?>>🖼️ Enrich Logos</button>
@@ -253,7 +253,7 @@ require __DIR__ . '/../../../partials/support-head.php';
     <!-- Edit Tournament Settings Card -->
     <div class="panel-card" style="margin-bottom:0;">
       <span style="font-size:1.05rem;font-weight:700;display:block;margin-bottom:12px;">Tournament Configuration</span>
-      <form method="post" class="user-form" style="display:grid;gap:12px;">
+      <form method="post" action="/admin/plugin/odds-api/registry/tournament-edit.php?id=<?= $id ?>" class="user-form" style="display:grid;gap:12px;">
         <?= csrf_input() ?>
         <input type="hidden" name="action" value="save">
 
@@ -327,12 +327,12 @@ require __DIR__ . '/../../../partials/support-head.php';
         </div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <form method="get" style="margin:0;display:flex;gap:6px;align-items:center;">
+        <form method="get" action="/admin/plugin/odds-api/registry/tournament-edit.php" style="margin:0;display:flex;gap:6px;align-items:center;">
           <input type="hidden" name="id" value="<?= $id ?>">
           <input type="search" name="q" value="<?= h($search) ?>" placeholder="Search participant..." style="padding:4px 8px;font-size:0.85rem;">
           <button type="submit" class="btn btn-secondary btn-sm">Search</button>
           <?php if ($search !== ''): ?>
-            <a href="/admin/plugin/odds-api/registry/tournaments/<?= $id ?>/edit/#participants" class="btn btn-secondary btn-sm">Reset</a>
+            <a href="/admin/plugin/odds-api/registry/tournament-edit.php?id=<?= $id ?>#participants" class="btn btn-secondary btn-sm">Reset</a>
           <?php endif; ?>
         </form>
       </div>
@@ -454,7 +454,7 @@ require __DIR__ . '/../../../partials/support-head.php';
     </div>
 
     <!-- Edit Form -->
-    <form method="post" enctype="multipart/form-data" style="margin-bottom:12px;">
+    <form method="post" action="/admin/plugin/odds-api/registry/tournament-edit.php?id=<?= $id ?>#participants" enctype="multipart/form-data" style="margin-bottom:12px;">
       <?= csrf_input() ?>
       <input type="hidden" name="action" value="save_participant">
       <input type="hidden" name="participant_id" id="modal-pid-upload" value="">
@@ -499,7 +499,7 @@ require __DIR__ . '/../../../partials/support-head.php';
     </form>
 
     <div style="display:flex;justify-content:flex-end;align-items:center;margin-top:8px;padding-top:10px;border-top:1px solid var(--border);">
-      <form method="post" style="margin:0;" onsubmit="return confirm('Remove logo for this participant?');">
+      <form method="post" action="/admin/plugin/odds-api/registry/tournament-edit.php?id=<?= $id ?>#participants" style="margin:0;" onsubmit="return confirm('Remove logo for this participant?');">
         <?= csrf_input() ?>
         <input type="hidden" name="action" value="remove_participant_image">
         <input type="hidden" name="participant_id" id="modal-pid-remove" value="">

@@ -5,6 +5,10 @@ require_once __DIR__ . '/admin/includes/blog-storage.php';
 
 function sitemap_base_url(): string
 {
+    $frontendUrl = env_value('FRONTEND_URL');
+    if (is_string($frontendUrl) && trim($frontendUrl) !== '') {
+        return rtrim(trim($frontendUrl), '/');
+    }
     return site_base_url();
 }
 
@@ -24,7 +28,7 @@ $posts = $stmt->fetchAll();
 echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
 echo "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n";
 echo "  <url>\n";
-echo "    <loc>" . sitemap_xml_escape($baseUrl . '/blog/') . "</loc>\n";
+echo "    <loc>" . sitemap_xml_escape($baseUrl . '/blogs/') . "</loc>\n";
 echo "    <changefreq>daily</changefreq>\n";
 echo "    <priority>0.8</priority>\n";
 echo "  </url>\n";

@@ -9,7 +9,7 @@ Storage is deliberately retained for reinstall: `games.sqlite`, `odds-api.sqlite
 
 Deploy the root `.htaccess` with the folders and adapters: it protects plugin internals and preserves legacy admin URLs and `/odds-api/` asset URLs. Existing public API paths and iframe IDs are unchanged.
 
-Checks: `php admin/scripts/test-plugin-removal.php`, `php admin/scripts/test-sports-api.php`, `php admin/scripts/test-odds-api.php`, `php admin/scripts/test-game-storage.php`, `php admin/scripts/test-game-visibility.php` and `php admin/scripts/test-public-details.php`.
+Checks: `php admin/test/test-plugin-removal.php`, `php admin/test/test-sports-api.php`, `php admin/test/test-odds-api.php`, `php admin/test/test-game-storage.php`, `php admin/test/test-game-visibility.php` and `php admin/test/test-public-details.php`.
 
 Public Games API implementations live in `admin/plugin/games/api/` (with canonical provider-list.php) and root `game-api/` (game.php, slot-list.php, provider-list.php adapter, game-play.php). Existing `/api/` and `/game-api/` URLs forward to the plugin endpoints and return JSON 404 when Games is uninstalled. Provider administration is located at `admin/plugin/games/providers/index.php` and `admin/plugin/games/providers.php` (with legacy shim at `admin/settings/providers/index.php`). The Games plugin supplies catalogue storage, provider settings, and shared helpers.
 

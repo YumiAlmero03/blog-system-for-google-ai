@@ -8,17 +8,7 @@ require_once __DIR__ . '/includes/default-image.php';
 
 require_auth();
 
-const SETTINGS_REPLACE_COLUMNS = [
-    'title' => 'Title',
-    'seo_title' => 'SEO title',
-    'category' => 'Category',
-    'author' => 'Author',
-    'excerpt' => 'Short excerpt',
-    'content' => 'Content',
-    'featured_image' => 'Featured image path',
-    'focus_keyphrase' => 'Focus keyphrase',
-    'date_label' => 'Date label',
-];
+require_once __DIR__ . '/includes/settings-replace.php';
 
 function settings_post_value(string $key, int $maxLength): string
 {
@@ -30,117 +20,9 @@ function settings_post_value(string $key, int $maxLength): string
     return strlen($value) > $maxLength ? substr($value, 0, $maxLength) : $value;
 }
 
-function settings_count_occurrences(string $haystack, string $needle): int
-{
-    if ($needle === '') {
-        return 0;
-    }
-
-    return substr_count($haystack, $needle);
-}
-
-function settings_find_matches(string $find): array
-{
-    $pdo = blogs_pdo();
-    $columnsSql = implode(', ', array_keys(SETTINGS_REPLACE_COLUMNS));
-    $stmt = $pdo->query('SELECT id, slug, ' . $columnsSql . ' FROM blog_posts ORDER BY updated_at DESC, created_at DESC');
-    $rows = $stmt->fetchAll();
-    $summary = [];
-    $totalMatches = 0;
-    $matchedRows = [];
-
-    foreach (SETTINGS_REPLACE_COLUMNS as $column => $label) {
-        $summary[$column] = [
-            'label' => $label,
-            'matches' => 0,
-            'rows' => 0,
-        ];
-    }
-
-    foreach ($rows as $row) {
-        $rowMatches = 0;
-        foreach (SETTINGS_REPLACE_COLUMNS as $column => $label) {
-            $matches = settings_count_occurrences((string) ($row[$column] ?? ''), $find);
-            if ($matches <= 0) {
-                continue;
-            }
-
-            $summary[$column]['matches'] += $matches;
-            $summary[$column]['rows']++;
-            $rowMatches += $matches;
-        }
-
-        if ($rowMatches > 0) {
-            $matchedRows[] = [
-                'id' => (string) ($row['id'] ?? ''),
-                'slug' => (string) ($row['slug'] ?? ''),
-                'title' => (string) ($row['title'] ?? ''),
-                'matches' => $rowMatches,
-            ];
-            $totalMatches += $rowMatches;
-        }
-    }
-
-    return [
-        'summary' => $summary,
-        'matchedRows' => $matchedRows,
-        'totalMatches' => $totalMatches,
-        'totalRows' => count($matchedRows),
-    ];
-}
-
-function settings_clear_blog_api_cache(): void
-{
-    $dir = blog_storage_dir() . '/api-cache';
-    if (!is_dir($dir)) {
-        return;
-    }
-
-    foreach (glob($dir . '/*.json') ?: [] as $path) {
-        if (is_file($path)) {
-            @unlink($path);
-        }
-    }
-}
-
-function settings_apply_replace(string $find, string $replace): array
-{
-    $before = settings_find_matches($find);
-    if ($before['totalMatches'] <= 0) {
-        return $before + ['changedColumns' => 0];
-    }
-
-    $pdo = blogs_pdo();
-    $pdo->beginTransaction();
-    try {
-        foreach (array_keys(SETTINGS_REPLACE_COLUMNS) as $column) {
-            $stmt = $pdo->prepare(
-                'UPDATE blog_posts
-                 SET ' . $column . ' = REPLACE(' . $column . ', :find_replace, :replace),
-                     updated_at = :updated_at
-                 WHERE INSTR(' . $column . ', :find_where) > 0'
-            );
-            $stmt->execute([
-                ':find_replace' => $find,
-                ':find_where' => $find,
-                ':replace' => $replace,
-                ':updated_at' => time(),
-            ]);
-        }
-        $pdo->commit();
-    } catch (Throwable $exception) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
-        throw $exception;
-    }
-
-    settings_clear_blog_api_cache();
-    return $before + ['changedColumns' => count(array_filter($before['summary'], static fn (array $item): bool => $item['matches'] > 0))];
-}
-
 $find = '';
 $replace = '';
+$database = 'blogs';
 $result = null;
 $notice = '';
 $noticeType = '';
@@ -150,7 +32,7 @@ $ignoredEngagementIps = blog_ignored_engagement_ips();
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     require_valid_csrf();
-    $action = settings_post_value('action', 20);
+    $action = settings_post_value('action', 64);
 
     if ($action === 'save_default_image' || $action === 'clear_default_image') {
         require_admin();
@@ -217,9 +99,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             $notice = 'Ignored IP addresses could not be saved.';
             $noticeType = 'error';
         }
-    } else {
+    } elseif ($action === 'preview' || $action === 'replace') {
         $find = settings_post_value('find', 2000);
         $replace = settings_post_value('replace', 2000);
+        $database = settings_post_value('database', 40) ?: 'blogs';
 
         if ($find === '') {
             $notice = 'Find text is required.';
@@ -231,14 +114,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                         $notice = 'Please confirm before replacing database text.';
                         $noticeType = 'error';
                     } else {
-                        $result = settings_apply_replace($find, $replace);
-                        $notice = 'Replace complete. Updated ' . (int) $result['totalMatches'] . ' match' . ((int) $result['totalMatches'] === 1 ? '' : 'es') . ' across ' . (int) $result['totalRows'] . ' post' . ((int) $result['totalRows'] === 1 ? '' : 's') . '.';
+                        $result = settings_apply_replace($find, $replace, $database);
+                        $notice = 'Replace complete. Updated ' . (int) $result['totalMatches'] . ' match' . ((int) $result['totalMatches'] === 1 ? '' : 'es') . ' across ' . (int) $result['totalRows'] . ' row' . ((int) $result['totalRows'] === 1 ? '' : 's') . '.';
                         $noticeType = 'ok';
                         csrf_rotate();
                     }
                 } else {
-                    $result = settings_find_matches($find);
-                    $notice = 'Preview found ' . (int) $result['totalMatches'] . ' match' . ((int) $result['totalMatches'] === 1 ? '' : 'es') . ' across ' . (int) $result['totalRows'] . ' post' . ((int) $result['totalRows'] === 1 ? '' : 's') . '.';
+                    $result = settings_find_matches($find, $database);
+                    $notice = 'Preview found ' . (int) $result['totalMatches'] . ' match' . ((int) $result['totalMatches'] === 1 ? '' : 'es') . ' across ' . (int) $result['totalRows'] . ' row' . ((int) $result['totalRows'] === 1 ? '' : 's') . '.';
                     $noticeType = 'ok';
                 }
             } catch (Throwable $exception) {
@@ -297,6 +180,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
       font-weight: 900;
       color: var(--brand-dark);
     }
+    .form-row select,
     .form-row textarea,
     .form-row input[type="text"],
     .form-row input[type="password"] {
@@ -381,7 +265,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         <div class="admin-header">
           <div>
             <h1 style="font-size:1.6rem; color:var(--brand-dark);">Settings</h1>
-            <p style="font-size:0.88rem; color:var(--text-muted);">Find and replace text across blog database fields.</p>
+            <p style="font-size:0.88rem; color:var(--text-muted);">Find and replace text across blog, games, sports, odds, and livescore databases.</p>
           </div>
           <a href="/admin/settings/seo/" class="btn btn-secondary btn-sm">SEO Settings</a>
           <a href="/admin/blogs.php" class="btn btn-secondary btn-sm">Back to Blogs</a>
@@ -414,7 +298,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             <?= csrf_input() ?>
             <div class="form-row">
               <label for="chat-ai-name">AI Chat Name</label>
-              <input type="text" id="chat-ai-name" name="chat_ai_name" maxlength="80" required value="<?= h($chatAiName) ?>">
+              <input type="text" id="chat-ai-name" name="chat_ai_name" maxlength="80" value="<?= h($chatAiName) ?>">
               <p style="font-size:0.82rem; color:var(--text-muted); margin:0;">Support waits three minutes before replying automatically. Follow-up replies have no added delay until a human agent takes over.</p>
             </div>
             <div class="actions">
@@ -425,7 +309,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             <?= csrf_input() ?>
             <div class="form-row">
               <label for="website-title">Website Title</label>
-              <input type="text" id="website-title" name="website_title" maxlength="120" required value="<?= h($websiteTitle) ?>">
+              <input type="text" id="website-title" name="website_title" maxlength="120" value="<?= h($websiteTitle) ?>">
             </div>
             <div class="actions">
               <button type="submit" name="action" value="save_website_title" class="btn btn-primary btn-sm">Save Website Title</button>
@@ -447,16 +331,27 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
           <form method="post" class="settings-card">
             <?= csrf_input() ?>
             <div class="form-row">
+              <label for="database">Content Database</label>
+              <select id="database" name="database">
+                <option value="all" <?= $database === 'all' ? 'selected' : '' ?>>All content databases</option>
+                <?php foreach (settings_replace_sources() as $key => $source): ?>
+                  <option value="<?= h($key) ?>" <?= $database === $key ? 'selected' : '' ?>><?= h($source['label']) ?></option>
+                <?php endforeach; ?>
+              </select>
+              <p style="font-size:0.82rem; color:var(--text-muted); margin:0;">Case-sensitive text matching. Covers content names, titles, descriptions, image/URL fields, and sports iframe button/link URLs (Livescore / Odds iframes). IDs, slugs, credentials, other JSON/API data, and caches are excluded. Only existing databases and tables are searched.</p>
+            </div>
+            <div class="form-row">
               <label for="find">Find</label>
-              <textarea id="find" name="find" maxlength="2000" required><?= h($find) ?></textarea>
+              <textarea id="find" name="find" maxlength="2000"><?= h($find) ?></textarea>
             </div>
             <div class="form-row">
               <label for="replace">Replace With</label>
               <textarea id="replace" name="replace" maxlength="2000"><?= h($replace) ?></textarea>
             </div>
+            <p style="font-size:0.82rem; margin-bottom:14px;"><a href="/admin/plugin/odds-api/sports/index.php">Edit sports iframe layouts and button URLs</a></p>
             <label style="display:flex; gap:8px; align-items:flex-start; font-size:0.86rem; color:var(--text-muted); margin-bottom:14px;">
               <input type="checkbox" name="confirm_replace" value="1">
-              <span>I understand this will update matching blog database fields. Blog IDs and slugs are not changed.</span>
+              <span>I understand this will update matching content fields in the selected databases. IDs and slugs are not changed.</span>
             </label>
             <div class="actions">
               <button type="submit" name="action" value="preview" class="btn btn-secondary btn-sm">Preview Matches</button>
@@ -487,17 +382,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
               </table>
 
               <?php if ($result['matchedRows'] !== []): ?>
-                <h3 style="font-size:1rem; color:var(--brand-dark); margin-top:16px;">Matched Posts</h3>
+                <h3 style="font-size:1rem; color:var(--brand-dark); margin-top:16px;">Matched Rows</h3>
                 <ul class="matched-list">
                   <?php foreach (array_slice($result['matchedRows'], 0, 50) as $row): ?>
                     <li>
                       <strong><?= h($row['title'] !== '' ? $row['title'] : $row['id']) ?></strong>
-                      <span style="color:var(--text-muted);">/blog/<?= h($row['slug']) ?>/ · <?= (int) $row['matches'] ?> match<?= (int) $row['matches'] === 1 ? '' : 'es' ?></span>
+                      <span style="color:var(--text-muted);"><?= h($row['source']) ?> · #<?= h($row['id']) ?> · <?= (int) $row['matches'] ?> match<?= (int) $row['matches'] === 1 ? '' : 'es' ?></span>
                     </li>
                   <?php endforeach; ?>
                 </ul>
-                <?php if (count($result['matchedRows']) > 50): ?>
-                  <p style="font-size:0.84rem; color:var(--text-muted); margin-top:10px;">Showing first 50 matched posts.</p>
+                <?php if ($result['totalRows'] > 50): ?>
+                  <p style="font-size:0.84rem; color:var(--text-muted); margin-top:10px;">Showing first 50 matched rows.</p>
                 <?php endif; ?>
               <?php endif; ?>
             </section>

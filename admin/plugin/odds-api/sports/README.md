@@ -35,7 +35,7 @@ Public `GET /api/sports-layout.php?id=N&sport=KEY` returns the saved projected l
 
 ## Verification
 
-Run `php admin/scripts/test-sports-api.php` and `php admin/scripts/test-odds-api.php` from the site root. Tests use isolated temporary storage and injected fixture transports; no real provider key or network is required. Browser integration additionally verifies authenticated Settings, discovery, nested insertion, native drag/drop, save/reload, escaped public output and mobile layout.
+Run `php admin/test/test-sports-api.php` and `php admin/test/test-odds-api.php` from the site root. Tests use isolated temporary storage and injected fixture transports; no real provider key or network is required. Browser integration additionally verifies authenticated Settings, discovery, nested insertion, native drag/drop, save/reload, escaped public output and mobile layout.
 
 ### Iframe and preview styling
 
@@ -55,6 +55,6 @@ Sports listing additionally requires at least one enabled saved layout for each 
 
 Admin/super-user `GET /admin/plugin/odds-api/sports/?action=download&id=ID|all` downloads a version-1 `sports-layouts` JSON file with layout titles, sport keys, API URL templates, root paths, columns, item limits, blocks, markets and bookmakers. Runtime data, installation IDs and provider settings are excluded; common credential query parameters are replaced with `{apiKey}`. Each saved row has Download; Download all exports all saved layouts.
 
-Authenticated multipart `POST` to the same page requires CSRF, `action=import` and `layout_file` (JSON, maximum 5 MB, 1–1000 layouts). Validation completes before writes; insertion is transactional. Imports always create new IDs switched OFF, preserving existing records. Success redirects to the first imported layout; invalid files return HTML errors (422). Review imported layouts, configure destination provider credentials and register the matching tournaments before enabling. Uses the existing `iframes` table; no schema changes. Regression: `php admin/scripts/test-sports-api.php`.
+Authenticated multipart `POST` to the same page requires CSRF, `action=import` and `layout_file` (JSON, maximum 5 MB, 1–1000 layouts). Validation completes before writes; insertion is transactional. Imports always create new IDs switched OFF, preserving existing records. Success redirects to the first imported layout; invalid files return HTML errors (422). Review imported layouts, configure destination provider credentials and register the matching tournaments before enabling. Uses the existing `iframes` table; no schema changes. Regression: `php admin/test/test-sports-api.php`.
 
 At iframe/preview widths of 640px or less, cards, nested loops and row fields stack vertically at full width. Desktop widths retain saved column/row settings. Mobile iframe headers also stack. Saved layout data is unchanged.

@@ -107,7 +107,8 @@ function chat_realtime_action(array $input): array
     $client = $input['client_id'] ?? '';
     if (!is_string($client) || !preg_match('/^[a-zA-Z0-9_-]{8,80}$/D',$client)) throw new InvalidArgumentException('A client_id of 8–80 letters, digits, hyphens or underscores is required.');
     $rules = $action === 'send' ? chat_auto_rules() : [];
-    chat_update_session($id,static function(array $row) use ($input,$action,$client,$rules,&$data): array {
+    $addedMessages = [];
+    chat_update_session($id,static function(array $row) use ($input,$action,$client,$rules,&$data,&$addedMessages): array {
         chat_realtime_authorize($row,$input['session_token'] ?? null);
         $now = time();
         $row['connections'] = array_filter($row['connections'] ?? [],static fn($seen): bool => is_int($seen) && $seen>$now-CHAT_ONLINE_TTL);
@@ -124,16 +125,20 @@ function chat_realtime_action(array $input): array
                 if ($message['text'] !== chat_clean_message($text)) throw new InvalidArgumentException('Message ID was already used.');
                 $data=$row; return $row;
             }
-            $row['messages'][] = ['id'=>bin2hex(random_bytes(16)),'sender'=>'user','text'=>chat_clean_message($text),
+            $message = ['id'=>bin2hex(random_bytes(16)),'sender'=>'user','text'=>chat_clean_message($text),
                 'time'=>date('c',$now),'type'=>'chat','clientMessageId'=>$requestId];
+            $row['messages'][] = $message;
+            $addedMessages[] = $message;
             $row['pendingSince'] ??= $now;
             $row['revision'] = ($row['revision'] ?? 0)+1;
             $row['aiLease'] = null;
             $row['autoReplyRuleIds'] = chat_auto_used_rule_ids($row);
             $rule = chat_auto_match($text,$rules,$row);
             if ($rule) {
-                $row['messages'][] = ['id'=>bin2hex(random_bytes(16)),'sender'=>'bot','text'=>$rule['response'],
+                $reply = ['id'=>bin2hex(random_bytes(16)),'sender'=>'bot','text'=>$rule['response'],
                     'time'=>date('c',$now),'type'=>'auto_response','ruleId'=>$rule['id']];
+                $row['messages'][] = $reply;
+                $addedMessages[] = $reply;
                 $row['pendingSince'] = null;
                 $row['autoReplyRuleIds'] = array_values(array_unique(array_merge($row['autoReplyRuleIds'], [$rule['id']])));
             }
@@ -142,5 +147,10 @@ function chat_realtime_action(array $input): array
         }
         $data=$row; return $row;
     },true);
-    return chat_realtime_view($data,chat_agent_presence());
+    $view = chat_realtime_view($data,chat_agent_presence());
+    if ($action === 'send' && $addedMessages !== []) {
+        $view['messages'] = $addedMessages;
+        $view['incremental'] = true;
+    }
+    return $view;
 }

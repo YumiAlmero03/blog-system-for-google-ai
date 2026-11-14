@@ -22,6 +22,8 @@ $writerOptions = writer_options();
   <link rel="preload" href="/admin/style.css" as="style"><link rel="stylesheet" href="/admin/style.css">
   <link rel="stylesheet" href="/admin/content-editor.css">
   <script src="/admin/content-editor.js"></script>
+  <link rel="stylesheet" href="/admin/tag-multiselect.css">
+  <script src="/admin/tag-multiselect.js"></script>
   <link rel="icon" href="/assets/favicon.svg">
   <style>
     .admin-container {
@@ -1588,7 +1590,7 @@ $writerOptions = writer_options();
     .yoast-check-list .dot.neutral { background:#98a2b3; }
     .yoast-highlight-check { display:block; margin-top:6px; }
     .yoast-highlight-check[aria-pressed="true"] { outline:2px solid var(--brand); }
-    ::highlight(blog-readability) { background-color:#ffe08a; color:#271c00; text-decoration:underline #b45309; }
+    ::highlight(blog-readability) { background-color:#ffe08a; color:#271c00; text-decoration:underline wavy #b45309 2px; -webkit-text-decoration:underline wavy #b45309 2px; }
     .yoast-analysis-icon.warn { background:#dba617; }
     .yoast-check-list .dot.warn {
       background: #dba617;
@@ -1674,6 +1676,7 @@ $writerOptions = writer_options();
     <form id="create-blog-form" method="post">
       <input type="hidden" name="csrf_token" id="csrf-token" value="<?= h(csrf_token()) ?>">
       <input type="hidden" id="editing-blog-id" name="id" value="">
+      <input type="file" id="blog-import-file" accept=".json,application/json" hidden>
 
       <header class="wp-editor-topbar">
         <div class="wp-toolbar-left">
@@ -1687,6 +1690,7 @@ $writerOptions = writer_options();
             <span class="autosave-dot"></span>
             <span id="autosave-message">All changes saved</span>
           </div>
+          <button type="button" id="import-post-btn" class="btn btn-secondary btn-sm">Import Post</button>
           <button type="submit" id="save-draft-btn" class="btn btn-secondary btn-sm" data-save-status="draft">Save as Draft</button>
           <button type="submit" id="publish-blog-btn" class="btn btn-primary" data-save-status="published">Publish</button>
           <button type="button" id="view-blog-page-btn" class="btn btn-secondary btn-sm" style="display:none;">View Page</button>
@@ -1878,10 +1882,9 @@ $writerOptions = writer_options();
                 </div>
                 <div class="form-group">
                   <label>Tags</label>
-                  <input type="hidden" name="tags_present" value="1">
-                  <div id="blog-tags">
-                    <?php foreach (blog_tags_all() as $tag): ?><label class="badge-tag"><input type="checkbox" name="tag_ids[]" value="<?= h($tag['id']) ?>"> <?= h($tag['name']) ?></label> <?php endforeach; ?>
-                  </div>
+                  <div id="blog-tags-multiselect"></div>
+                </div>
+                <div class="form-group">
                   <label for="blog-writer">Writer</label>
 
                   <select id="blog-writer" name="writer_id" class="form-control">
@@ -1970,8 +1973,12 @@ $writerOptions = writer_options();
       const initialEditId = <?= json_encode($initialEditId, JSON_UNESCAPED_SLASHES) ?>;
       const websiteTitle = <?= json_encode($websiteTitle, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
       const siteBaseUrl = <?= json_encode((string) (env_value('SITE_BASE_URL') ?: ''), JSON_UNESCAPED_SLASHES) ?>;
+      const frontendBaseUrl = <?= json_encode((string) (env_value('FRONTEND_URL') ?: ''), JSON_UNESCAPED_SLASHES) ?>;
+      const initialAllTags = <?= json_encode(blog_tags_all(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
       const form = document.getElementById('create-blog-form');
       const notice = document.getElementById('notice');
+      const importPostBtn = document.getElementById('import-post-btn');
+      const importPostFile = document.getElementById('blog-import-file');
       const title = document.getElementById('blog-title');
       const seoTitle = document.getElementById('blog-seo-title');
       const titlePreview = document.getElementById('blog-title-preview');
@@ -2003,6 +2010,18 @@ $writerOptions = writer_options();
       const categoryField = document.getElementById('blog-category');
       const writerField = document.getElementById('blog-writer');
       const authorField = document.getElementById('blog-author');
+      let tagMultiSelectInstance = null;
+      const tagsMount = document.getElementById('blog-tags-multiselect');
+      if (tagsMount && window.TagMultiSelect) {
+        tagMultiSelectInstance = new window.TagMultiSelect(tagsMount, {
+          tags: initialAllTags,
+          selectedIds: [],
+          placeholder: 'Select tags...',
+          onChange: () => {
+            if (typeof markDirty === 'function') markDirty();
+          }
+        });
+      }
       const slug = document.getElementById('blog-slug');
       const slugPreview = document.getElementById('slug-preview-text');
       const editingId = document.getElementById('editing-blog-id');
@@ -2010,6 +2029,50 @@ $writerOptions = writer_options();
       const publishBtn = document.getElementById('publish-blog-btn');
       const saveCurrentPostBtn = document.getElementById('save-current-post-btn');
       const viewBlogPageBtn = document.getElementById('view-blog-page-btn');
+      if (importPostBtn && importPostFile) {
+        importPostBtn.addEventListener('click', () => importPostFile.click());
+        importPostFile.addEventListener('change', async () => {
+          const file = importPostFile.files && importPostFile.files[0];
+          if (!file) return;
+          if (!file.name.toLowerCase().endsWith('.json') && file.type !== 'application/json') {
+            showNotice('Only JSON format is accepted. Please select a .json file.', 'error');
+            importPostFile.value = '';
+            return;
+          }
+          if (file.size <= 0 || file.size > 10 * 1024 * 1024) {
+            showNotice('Select a valid blog post JSON file up to 10 MB.', 'error');
+            importPostFile.value = '';
+            return;
+          }
+
+          importPostBtn.disabled = true;
+          showNotice('Importing post...', 'ok');
+
+          try {
+            const data = new FormData();
+            data.append('csrf_token', csrfToken);
+            data.append('import_file', file);
+
+            const response = await fetch('/admin/blog-import-post.php', {
+              method: 'POST',
+              headers: { 'Accept': 'application/json', 'X-Requested-With': 'fetch' },
+              body: data,
+            });
+            const result = await parseJsonResponse(response);
+            updateCsrf(result.csrfToken);
+            if (!response.ok || !result.ok) {
+              throw new Error(result.error || 'Post import failed.');
+            }
+            populateEditorFromBlog(result.blog, result.allTags, result.allCategories);
+            showNotice(`Post imported successfully: ${result.blog.title || 'Untitled'}`, 'ok');
+          } catch (error) {
+            showNotice(error.message || 'Post import failed.', 'error');
+          } finally {
+            importPostBtn.disabled = false;
+            importPostFile.value = '';
+          }
+        });
+      }
       const cancelBtn = document.getElementById('cancel-edit-btn');
       const formTitle = document.getElementById('form-title-text');
       const imageUpload = document.getElementById('blog-image-upload');
@@ -2255,9 +2318,10 @@ $writerOptions = writer_options();
         document.getElementById('csrf-token').value = value;
       }
 
+      const frontendBase = <?= json_encode(rtrim(trim((string) (env_value('FRONTEND_URL') ?? '')), '/')) ?>;
       function currentBlogPublicUrl() {
         const currentSlug = slug ? slugify(slug.value || '') : '';
-        return currentSlug ? `/blog/${encodeURIComponent(currentSlug)}/` : '';
+        return currentSlug ? `${frontendBase}/blog/${encodeURIComponent(currentSlug)}/` : '';
       }
 
       function currentBlogPreviewUrl() {
@@ -2465,38 +2529,6 @@ $writerOptions = writer_options();
         }
       }
 
-      function checkLocalStorageRecovery() {
-        try {
-          const raw = localStorage.getItem(getStorageKey());
-          if (!raw) return;
-          const draft = JSON.parse(raw);
-          if (!draft || (!draft.title && !draft.content)) return;
-
-          const isFormEmpty = (!title || !title.value.trim()) && (!blogContent || !blogContent.value.trim());
-          if (isFormEmpty && (draft.title || draft.content)) {
-            if (title && draft.title) title.value = draft.title;
-            if (slug && draft.slug) { slug.value = draft.slug; setText(slugPreview, draft.slug); }
-            if (seoTitle && draft.seoTitle) seoTitle.value = draft.seoTitle;
-            if (categoryField && draft.category) categoryField.value = draft.category;
-            if (authorField && draft.author) authorField.value = draft.author;
-            if (writerField && draft.writerId) writerField.value = draft.writerId;
-            if (excerpt && draft.excerpt) excerpt.value = draft.excerpt;
-            if (imageUrl && draft.imageUrl) setImage(draft.imageUrl);
-            if (focusKeyphrase && draft.focusKeyphrase) focusKeyphrase.value = draft.focusKeyphrase;
-            if (draft.content) {
-              setEditorMarkdown(draft.content);
-              resetEditorHistory(draft.content);
-              renderMarkdownPreview();
-            }
-            updateTitleDisplay();
-            updateExcerptCounter();
-            updateAutosaveIndicator('dirty', 'Restored draft (unsaved)');
-            showNotice('Restored unsaved draft from your browser.', 'ok');
-            isDirty = true;
-          }
-        } catch (e) {}
-      }
-
       function escapeHtml(value) {
         return (value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
       }
@@ -2536,6 +2568,8 @@ $writerOptions = writer_options();
         const ownHosts = new Set([window.location.hostname.toLowerCase()]);
         const configuredHost = linkHost(siteBaseUrl);
         if (configuredHost) ownHosts.add(configuredHost);
+        const frontendHost = linkHost(frontendBaseUrl);
+        if (frontendHost) ownHosts.add(frontendHost);
         return ownHosts.has(resolved.hostname.toLowerCase()) ? 'internal' : 'external';
       }
 
@@ -2617,8 +2651,8 @@ $writerOptions = writer_options();
         return Math.max(0, Math.min(100, Math.round(score)));
       }
 
-      function normalizeYoastChecks(results) {
-        return window.BlogYoastAnalysis.checks(results);
+      function normalizeYoastChecks(results, sourceText = '') {
+        return window.BlogYoastAnalysis.checks(results, sourceText);
       }
 
       function getYoastAssessorResults(assessor) {
@@ -2635,7 +2669,7 @@ $writerOptions = writer_options();
         }).join(''));
       }
 
-      function updateReadabilityHighlights() {
+      function updateReadabilityHighlights(shouldScroll = false) {
         window.CSS?.highlights?.delete('blog-readability');
         readabilityHighlightToggle.setAttribute('aria-pressed', String(readabilityHighlightMode !== null));
         readabilityHighlightToggle.textContent = readabilityHighlightMode === null ? 'Highlight readability issues' : 'Hide readability highlights';
@@ -2656,14 +2690,25 @@ $writerOptions = writer_options();
           && (readabilityHighlightMode === 'all' || check.id === readabilityHighlightMode)).flatMap(check => check.passages || []);
         const ranges = window.BlogYoastAnalysis.ranges(root, passages);
         window.CSS.highlights.set('blog-readability', new Highlight(...ranges));
-        setText(readabilityHighlightStatus, ranges.length ? `${ranges.length} passage${ranges.length === 1 ? '' : 's'} highlighted. Highlights are not saved.`
-          : 'No matching passages to highlight. Some checks apply to the whole article.');
+        if (ranges.length) {
+          setText(readabilityHighlightStatus, `${ranges.length} passage${ranges.length === 1 ? '' : 's'} highlighted. Highlights are not saved.`);
+          if (shouldScroll && ranges[0] && ranges[0].startContainer) {
+            const target = ranges[0].startContainer.nodeType === Node.ELEMENT_NODE
+              ? ranges[0].startContainer
+              : ranges[0].startContainer.parentElement;
+            if (target && typeof target.scrollIntoView === 'function') {
+              target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }
+        } else {
+          setText(readabilityHighlightStatus, 'No matching passages to highlight. Some checks apply to the whole article.');
+        }
       }
 
       readabilityHighlightToggle.addEventListener('click', () => {
         readabilityHighlightMode = readabilityHighlightMode === null ? 'all' : null;
         renderReadabilityChecks();
-        updateReadabilityHighlights();
+        updateReadabilityHighlights(true);
       });
       readabilityCheckList.addEventListener('click', event => {
         const button = event.target.closest('[data-readability-check]');
@@ -2672,7 +2717,7 @@ $writerOptions = writer_options();
         if (!check) return;
         readabilityHighlightMode = readabilityHighlightMode === 'all' || readabilityHighlightMode === check.id ? null : check.id;
         renderReadabilityChecks();
-        updateReadabilityHighlights();
+        updateReadabilityHighlights(true);
       });
 
       function getYoastOverallScore(assessor) {
@@ -2725,7 +2770,7 @@ $writerOptions = writer_options();
           textTitle: fields.titleText,
           titleWidth: measureSeoTitleWidth(fields.titleText),
           locale: 'en_US',
-          permalink: window.location.origin + '/blog/' + (fields.slugText || 'blog-article') + '/',
+          permalink: (frontendBaseUrl ? frontendBaseUrl.replace(/\/+$/, '') : window.location.origin) + '/blog/' + (fields.slugText || 'blog-article') + '/',
         });
         const researcher = new modules.EnglishResearcher(paper);
         const seoAssessor = new SeoAssessor(researcher);
@@ -2734,8 +2779,8 @@ $writerOptions = writer_options();
         seoAssessor.assess(paper);
         contentAssessor.assess(paper);
 
-        const yoastSeoChecks = normalizeYoastChecks(getYoastAssessorResults(seoAssessor));
-        const yoastReadabilityChecks = normalizeYoastChecks(getYoastAssessorResults(contentAssessor));
+        const yoastSeoChecks = normalizeYoastChecks(getYoastAssessorResults(seoAssessor), fields.html);
+        const yoastReadabilityChecks = normalizeYoastChecks(getYoastAssessorResults(contentAssessor), fields.html);
         const seoScore = getYoastOverallScore(seoAssessor);
         const readabilityScore = getYoastOverallScore(contentAssessor);
 
@@ -2788,10 +2833,30 @@ $writerOptions = writer_options();
         const seoScore = seoChecks.reduce((total, check) => total + (check.ok ? check.points : 0), 0);
         const paragraphTooLong = paragraphs.some((paragraph) => countWords(paragraph) > 150);
         const readabilityChecks = [
-          { label: avgSentenceLength > 0 && avgSentenceLength <= 20 ? 'Average sentence length is easy to read.' : 'Shorten sentences where possible.', ok: avgSentenceLength > 0 && avgSentenceLength <= 20 },
-          { label: !paragraphTooLong ? 'Paragraph length looks comfortable.' : 'Break long paragraphs into smaller blocks.', ok: !paragraphTooLong },
-          { label: headings >= Math.max(1, Math.floor(wordCount / 300)) ? 'Subheading distribution is helpful.' : 'Add subheadings every few hundred words.', ok: headings >= Math.max(1, Math.floor(wordCount / 300)) },
-          { label: transitionCount >= Math.max(1, Math.floor(wordCount / 200)) ? 'Transition word use looks helpful.' : 'Add more transition words for flow.', ok: transitionCount >= Math.max(1, Math.floor(wordCount / 200)) },
+          {
+            id: 'sentenceLength',
+            label: avgSentenceLength > 0 && avgSentenceLength <= 20 ? 'Average sentence length is easy to read.' : 'Shorten sentences where possible.',
+            ok: avgSentenceLength > 0 && avgSentenceLength <= 20,
+            passages: avgSentenceLength > 20 ? sentences.filter((s) => countWords(s) > 20) : [],
+          },
+          {
+            id: 'paragraphLength',
+            label: !paragraphTooLong ? 'Paragraph length looks comfortable.' : 'Break long paragraphs into smaller blocks.',
+            ok: !paragraphTooLong,
+            passages: paragraphTooLong ? paragraphs.filter((p) => countWords(p) > 150) : [],
+          },
+          {
+            id: 'subheadingDistribution',
+            label: headings >= Math.max(1, Math.floor(wordCount / 300)) ? 'Subheading distribution is helpful.' : 'Add subheadings every few hundred words.',
+            ok: headings >= Math.max(1, Math.floor(wordCount / 300)),
+            passages: [],
+          },
+          {
+            id: 'transitionWords',
+            label: transitionCount >= Math.max(1, Math.floor(wordCount / 200)) ? 'Transition word use looks helpful.' : 'Add more transition words for flow.',
+            ok: transitionCount >= Math.max(1, Math.floor(wordCount / 200)),
+            passages: [],
+          },
         ];
         const readabilityScore = Math.round((readabilityChecks.filter((check) => check.ok).length / readabilityChecks.length) * 100);
 
@@ -2799,7 +2864,7 @@ $writerOptions = writer_options();
           seoScore,
           readabilityScore,
           seoChecks: seoChecks.map((check) => ({ label: check.label, state: check.ok ? 'good' : 'bad' })),
-          readabilityChecks: readabilityChecks.map((check) => ({ label: check.label, state: check.ok ? 'good' : 'warn' })),
+          readabilityChecks: readabilityChecks.map((check) => ({ id: check.id, label: check.label, state: check.ok ? 'good' : 'warn', passages: check.passages || [] })),
           help: `${wordCount.toLocaleString()} words · ${keyCount} keyphrase matches · ${density.toFixed(1)}% density · loading YoastSEO.js`,
         });
 
@@ -2949,6 +3014,53 @@ $writerOptions = writer_options();
         return `<section class="editor-block editor-table-block" data-block-type="table" data-table-headings="${hasHeadings ? 'true' : 'false'}" draggable="true"><div class="editor-table-actions" contenteditable="false"><button type="button" data-table-add-row>Add Row</button><button type="button" data-table-remove-row>Remove Row</button><button type="button" data-table-add-col>Add Column</button><button type="button" data-table-remove-col>Remove Column</button><button type="button" data-table-toggle-headings class="${hasHeadings ? 'is-active' : ''}">Styled Headings</button></div><div class="editor-table-wrap" contenteditable="false"><table class="editor-table"><tbody>${body}</tbody></table></div></section>`;
       }
 
+      function parseHtmlTableToRows(tableHtml) {
+        const rows = [];
+        let headings = false;
+        const trMatches = tableHtml.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
+        trMatches.forEach((trHtml, index) => {
+          const cells = [];
+          let isHeader = false;
+          const cellMatches = trHtml.match(/<(th|td)[^>]*>([\s\S]*?)<\/\1>/gi) || [];
+          cellMatches.forEach((cellHtml) => {
+            if (/^<th/i.test(cellHtml)) isHeader = true;
+            const text = cellHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+            cells.push(text);
+          });
+          if (cells.length) {
+            if (index === 0 && isHeader) headings = true;
+            rows.push(cells);
+          }
+        });
+        return rows.length ? { rows, headings } : null;
+      }
+
+      function parseGfmTableToRows(gfmText) {
+        const lines = gfmText.trim().split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+        if (lines.length < 2) return null;
+        if (!/^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?$/.test(lines[1])) return null;
+        const header = lines[0].replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/).map((c) => c.trim());
+        const rows = [header];
+        for (let i = 2; i < lines.length; i++) {
+          const row = lines[i].replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/).map((c) => c.trim());
+          rows.push(row);
+        }
+        return { rows, headings: true };
+      }
+
+      function parseHtmlDetailsToFaq(html) {
+        const items = [];
+        const matches = html.match(/<details\b[^>]*>[\s\S]*?<\/details>/gi) || [];
+        matches.forEach((dHtml) => {
+          const sumMatch = dHtml.match(/<summary\b[^>]*>([\s\S]*?)<\/summary>/i);
+          const q = sumMatch ? sumMatch[1].replace(/<[^>]+>/g, '').trim() : '';
+          let a = sumMatch ? dHtml.replace(sumMatch[0], '') : dHtml;
+          a = a.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+          if (q || a) items.push({ question: q, answer: a });
+        });
+        return items.length ? items : null;
+      }
+
       function validButtonUrl(url) {
         if (!url || url.length > 2048 || /[\s<>"'\\]/.test(url)) return false;
         if (url.startsWith('/') && !url.startsWith('//')) return true;
@@ -3042,23 +3154,59 @@ $writerOptions = writer_options();
 
       function parseMarkdown(markdown, preview = false) {
         const customCodeBlocks = [];
+        const tableBlocks = [];
+        const faqBlocks = [];
+        const buttonBlocks = [];
+        const slotDemoBlocks = [];
         // Preserve code before escaping or applying Markdown transformations.
-        const source = String(markdown || '').replace(/\r\n?/g, '\n').replace(/^:::custom-code[ \t]*\n([\s\S]*?)^:::[ \t]*$/gm, (match, content) => {
+        let source = String(markdown || '').replace(/\r\n?/g, '\n').replace(/^:::custom-code[ \t]*\n([\s\S]*?)^:::[ \t]*$/gm, (match, content) => {
           const token = `@@CUSTOM_CODE_BLOCK_${customCodeBlocks.length}@@`;
           const code = splitCustomCode(content);
           customCodeBlocks.push(preview ? renderCustomCodePreview(code) : renderCustomCodeBlock(code));
           return '\n\n' + token + '\n\n';
         });
-        let html = escapeHtml(source);
-        const faqBlocks = [];
-        const buttonBlocks = [];
-        const tableBlocks = [];
-        const slotDemoBlocks = [];
-        html = html.replace(/:::faq\s*\n?([\s\S]*?)\n?:::/g, (match, content) => {
+        source = source.replace(/:::faq\s*\n?([\s\S]*?)\n?:::/g, (match, content) => {
           const token = `@@FAQ_BLOCK_${faqBlocks.length}@@`;
           faqBlocks.push(renderFaqBlock(normalizeFaqItems(content)));
-          return token;
+          return '\n\n' + token + '\n\n';
         });
+        source = source.replace(/(?:<details\b[^>]*>[\s\S]*?<\/details>\s*)+/gi, (match) => {
+          const parsed = parseHtmlDetailsToFaq(match);
+          if (!parsed || !parsed.length) return match;
+          const token = `@@FAQ_BLOCK_${faqBlocks.length}@@`;
+          faqBlocks.push(renderFaqBlock(parsed));
+          return '\n\n' + token + '\n\n';
+        });
+        source = source.replace(/((?:^|\n)#{1,4}\s+(?:faqs?|frequently asked questions)\b[^\n]*\n)([\s\S]*?)(?=(?:\n#{1,2}\s+[^\n]+|$))/gi, (match, heading, body) => {
+          if (body.includes(':::faq') || body.includes('@@FAQ_BLOCK_')) return match;
+          const qRegex = /(?:^|\n)#{3,5}\s+([^\n]+)\n+([\s\S]*?)(?=(?:\n#{3,5}\s+[^\n]+|$))/g;
+          const items = [];
+          let qm;
+          while ((qm = qRegex.exec(body)) !== null) {
+            const q = qm[1].replace(/^#+\s*/, '').replace(/^(?:Q|Question)\s*:\s*/i, '').trim();
+            const a = qm[2].replace(/^(?:A|Answer)\s*:\s*/i, '').trim().replace(/\n+/g, ' ');
+            if (q || a) items.push({ question: q, answer: a });
+          }
+          if (!items.length) return match;
+          const token = `@@FAQ_BLOCK_${faqBlocks.length}@@`;
+          faqBlocks.push(renderFaqBlock(items));
+          return heading + '\n' + token + '\n\n';
+        });
+        source = source.replace(/<table\b[^>]*>[\s\S]*?<\/table>/gi, (match) => {
+          const parsed = parseHtmlTableToRows(match);
+          if (!parsed) return match;
+          const token = `@@TABLE_BLOCK_${tableBlocks.length}@@`;
+          tableBlocks.push(renderTableBlock(parsed));
+          return '\n\n' + token + '\n\n';
+        });
+        source = source.replace(/(?:^|\n)((?:\|?[^\n|]+\|)+[^\n|]+\|?\r?\n\|?(?:\s*:?-{2,}:?\s*\|)+\s*:?-{2,}:?\s*\|?(?:\r?\n(?:\|?[^\n|]+\|)+[^\n|]+\|?)*)(?=\n|$)/g, (match, tableText) => {
+          const parsed = parseGfmTableToRows(tableText);
+          if (!parsed) return match;
+          const token = `@@TABLE_BLOCK_${tableBlocks.length}@@`;
+          tableBlocks.push(renderTableBlock(parsed));
+          return '\n\n' + token + '\n\n';
+        });
+        let html = escapeHtml(source);
         html = html.replace(/:::button\s*\n?([\s\S]*?)\n?:::/g, (match, content) => {
           const token = `@@BUTTON_BLOCK_${buttonBlocks.length}@@`;
           buttonBlocks.push(renderButtonBlock(normalizeButtonBlock(content)));
@@ -5017,7 +5165,6 @@ $writerOptions = writer_options();
       if (countdownTargetField) on(countdownTargetField, 'input', markDirty);
       if (countdownTitleField) on(countdownTitleField, 'input', markDirty);
       if (countdownEndTextField) on(countdownEndTextField, 'input', markDirty);
-      document.querySelectorAll('#blog-tags input').forEach(input => on(input, 'change', markDirty));
 
       on(viewBlogPageBtn, 'click', () => {
         const href = viewBlogPageBtn.dataset.href || currentBlogPublicUrl();
@@ -5450,6 +5597,7 @@ $writerOptions = writer_options();
       function resetForm() {
         form.reset();
         if (editingId) editingId.value = '';
+        if (tagMultiSelectInstance) tagMultiSelectInstance.setSelected([]);
         savedBlogStatus = 'draft';
         manualSlug = false;
         manualSeoTitle = false;
@@ -5477,6 +5625,7 @@ $writerOptions = writer_options();
       on(form, 'reset', () => {
         window.setTimeout(() => {
           if (editingId) editingId.value = '';
+          if (tagMultiSelectInstance) tagMultiSelectInstance.setSelected([]);
           savedBlogStatus = 'draft';
           manualSlug = false;
           manualSeoTitle = false;
@@ -5575,6 +5724,73 @@ $writerOptions = writer_options();
         }
       });
 
+      function populateEditorFromBlog(blog, allTags, allCategories) {
+        if (!blog) return;
+        savedBlogStatus = blog.status || 'draft';
+        if (editingId) editingId.value = blog.id || blog.slug || '';
+        if (title) title.value = blog.title || '';
+        if (seoTitle) seoTitle.value = blog.seoTitle || (blog.title ? blog.title + ' | ' + websiteTitle : '');
+        manualSeoTitle = Boolean(seoTitle && seoTitle.value.trim());
+        if (slug) slug.value = blog.slug || blog.id || '';
+        setText(slugPreview, slug && slug.value ? slug.value : 'blog-article');
+        manualSlug = true;
+
+        if (categoryField) {
+          if (Array.isArray(allCategories) && allCategories.length) {
+            const currentCat = blog.categoryId || categoryField.value;
+            categoryField.innerHTML = allCategories.map(cat =>
+              `<option value="${escapeHtml(cat.id)}">${escapeHtml(cat.label || cat.name)}</option>`
+            ).join('');
+            categoryField.value = currentCat;
+          } else if (blog.categoryId) {
+            if (!Array.from(categoryField.options).some(opt => opt.value === blog.categoryId)) {
+              categoryField.add(new Option(blog.category || blog.categoryName || 'General', blog.categoryId));
+            }
+            categoryField.value = blog.categoryId;
+          }
+        }
+
+        if (tagMultiSelectInstance) {
+          if (Array.isArray(allTags) && allTags.length) {
+            tagMultiSelectInstance.setAvailableTags(allTags, blog.tagIds || []);
+          } else {
+            tagMultiSelectInstance.setSelected(blog.tagIds || []);
+          }
+        }
+
+        if (blogStatus) blogStatus.value = blog.status || 'draft';
+        if (publishedAtField) publishedAtField.value = blog.scheduledAtInput || blog.publishedAtInput || currentDateTimeInput();
+        if (scheduledAtField) scheduledAtField.value = blog.scheduledAtInput || '';
+        if (countdownEnabledCheckbox) countdownEnabledCheckbox.checked = Boolean(blog.countdownEnabled || blog.countdown_enabled);
+        if (countdownTargetField) countdownTargetField.value = blog.countdownTargetInput || blog.countdown_target || '';
+        if (countdownTitleField) countdownTitleField.value = blog.countdownTitle || blog.countdown_title || '';
+        if (countdownEndTextField) countdownEndTextField.value = blog.countdownEndText || blog.countdown_end_text || '';
+        updateCountdownVisibility();
+        if (focusKeyphrase) focusKeyphrase.value = blog.focusKeyphrase || '';
+        updateSaveState(blogStatus ? blogStatus.value : (blog.status || 'draft'));
+        if (authorField) authorField.value = blog.author || ' Editorial Team';
+        const writerId = blog.writerId == null ? '' : String(blog.writerId);
+        if (writerId && !Array.from(writerField.options).some(option => option.value === writerId)) {
+          writerField.add(new Option(blog.writer?.name || 'Assigned writer', writerId));
+        }
+        writerField.value = writerId;
+        if (excerpt) excerpt.value = blog.excerpt || '';
+        updateTitleDisplay();
+        updateSeoTitleCounter();
+        updateExcerptCounter();
+        setEditorMarkdown(blog.content || '');
+        resetEditorHistory(blog.content || '');
+        renderMarkdownPreview();
+        setImage(blog.featuredImage || '/uploads/blogs/default-featured.svg');
+        pendingSaveStatus = '';
+        isDirty = false;
+        if (autosaveTimer) clearTimeout(autosaveTimer);
+        updateAutosaveIndicator('saved', 'Saved');
+        clearLocalStorage();
+        if (cancelBtn) cancelBtn.style.display = 'inline-block';
+        analyzeSeo();
+      }
+
       async function loadBlogForEditing(id) {
         const data = new FormData();
         data.append('csrf_token', csrfToken);
@@ -5589,55 +5805,16 @@ $writerOptions = writer_options();
         if (!response.ok || !result.ok) {
           throw new Error(result.error || 'Blog post could not be loaded.');
         }
-        const blog = result.blog;
-        savedBlogStatus = blog.status || 'draft';
-        if (editingId) editingId.value = blog.id || blog.slug || '';
-        if (title) title.value = blog.title || '';
-        if (seoTitle) seoTitle.value = blog.seoTitle || (blog.title ? blog.title + ' | ' + websiteTitle : '');
-        manualSeoTitle = Boolean(seoTitle && seoTitle.value.trim());
-        if (slug) slug.value = blog.slug || blog.id || '';
-        setText(slugPreview, slug && slug.value ? slug.value : 'blog-article');
-        if (categoryField) categoryField.value = blog.categoryId || '';
-        document.querySelectorAll('#blog-tags input').forEach(input => { input.checked = (blog.tagIds || []).includes(input.value); });
-        if (blogStatus) blogStatus.value = blog.status || 'draft';
-        if (publishedAtField) publishedAtField.value = blog.scheduledAtInput || blog.publishedAtInput || currentDateTimeInput();
-        if (scheduledAtField) scheduledAtField.value = blog.scheduledAtInput || '';
-        if (countdownEnabledCheckbox) countdownEnabledCheckbox.checked = Boolean(blog.countdownEnabled || blog.countdown_enabled);
-        if (countdownTargetField) countdownTargetField.value = blog.countdownTargetInput || blog.countdown_target || '';
-        if (countdownTitleField) countdownTitleField.value = blog.countdownTitle || blog.countdown_title || '';
-        if (countdownEndTextField) countdownEndTextField.value = blog.countdownEndText || blog.countdown_end_text || '';
-        updateCountdownVisibility();
-        if (focusKeyphrase) focusKeyphrase.value = blog.focusKeyphrase || '';
-        updateSaveState(blogStatus ? blogStatus.value : (blog.status || 'draft'));
-        if (authorField) authorField.value = blog.author || ' Editorial Team';
-        const writerId = blog.writerId == null ? '' : String(blog.writerId);
-        if (writerId && !Array.from(writerField.options).some(option => option.value === writerId)) writerField.add(new Option(blog.writer?.name || 'Assigned writer',writerId));
-        writerField.value = writerId;
-        if (excerpt) excerpt.value = blog.excerpt || '';
-        updateTitleDisplay();
-        updateSeoTitleCounter();
-        updateExcerptCounter();
-        setEditorMarkdown(blog.content || '');
-        resetEditorHistory(blog.content || '');
-        renderMarkdownPreview();
-        setImage(blog.featuredImage || '/uploads/blogs/default-featured.svg');
-        manualSlug = true;
-        pendingSaveStatus = '';
-        updateTitleDisplay();
-        updateSeoTitleCounter();
-        isDirty = false;
-        if (autosaveTimer) clearTimeout(autosaveTimer);
-        updateAutosaveIndicator('saved', 'Saved');
-        clearLocalStorage();
-        if (cancelBtn) cancelBtn.style.display = 'inline-block';
+        populateEditorFromBlog(result.blog);
         showNotice('Blog post loaded for editing.', 'ok');
-        analyzeSeo();
       }
 
       if (initialEditId) {
         loadBlogForEditing(initialEditId).catch((error) => showNotice(error.message || 'Blog post could not be loaded.', 'error'));
       } else {
-        checkLocalStorageRecovery();
+        // Opening Publish Blog without an ID always starts a new post.
+        clearLocalStorage();
+        resetForm();
       }
 
       setInterval(() => {

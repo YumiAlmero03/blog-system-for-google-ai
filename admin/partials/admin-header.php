@@ -10,13 +10,14 @@ $adminNavItems = [
     ['/admin/blog-tags.php', 'Tags', str_ends_with($adminCurrentPath, '/admin/blog-tags.php')],
     ['/admin/seo-checker-v2.php', 'SEO Checker V2', str_ends_with($adminCurrentPath, '/admin/seo-checker-v2.php')],
     ['/admin/playnow-tracker.php', 'Play Now Tracker', str_ends_with($adminCurrentPath, '/admin/playnow-tracker.php')],
+    ['/admin/playnow-promos.php', 'Promo Links', str_ends_with($adminCurrentPath, '/admin/playnow-promos.php')],
     ['/admin/contacts.php', 'Contacts', str_ends_with($adminCurrentPath, '/admin/contacts.php')],
     ['/admin/live-chat.php', 'Live Chat', str_ends_with($adminCurrentPath, '/admin/live-chat.php')],
     ['/admin/users.php', 'Users', str_ends_with($adminCurrentPath, '/admin/users.php')],
     ['/admin/index-checker/', 'Index Checker', str_starts_with($adminCurrentPath, '/admin/index-checker/')],
     ['/admin/settings.php', 'Settings', (str_ends_with($adminCurrentPath, '/admin/settings.php') || (str_starts_with($adminCurrentPath, '/admin/settings/') && !$isSportsRegistry && !str_starts_with($adminCurrentPath, '/admin/plugin/odds-api/sports/')))],
     ['/admin/blog-publish.php', 'Publish Post', str_ends_with($adminCurrentPath, '/admin/blog-publish.php')],
-    ['/blog/', 'View Blog Hub', false],
+    [frontend_url('/blogs/'), 'View Blog Hub', false],
 ];
 if (($_SESSION['user']['role'] ?? '') === 'editor') {
     $adminNavItems = array_values(array_filter($adminNavItems,static fn(array $item): bool => in_array($item[1],['Blogs','Slots','Contacts','Live Chat'],true)));
@@ -36,9 +37,28 @@ details.games-nav summary::-webkit-details-marker, details.odds-nav summary::-we
 </style>
 <header class="site-header">
   <div class="header-inner">
-    <a href="/admin/blogs.php" class="brand-logo">
-      <span class="badge-tag" style="background-color: var(--brand); color:#fff;"><?= h(strtoupper(str_replace('_',' ',$_SESSION['user']['role'] ?? 'admin'))) ?></span>
-    </a>
+    <?php
+    $appVersion = function_exists('env_value') ? (env_value('APP_VERSION') ?: '') : '';
+    if ($appVersion === '') {
+        $gitHead = @file_get_contents(__DIR__ . '/../../.git/HEAD');
+        if (is_string($gitHead) && str_starts_with(trim($gitHead), 'ref: ')) {
+            $refPath = __DIR__ . '/../../.git/' . trim(substr(trim($gitHead), 5));
+            $refHash = @file_get_contents($refPath);
+            if (is_string($refHash) && strlen(trim($refHash)) >= 7) {
+                $appVersion = 'v2 (' . substr(trim($refHash), 0, 7) . ')';
+            }
+        }
+        if ($appVersion === '') {
+            $appVersion = 'v2';
+        }
+    }
+    ?>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <a href="/admin/blogs.php" class="brand-logo">
+        <span class="badge-tag" style="background-color: var(--brand); color:#fff;"><?= h(strtoupper(str_replace('_',' ',$_SESSION['user']['role'] ?? 'admin'))) ?></span>
+      </a>
+      <span class="badge-tag" style="font-size:0.75rem; opacity:0.8; background:var(--surface-alt, rgba(128,128,128,0.15)); color:var(--text-muted, inherit);" title="Application Version"><?= h($appVersion) ?></span>
+    </div>
     <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
       <?php if (is_dir(__DIR__ . '/../plugin/games') && auth_can('slots.view')): ?>
       <details class="games-nav" style="position:relative;">

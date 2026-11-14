@@ -60,10 +60,29 @@ $retryMinutes = isset($_GET['retry']) && ctype_digit((string) $_GET['retry']) ? 
   <div class="page-shell">
     <header class="site-header">
       <div class="header-inner">
-        <a href="/" class="brand-logo">
-          <span class="badge-tag" style="background-color: var(--brand); color:#fff;">ADMIN</span>
-        </a>
-        <a href="/blog/" class="btn btn-secondary btn-sm">View Blog Hub</a>
+        <?php
+        $appVersion = function_exists('env_value') ? (env_value('APP_VERSION') ?: '') : '';
+        if ($appVersion === '') {
+            $gitHead = @file_get_contents(__DIR__ . '/../.git/HEAD');
+            if (is_string($gitHead) && str_starts_with(trim($gitHead), 'ref: ')) {
+                $refPath = __DIR__ . '/../.git/' . trim(substr(trim($gitHead), 5));
+                $refHash = @file_get_contents($refPath);
+                if (is_string($refHash) && strlen(trim($refHash)) >= 7) {
+                    $appVersion = 'v2 (' . substr(trim($refHash), 0, 7) . ')';
+                }
+            }
+            if ($appVersion === '') {
+                $appVersion = 'v2';
+            }
+        }
+        ?>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <a href="/" class="brand-logo">
+            <span class="badge-tag" style="background-color: var(--brand); color:#fff;">ADMIN</span>
+          </a>
+          <span class="badge-tag" style="font-size:0.75rem; opacity:0.8; background:var(--surface-alt, rgba(128,128,128,0.15)); color:var(--text-muted, inherit);" title="Application Version"><?= h($appVersion) ?></span>
+        </div>
+        <a href="<?= h(frontend_url('/blogs/')) ?>" class="btn btn-secondary btn-sm">View Blog Hub</a>
       </div>
     </header>
 

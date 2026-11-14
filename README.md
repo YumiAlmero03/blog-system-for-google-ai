@@ -27,7 +27,7 @@ This index lives at `admin/README.md`. Start here when looking for project docum
 - [Index Checker setup](/admin/scripts/INDEX-CHECKER.md) — Configure Search Console, IndexNow, daily checks, and sitemap discovery.
 
 ## Starting Guide
-- using vs code change [insert_domain_here] to the base url or domain of the website
+- using vs code change https://bygame.ph to the base url or domain of the website
 
 ## Prod deployment
 - [AAPanel setup](/admin/AAPanelHelp.md)

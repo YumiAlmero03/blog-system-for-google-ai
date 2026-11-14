@@ -29,6 +29,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['indexnow_action'])) 
         if ($action === 'test') {
             $status = google_test_connection();
             $googleMessage = $status === 'Connected' ? 'Google Search Console connected successfully.' : ($status === 'Property Access Denied' ? 'Authentication succeeded, but access to the configured property was denied.' : 'Google authentication failed. Check the configured service account.');
+        } elseif ($action === 'test_indexing') {
+            $testResult = google_test_indexing_api();
+            $googleMessage = 'Google Indexing API: ' . $testResult['message'];
         } elseif ($action === 'save' || $action === 'remove') {
             $json = null;
             $file = $_FILES['service_account'] ?? null;
@@ -37,7 +40,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['indexnow_action'])) 
                     || $file['size'] > 65536 || !is_uploaded_file($file['tmp_name'])) throw new InvalidArgumentException('Upload a .json service-account file no larger than 64 KB.');
                 $json = file_get_contents($file['tmp_name']);
             }
-            google_save_configuration(trim((string)($_POST['google_property'] ?? '')), $json, $action === 'remove');
+            $indexingEnabled = isset($_POST['google_indexing_enabled']);
+            google_save_configuration(trim((string)($_POST['google_property'] ?? '')), $json, $action === 'remove', $indexingEnabled);
             $googleMessage = $action === 'remove' ? 'Google credentials removed.' : 'Google configuration saved. Sitemap submission is queued for cron.';
         } elseif ($action === 'queue') {
             $state = google_state(); $original = $state; $state['submission_pending'] = true; google_write_state($state,$original);
@@ -61,7 +65,7 @@ $fields = ['website_name'=>'Website Name','website_url'=>'Website URL','google_a
 <?php if ($key === 'default_meta_description'): ?>
 <textarea id="<?= h($key) ?>" name="<?= h($key) ?>" maxlength="500" rows="3"><?= h($settings[$key]) ?></textarea>
 <?php else: ?>
-<input id="<?= h($key) ?>" name="<?= h($key) ?>" value="<?= h($settings[$key]) ?>" style="width:100%;max-width:720px" maxlength="<?= in_array($key,['website_url','default_og_image'],true) ? 2048 : ($key === 'google_search_console_verification' ? 512 : ($key === 'default_seo_title' ? 200 : ($key === 'google_analytics_id' ? 32 : 120))) ?>" <?= in_array($key,['website_name','website_url'],true) ? 'required' : '' ?> <?= $key === 'website_url' && env_value('SITE_BASE_URL') ? 'readonly' : '' ?>>
+<input id="<?= h($key) ?>" name="<?= h($key) ?>" value="<?= h($settings[$key]) ?>" style="width:100%;max-width:720px" maxlength="<?= in_array($key,['website_url','default_og_image'],true) ? 2048 : ($key === 'google_search_console_verification' ? 512 : ($key === 'default_seo_title' ? 200 : ($key === 'google_analytics_id' ? 32 : 120))) ?>" <?= $key === 'website_url' && env_value('SITE_BASE_URL') ? 'readonly' : '' ?>>
 <?php endif; ?>
 <?php if ($key === 'website_url' && env_value('SITE_BASE_URL')): ?><small>Controlled by SITE_BASE_URL for this environment.</small><?php endif; ?>
 <?php if ($key === 'google_search_console_verification'): ?><small>Enter the verification token, without the HTML meta tag.</small><?php endif; ?>
@@ -72,20 +76,23 @@ $fields = ['website_name'=>'Website Name','website_url'=>'Website URL','google_a
 <p id="seo-result" role="status" aria-live="polite"></p>
 </form>
 <section class="user-form">
-<h2>Google API / Search Console</h2>
+<h2>Google API / Search Console &amp; Indexing API</h2>
 <p>Connection Status (last test): <strong><?= h($googleStatus['status']) ?></strong></p>
+<p>Google Indexing API (URL Submit): <strong><?= !empty($googleStatus['indexing_api_enabled']) ? 'Enabled' : 'Disabled' ?></strong></p>
 <?php if ($googleStatus['email']): ?><p>Service account: <?= h($googleStatus['email']) ?></p><?php endif; ?>
 <?php if ($googleMessage): ?><p role="status"><?= h($googleMessage) ?></p><?php endif; ?>
 <?php if (($_SESSION['user']['role'] ?? '') === 'super_user'): ?>
 <form method="post" enctype="multipart/form-data">
 <?= csrf_input() ?>
-<p><label>Search Console Property<br><input name="google_property" value="<?= h($googleStatus['property']) ?>" maxlength="2048" required style="width:100%;max-width:720px"></label></p>
+<p><label>Search Console Property<br><input name="google_property" value="<?= h($googleStatus['property'] ?: (seo_settings()['website_url'] ?? '')) ?>" placeholder="https://bygame.ph/ or sc-domain:bygame.ph" maxlength="2048" style="width:100%;max-width:720px"></label><br><small style="color:var(--text-muted);">Enter the exact property name from Google Search Console (e.g. <code>https://bygame.ph/</code> with trailing slash, or <code>sc-domain:bygame.ph</code> for Domain property).</small></p>
+<p><label><input type="checkbox" name="google_indexing_enabled" value="1" <?= !empty($googleStatus['indexing_api_enabled']) ? 'checked' : '' ?>> Enable Google Indexing API (Direct URL Submit)</label><br><small style="color:var(--text-muted);">Directly submits published/updated/deleted URLs to Google Indexing API. Daily quota limit is 200 requests/day per Google Cloud project.</small></p>
 <p><label>Service Account JSON<br><input type="file" name="service_account" accept=".json,application/json"></label></p>
-<p><small>Add the displayed service-account email to this property's Search Console permissions. Uploaded keys are never displayed.</small></p>
+<p><small>Add the displayed service-account email to this property's Search Console permissions (Settings → Users and permissions). Uploaded keys are stored privately and never displayed.</small></p>
 <button class="btn btn-primary btn-sm" name="google_action" value="save">Save / Replace Credentials</button>
 <button class="btn btn-secondary btn-sm" name="google_action" value="test" formnovalidate>Test Google Connection</button>
+<button class="btn btn-secondary btn-sm" name="google_action" value="test_indexing" formnovalidate>Test Google Indexing API</button>
 <button class="btn btn-secondary btn-sm" name="google_action" value="queue" formnovalidate>Queue Sitemap Submission</button>
-<button class="btn btn-secondary btn-sm" name="google_action" value="remove">Remove Credentials</button>
+<button class="btn btn-secondary btn-sm" name="google_action" value="remove" formnovalidate>Remove Credentials</button>
 </form>
 <?php else: ?><p>Search Console Property: <?= h($googleStatus['property']) ?></p><?php endif; ?>
 </section>

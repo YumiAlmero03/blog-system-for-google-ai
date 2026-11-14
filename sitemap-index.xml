@@ -1,9 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <sitemap>
-    <loc>[insert_domain_here]/sitemap-blog.php</loc>
+    <loc>https://bygame.ph/sitemap-blog.php</loc>
   </sitemap>
   <sitemap>
-    <loc>https://example.test/sitemap-blog.php</loc>
+    <loc>https://freeonlinegames.info/sitemap-blog.php</loc>
+  </sitemap>
+  <sitemap>
+    <loc>https://bygame.ph/sitemap-games-1.xml</loc>
+  </sitemap>
+  <sitemap>
+    <loc>http://thechikin.chickenkiller.com/sitemap-blog.php</loc>
   </sitemap>
 </sitemapindex>

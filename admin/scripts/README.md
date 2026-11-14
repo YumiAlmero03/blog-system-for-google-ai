@@ -8,6 +8,8 @@ Run commands from the project root unless noted otherwise:
 cd /path/to/www
 ```
 
+Regression tests are in [`../test`](../test/README.md).
+
 ## Requirements
 
 - PHP CLI for `.php` scripts.
@@ -32,7 +34,7 @@ Use `--dry-run` when available before running data imports or enrichment on prod
 
 ### `generate-llms.php`
 
-Create or replace the public site-root `llms.txt` using the existing Ollama configuration. The script reads `sitemap.xml`; if no local file exists it uses local `sitemap-index.xml`, otherwise the configured site's `/sitemap.xml`. `--sitemap` explicitly selects a local XML file or an HTTP(S) sitemap URL. Sitemap indexes are followed recursively, duplicate URLs are removed, and only URLs on the configured site's origin are accepted. All sitemap URLs must be real absolute URLs: replace `[insert_domain_here]` and example/test hosts before a production run.
+Create or replace the public site-root `llms.txt` using the existing Ollama configuration. The script reads `sitemap.xml`; if no local file exists it uses local `sitemap-index.xml`, otherwise the configured site's `/sitemap.xml`. `--sitemap` explicitly selects a local XML file or an HTTP(S) sitemap URL. Sitemap indexes are followed recursively, duplicate URLs are removed, and only URLs on the configured site's origin are accepted. All sitemap URLs must be real absolute URLs: replace `https://bygame.ph` and example/test hosts before a production run.
 
 ```sh
 # Preview generated text without writing (still calls AI).
@@ -59,13 +61,13 @@ Optional daily cron (adjust PHP, paths and server timezone; scheduling is not in
 15 3 * * * /usr/bin/php /path/to/www/admin/scripts/generate-llms.php >> /path/to/private-storage/llms-generation.log 2>&1
 ```
 
-Regression checks: `php admin/scripts/test-generate-llms.php`. Fixtures cover sitemap recursion/cycles, deduplication, private/noindex exclusions, HTML extraction, AI IDs/format, first creation, replacement, dry run, failed-generation preservation, locking and unsafe/malformed XML. Tests make no live AI requests.
+Regression checks: `php admin/test/test-generate-llms.php`. Fixtures cover sitemap recursion/cycles, deduplication, private/noindex exclusions, HTML extraction, AI IDs/format, first creation, replacement, dry run, failed-generation preservation, locking and unsafe/malformed XML. Tests make no live AI requests.
 
 ### Yoast readability checks and highlights
 
 Publish Post shows only meaningful Yoast assessment results; empty/unscored results no longer appear as red “Yoast assessment completed” rows. Intermediate scores use orange indicators. Readability findings with matching passages have individual highlight toggles, plus an overall toggle. Highlights use the browser CSS Highlight API in Write, Preview and Split modes; they do not insert markup into the editor, saved content, or undo history. Source-only Markdown mode directs the user to a rendered mode. Whole-article checks without passage marks remain listed without a passage toggle.
 
-Run `node admin/scripts/test-yoast-analysis.cjs` to test against the bundled Yoast engine in headless Chrome. Requires PHP CLI and an installed Chrome/Chromium browser; set `CHROME_BINARY` if needed (defaults to Google Chrome on macOS and `chromium` elsewhere). The test uses a temporary local server/profile and fixture content; no accounts, provider requests or production data are used.
+Run `node admin/test/test-yoast-analysis.cjs` to test against the bundled Yoast engine in headless Chrome. Requires PHP CLI and an installed Chrome/Chromium browser; set `CHROME_BINARY` if needed (defaults to Google Chrome on macOS and `chromium` elsewhere). The test uses a temporary local server/profile and fixture content; no accounts, provider requests or production data are used.
 
 ### Continuous chat services
 
@@ -84,7 +86,7 @@ CHAT_ALLOWED_ORIGINS=http://localhost:8083 CHAT_BACKEND_URL=http://127.0.0.1:808
 
 The PHP worker uses the existing Ollama host/key and defaults specifically to `gemma4:31b-cloud`, with `CHAT_AI_MODEL` as an optional override independent of `OLLAMA_MODEL`. `CHAT_AI_ENABLED=0` disables AI. Optional `--once` scans once; normal mode scans continuously every two seconds. The worker sends recent message text to the configured Ollama service and saves replies in existing private chat files. No web search is used. Node 22+ and the `ws` dependency are required for the relay; Node receives its configuration through process environment variables. Run both as supervised services in production and proxy `/chat-ws` over WSS.
 
-Tests use temporary storage: `php admin/scripts/test-chat-realtime.php` and `node admin/scripts/chat-socket/test.mjs` (local mock AI; requires localhost listeners).
+Tests use temporary storage: `php admin/test/test-chat-realtime.php` and `node admin/test/test-chat-socket.mjs` (local mock AI; requires localhost listeners).
 
 ### `generate-password.php`
 
@@ -198,7 +200,7 @@ The command exits with status 1 if any supplied thumbnail cannot be downloaded o
 
 Source field priority is `thumb` (SlotsLaunch), then `thumbnail`, `image`, `logo`, and `icon` if the earlier field is absent or blank. This applies on both insert and update. PHP game imports also check the nested `provider.thumb` when creating/updating a provider; a missing nested image is left for provider sync and never replaced with the game's thumbnail.
 
-Test with `php admin/scripts/test-provider-images.php` (temporary database/files; no live provider changes).
+Test with `php admin/test/test-provider-images.php` (temporary database/files; no live provider changes).
 
 ### `import-slotslaunch-games.php`
 
@@ -208,7 +210,7 @@ Thumbnails are validated and saved under `/uploads/games/` with deterministic ga
 
 Downloads allow public HTTP(S) addresses, use 5-second connection/15-second total timeouts, and are limited to 8 MB and 40 megapixels. JPEG, PNG, WebP, and supported AVIF files must pass MIME/signature/dimension checks. Redirects are not followed; use a direct asset URL. Failed downloads log a sanitized source identity and reason, keep any previous valid local thumbnail, and set `done_processing=0`. A successful download does not mark the game processed; the existing completion workflow still applies. Re-encountering the game on import retries localization.
 
-`GAME_IMAGE_UPLOAD_DIR` optionally overrides the physical games upload directory for isolated tests or deployments that map `/uploads/games/` to another directory; the default is the site's `uploads/games`. Tests: `php admin/scripts/test-game-images.php`.
+`GAME_IMAGE_UPLOAD_DIR` optionally overrides the physical games upload directory for isolated tests or deployments that map `/uploads/games/` to another directory; the default is the site's `uploads/games`. Tests: `php admin/test/test-game-images.php`.
 
 
 ```sh
@@ -303,4 +305,11 @@ Daily/background sports logos: `php admin/plugin/odds-api/scripts/daily-sports-i
 
 Game description enrichment status now reports `remaining eligible` across the matching selection (before batch limit/offset) and `left to attempt in batch`. Successful saves reduce the remaining count; failures, skipped saves and dry runs do not. Counts are a selection snapshot for each attempt; no new flags or database changes. Successful progress lines also appear in `enrich-game-descriptions.log`.
 
-`php admin/scripts/test-default-image.php` verifies shared default-image upload validation, blog fallback resolution, sports fallback payloads, replacement/removal and preservation of registry records. Uses isolated storage and removes test uploads.
+`php admin/test/test-default-image.php` verifies shared default-image upload validation, blog fallback resolution, sports fallback payloads, replacement/removal and preservation of registry records. Uses isolated storage and removes test uploads.
+
+
+## SlotsLaunch play counts
+
+Run `php admin/plugin/games/scripts/sync-slotslaunch-rankings.php` from `www` to synchronize the documented network rankings. Requires a SlotsLaunch API token and registered `SLOTSLAUNCH_ORIGIN` (or valid `SITE_BASE_URL`); `SLOTSLAUNCH_API_SECRET` enables request signing. No command flags. Schedule daily separately if desired.
+
+The script validates every record and atomically replaces `APP_STORAGE_DIR/slotslaunch-rankings.json`; errors retain the previous snapshot. `GET /game-api/game.php?slug=...` reads this cache without upstream requests. Missing game counts are null, not zero; these are plays, not unique users. Local unique browsers remain in existing `game_players`. See [Game inner-page API](../API.md#game-inner-page-detail). Regression: `php admin/test/test-game-detail.php` and `php admin/test/test-game-players.php`.

@@ -2186,7 +2186,7 @@ function sports_registry_safe_image_url(string $path, bool $absolute = false): s
     $rootRelative = '/' . ltrim($path, '/');
     if ($absolute && function_exists('site_base_url')) {
         $base = site_base_url();
-        if ($base !== '' && $base !== '[insert_domain_here]') {
+        if ($base !== '') {
             return rtrim($base, '/') . $rootRelative;
         }
     }

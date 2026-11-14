@@ -3,36 +3,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/blog-storage.php';
-require_once __DIR__ . '/includes/playnow-promos.php';
 require_once __DIR__ . '/includes/admin-date.php';
 
 require_auth();
-
-if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && csrf_validate(is_string($_POST['csrf_token'] ?? null) ? $_POST['csrf_token'] : null)) {
-  $promoCode = isset($_POST['promo_code']) && is_string($_POST['promo_code']) ? trim($_POST['promo_code']) : '';
-  $newPromoCode = isset($_POST['new_promo_code']) && is_string($_POST['new_promo_code']) ? trim($_POST['new_promo_code']) : '';
-  $customPromoCode = isset($_POST['custom_promo_code']) && is_string($_POST['custom_promo_code']) ? trim($_POST['custom_promo_code']) : '';
-  try {
-  if (strlen($promoCode) > 64 || strlen($newPromoCode) > 64 || strlen($customPromoCode) > 64) {
-    throw new InvalidArgumentException('Promo code must be 8-64 characters using only letters, numbers, hyphens, or underscores.');
-  }
-  $targetUrl = request_string('target_url', 500) ?? '';
-  $ogTitle = request_string('og_title', 180) ?? '';
-  $ogDescription = request_string('og_description', 300) ?? '';
-  $ogImage = request_string('og_image', 500) ?? '';
-    if ($promoCode !== '') {
-      $saved = playnow_promo_update($promoCode, $targetUrl, $ogTitle, $ogDescription, $ogImage, $newPromoCode);
-      $_SESSION['tracker_notice'] = $saved ? 'Promo link updated.' : 'Promo link not found.';
-    } else {
-      $created = playnow_promo_create($targetUrl, $ogTitle, $ogDescription, $ogImage, $customPromoCode);
-      $_SESSION['tracker_notice'] = 'Promo link created: /promo-code/' . $created['code'];
-    }
-  } catch (Throwable $error) {
-    $_SESSION['tracker_notice'] = $error->getMessage();
-  }
-  header('Location: /admin/playnow-tracker.php');
-  exit;
-}
 
 function tracker_path(): string
 {
@@ -63,15 +36,65 @@ function tracker_recent(array $data): array
     return array_reverse($recent);
 }
 
+function tracker_period(string $period): array
+{
+    $tz = admin_display_timezone();
+    $now = new DateTimeImmutable('now', $tz);
+    return match ($period) {
+        'today' => [$now->setTime(0, 0), $now->modify('+1 day')->setTime(0, 0)],
+        'yesterday' => [$now->modify('-1 day')->setTime(0, 0), $now->setTime(0, 0)],
+        'this-week' => [$now->modify('monday this week')->setTime(0, 0), $now->modify('+1 week')->modify('monday this week')->setTime(0, 0)],
+        'this-month' => [$now->modify('first day of this month')->setTime(0, 0), $now->modify('first day of next month')->setTime(0, 0)],
+        'last-month' => [$now->modify('first day of last month')->setTime(0, 0), $now->modify('first day of this month')->setTime(0, 0)],
+        default => [null, null],
+    };
+}
+
+function tracker_event_date(array $event): ?DateTimeImmutable
+{
+    try {
+        $value = $event['time'] ?? $event['timestamp'] ?? null;
+        if ($value === null || $value === '') return null;
+        return is_numeric($value) ? (new DateTimeImmutable('@' . $value))->setTimezone(admin_display_timezone()) : (new DateTimeImmutable((string) $value, new DateTimeZone('UTC')))->setTimezone(admin_display_timezone());
+    } catch (Exception) { return null; }
+}
+
+function tracker_filtered(array $data, string $period): array
+{
+    if ($period === 'all') return tracker_recent($data);
+    [$from, $to] = tracker_period($period);
+    $events = [];
+    foreach (tracker_recent($data) as $event) {
+        $date = tracker_event_date($event);
+        if ($date !== null && $from !== null && $date >= $from && $date < $to) $events[] = $event;
+    }
+    return $events;
+}
+
+function tracker_aggregate(array $events): array
+{
+    $result = ['byPage' => [], 'byButton' => [], 'byIp' => [], 'byTarget' => []];
+    foreach ($events as $event) {
+        foreach (['byPage' => ($event['pagePath'] ?? ($event['pageUrl'] ?? '')), 'byButton' => ($event['buttonKey'] ?? ($event['buttonText'] ?? '')), 'byIp' => ($event['ip'] ?? ''), 'byTarget' => ($event['targetUrl'] ?? '')] as $bucket => $value) {
+            $result[$bucket][$value] = (int) ($result[$bucket][$value] ?? 0) + 1;
+        }
+    }
+    return $result;
+}
+
 $data = tracker_data();
-$totalClicks = (int) ($data['totalClicks'] ?? 0);
+$period = (string) ($_GET['period'] ?? 'all');
+$periods = ['today' => 'Today', 'yesterday' => 'Yesterday', 'this-week' => 'This week', 'this-month' => 'This month', 'last-month' => 'Last month', 'all' => 'All'];
+if (!isset($periods[$period])) $period = 'all';
+$filteredEvents = tracker_filtered($data, $period);
+$filtered = tracker_aggregate($filteredEvents);
+$totalClicks = $period === 'all' ? (int) ($data['totalClicks'] ?? 0) : count($filteredEvents);
 $updatedAt = (string) ($data['updatedAt'] ?? '');
-$byPage = isset($data['byPage']) && is_array($data['byPage']) ? $data['byPage'] : [];
-$byButton = isset($data['byButton']) && is_array($data['byButton']) ? $data['byButton'] : [];
-$byIp = isset($data['byIp']) && is_array($data['byIp']) ? $data['byIp'] : [];
-$byTarget = isset($data['byTarget']) && is_array($data['byTarget']) ? $data['byTarget'] : [];
-$recent = tracker_recent($data);
-$promos = isset($data['promos']) && is_array($data['promos']) ? $data['promos'] : [];
+$byPage = $period === 'all' && is_array($data['byPage'] ?? null) ? $data['byPage'] : $filtered['byPage'];
+$byButton = $period === 'all' && is_array($data['byButton'] ?? null) ? $data['byButton'] : $filtered['byButton'];
+$byIp = $period === 'all' && is_array($data['byIp'] ?? null) ? $data['byIp'] : $filtered['byIp'];
+$byTarget = $period === 'all' && is_array($data['byTarget'] ?? null) ? $data['byTarget'] : $filtered['byTarget'];
+$recent = $filteredEvents;
 $notice = (string) ($_SESSION['tracker_notice'] ?? '');
 unset($_SESSION['tracker_notice']);
 ?>
@@ -198,6 +221,12 @@ unset($_SESSION['tracker_notice']);
           <a href="/admin/blogs.php" class="btn btn-secondary btn-sm">Back to Blogs</a>
         </div>
 
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+          <?php foreach ($periods as $key => $label): ?><a class="btn <?= $period === $key ? 'btn-primary' : 'btn-secondary' ?> btn-sm" href="?period=<?= h($key) ?>"><?= h($label) ?></a><?php endforeach; ?>
+          <a class="btn btn-secondary btn-sm" href="/admin/playnow-promos.php">Manage promo links</a>
+        </div>
+        <p style="font-size:0.82rem; color:var(--text-muted); margin:0 0 18px;">Showing: <?= h($periods[$period]) ?><?= $period !== 'all' ? ' (based on recorded click events)' : '' ?></p>
+
         <div class="metric-grid">
           <div class="metric-card">
             <strong><?= h(number_format($totalClicks)) ?></strong>
@@ -216,47 +245,6 @@ unset($_SESSION['tracker_notice']);
             <span>User IPs</span>
           </div>
         </div>
-
-        <?php if ($notice !== ''): ?><p class="notice ok"><?= h($notice) ?></p><?php endif; ?>
-
-        <section class="tracker-card" style="margin-bottom:16px;">
-          <h2 style="font-size:1.05rem; color:var(--brand-dark);">Promo links</h2>
-          <form method="post" class="promo-form">
-            <?= csrf_input() ?>
-            <input type="hidden" name="promo_code" value="">
-            <label>Custom promo code<input name="custom_promo_code" type="text" maxlength="64" placeholder="Optional, 8-64 URL-safe characters"></label>
-            <label>Destination URL<input name="target_url" type="text" value="/playnow" required maxlength="500"></label>
-            <label>OG Title<input name="og_title" type="text" maxlength="180" placeholder="Play Now"></label>
-            <label>OG Description<textarea name="og_description" maxlength="300" placeholder="Open Play Now"></textarea></label>
-            <label>OG Image<input class="promo-image-upload" type="file" accept="image/jpeg,image/png,image/webp"><input name="og_image" type="hidden" value=""><span class="promo-image-status" role="status"></span><img class="promo-image-preview" alt="OG image preview" hidden></label>
-            <button class="btn btn-primary btn-sm" type="submit">Generate promo link</button>
-          </form>
-          <?php if ($promos !== []): ?>
-            <table class="tracker-table" data-paginate>
-              <thead><tr><th>Promo URL</th><th>Destination</th><th>Clicks</th><th>Last click</th><th>Edit</th></tr></thead>
-              <tbody>
-                <?php foreach ($promos as $promo): ?>
-                  <?php if (!is_array($promo)) continue; ?>
-                  <tr>
-                    <td class="value-cell"><a href="/promo-code/<?= h($promo['code'] ?? '') ?>?preview=1" target="_blank" rel="noopener">/promo-code/<?= h($promo['code'] ?? '') ?></a></td>
-                    <td class="value-cell"><?= h($promo['targetUrl'] ?? '') ?></td>
-                    <td><?= (int) ($promo['clicks'] ?? 0) ?></td>
-                    <td><time datetime="<?= h($promo['lastClickAt'] ?? '') ?>"><?= h(admin_format_date($promo['lastClickAt'] ?? '') ?: ($promo['lastClickAt'] ?? '')) ?></time></td>
-                    <td><details><summary>Edit</summary><form method="post" class="promo-form">
-                      <?= csrf_input() ?><input type="hidden" name="promo_code" value="<?= h($promo['code'] ?? '') ?>">
-                      <label>Promo code<input name="new_promo_code" value="<?= h($promo['code'] ?? '') ?>" required maxlength="64"></label>
-                      <label>Destination URL<input name="target_url" value="<?= h($promo['targetUrl'] ?? '/playnow') ?>" required maxlength="500"></label>
-                      <label>OG Title<input name="og_title" value="<?= h($promo['ogTitle'] ?? '') ?>" maxlength="180"></label>
-                      <label>OG Description<textarea name="og_description" maxlength="300"><?= h($promo['ogDescription'] ?? '') ?></textarea></label>
-                      <label>OG Image<input class="promo-image-upload" type="file" accept="image/jpeg,image/png,image/webp"><input name="og_image" type="hidden" value="<?= h($promo['ogImage'] ?? '') ?>"><span class="promo-image-status" role="status"></span><?php if (($promo['ogImage'] ?? '') !== ''): ?><img class="promo-image-preview" src="<?= h($promo['ogImage']) ?>" alt="OG image preview"><?php else: ?><img class="promo-image-preview" alt="OG image preview" hidden><?php endif; ?></label>
-                      <button class="btn btn-secondary btn-sm" type="submit">Save</button>
-                    </form></details></td>
-                  </tr>
-                <?php endforeach; ?>
-              </tbody>
-            </table>
-          <?php endif; ?>
-        </section>
 
         <div class="tracker-grid">
           <section class="tracker-card">

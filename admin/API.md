@@ -267,7 +267,7 @@ curl 'http://localhost:8082/api/settings/seo.php'
 | `slug` | Yes | None | Publicly eligible game's exact slug. |
 | `visitor_id` | Yes | None | Random browser identifier, 32–80 letters/digits/hyphens/underscores. Persist and reuse it in localStorage; do not send a username. |
 
-Returns `{"ok":true,"counted":true,"uniquePlayers":1}`. `counted` is false for an already counted browser/game pair. Errors: 405 wrong method, 422 invalid fields, 404 unavailable game, 429 over 60 requests/minute per direct client IP, 500 storage failure. Responses use no-store. Only hashed visitor identifiers are retained. Counts appear in the existing paginated admin game list. No changes to game-list/detail response shapes.
+Returns `{"ok":true,"counted":true,"uniquePlayers":1}`. `counted` is false for an already counted browser/game pair. Errors: 405 wrong method, 422 invalid fields, 404 unavailable game, 429 over 60 requests/minute per direct client IP, 500 storage failure. Responses use no-store. Only hashed visitor identifiers are retained. Counts appear in the existing paginated admin game list. The detail response also exposes `uniquePlayers`; the list response is unchanged.
 
 Frontend: run this inside the demo launch handler; a tracking failure must not prevent launching the game:
 
@@ -302,7 +302,7 @@ Chat message formatting: `POST /api/chat-session.php` preserves internal spaces,
 - Migrated Odds layouts retain saved provider URL/catalogue templates and sport metadata; provider Settings still accepts `action=save_odds_api`, `enabled`, `apiKey` (blank retains), `regions`, optional `clear_api_key=1` (requires disabled). Both global and per-layout switches gate migrated public output. Markets and bookmakers remain per layout. Saved `{apiKey}` and `{bookmakers}` expansions are supported.
 - Compatibility: public GET `/api/odds-api.php?action=sports|odds&iframe=N&sport=KEY` keeps its legacy `{ok,enabled,data,updatedAt,layout}` raw feed and legacy block snapshot for existing integrations; the generic builder/iframe use `/api/sports-layout.php`. Legacy feed caches remain sports3600s/odds300s/failures60s. Do not use the legacy feed as the generic layout API.
 - Public GET `/odds-api/sports.php` (legacy `/api/sports.php` remains an adapter, along with compatibility query `/api/sports-layout.php?action=sports`) returns the full Sports Registry tree grouped by sports category, then tournament, with all associated generated iframe layouts: `{ok, categories, layouts, total_categories, total_tournaments, total_layouts}`. Query filters: `?category=SLUG|ID`, `?sport=SPORT_KEY`, `?only_active=1`, `?view=layouts` (or `?layouts_only=1`), `?view=categories` (or `?tree_only=1`). Each category lists its enabled tournaments (`tournaments[]`), and each tournament includes its generated iframe layouts (`layouts[]`). The root `layouts[]` lists saved iframe layouts belonging to the same eligible tournaments, with their category and tournament details, embed URL (`/odds-api/?iframe=N`), iframe embed HTML code, and data API URL (`/api/sports-layout.php?id=N`).
-- Guide: [Sport / Competition layouts](plugin/odds-api/sports/README.md). Tests: `php admin/scripts/test-sports-api.php`, `php admin/scripts/test-odds-api.php`.
+- Guide: [Sport / Competition layouts](plugin/odds-api/sports/README.md). Tests: `php admin/test/test-sports-api.php`, `php admin/test/test-odds-api.php`.
 
 ### Optional plugins
 
@@ -312,7 +312,7 @@ Public API methods, inputs and payloads remain unchanged: game list/detail/provi
 
 Remove the corresponding plugin folder to uninstall its code; stop its scheduled jobs first. Databases stay in the existing shared storage directory (or `APP_STORAGE_DIR`) for reinstall/backup. No flags, tables, migrations or stored records are added or deleted by this reorganization. Main blog/settings bootstrap and indexing tolerate an absent Games plugin. See [plugin guide](/admin/plugin/README.md).
 
-- Blog image links: public `GET /api/blog.php?slug=...` preserves linked images in `blog.content_html` as `<a href="..."><img ...></a>`, including `rel="noopener noreferrer nofollow"` when the saved Markdown link has `{nofollow}`. Root-relative and absolute HTTP(S) image URLs are supported; relative image/link URLs become absolute as usual. Images without links stay unlinked and follow links do not acquire nofollow. Image attributes are protected from subsequent Markdown formatting; unsafe URL schemes remain unsupported. Methods, permissions, response keys and stored data are unchanged. Regression: `php admin/scripts/test-public-details.php` exercises the API output.
+- Blog image links: public `GET /api/blog.php?slug=...` preserves linked images in `blog.content_html` as `<a href="..."><img ...></a>`, including `rel="noopener noreferrer nofollow"` when the saved Markdown link has `{nofollow}`. Root-relative and absolute HTTP(S) image URLs are supported; relative image/link URLs become absolute as usual. Images without links stay unlinked and follow links do not acquire nofollow. Image attributes are protected from subsequent Markdown formatting; unsafe URL schemes remain unsupported. Methods, permissions, response keys and stored data are unchanged. Regression: `php admin/test/test-public-details.php` exercises the API output.
 
 ### Root Games API folder
 
@@ -321,18 +321,18 @@ The four public game endpoints now live in root `game-api/`: GET/form POST `slot
 ### Sports image enrichment
 
 - Admin/super-user GET `/admin/plugin/odds-api/registry/images.php?tournament=ID` shows previews, source/attribution records and unresolved matches. Authenticated form POST requires CSRF, `action=preview|enrich`, optional `retry=1`; each batch considers up to five missing images and returns HTML results. Sources: SportsDataverse followed by Wikidata P154 / Commons; no provider key required. Manual and existing images are preserved.
-- CLI: `php admin/plugin/odds-api/scripts/enrich-sports-images.php [--tournament=ID_OR_ODDS_KEY] [--limit=5] [--dry-run] [--retry]`. HTTP access to scripts remains blocked. Tests: `php admin/plugin/odds-api/scripts/test-sports-images.php`.
+- CLI: `php admin/plugin/odds-api/scripts/enrich-sports-images.php [--tournament=ID_OR_ODDS_KEY] [--limit=5] [--dry-run] [--retry]`. HTTP access to scripts remains blocked. Tests: `php admin/test/test-sports-images.php`.
 - New `sports_image_assets` table in `sports-registry.sqlite` stores status, source and attribution; participant image paths update existing tables. Images live at `/uploads/sports/`. Saved tournament logos take precedence over category fallback in existing iframe image resolution; public JSON fields are unchanged.
 - Public GET `/odds-api/?credits=1&credits_page=1` returns HTML image attribution, 50 entries/page, with source/license links and no credentials. The iframe links to it. See [Odds API image guide](plugin/odds-api/README.md#free-sports-images).
 
 - Daily image runner: `admin/plugin/odds-api/scripts/daily-sports-images.php` (CLI-only), flags `--tournament`, `--max-items=1000`, `--max-seconds=1800`, `--batch-size=25`, `--pause-ms=1000`. Exclusive storage lock and private rotating log; no scheduler is installed automatically. Uses existing image tables and preserves manual/existing logos. See the [aaPanel job guide](plugin/odds-api/README.md#dailybackground-image-job-aapanel).
-- Iframe image fix: existing `/api/sports-layout.php` image blocks now return same-origin local registry paths so a placeholder or different canonical site URL cannot prevent rendering. Missing registry images return an empty URL rather than a team/sport name. The editor uses the primary participant registry and saved tournament logos; iframe CSP permits HTTPS custom images. No new response fields/tables. Tests: `test-sports-images.php`, `test-sports-images-daily.php` and `test-iframe-images.cjs` under the Odds API plugin's scripts folder.
+- Iframe image fix: existing `/api/sports-layout.php` image blocks now return same-origin local registry paths so a placeholder or different canonical site URL cannot prevent rendering. Missing registry images return an empty URL rather than a team/sport name. The editor uses the primary participant registry and saved tournament logos; iframe CSP permits HTTPS custom images. No new response fields/tables. Tests: `test-sports-images.php`, `test-sports-images-daily.php` and `test-iframe-images.cjs` under `admin/test`.
 
 ### Shared default image
 
 `/admin/settings.php` accepts admin/super-user multipart POST with CSRF and `action=save_default_image`, file `default_image` (PNG/JPEG/WebP/AVIF, 10 MB maximum, validated dimensions), or `action=clear_default_image`. Returns HTML status. Uses existing `app_settings.default_image`; no new tables. Uploads are stored under `/uploads/blogs/site-default-…` and mirrored in admin uploads for existing routing. Saving/clearing invalidates blog API caches.
 
-Blog list/detail `featuredImage` resolves blank/legacy defaults and missing local blog files to the configured image; real images and stored blog content remain unchanged. Blog editor previews and the Games admin missing-thumbnail display use the same fallback. Sports iframe/editor image blocks use the configured fallback for absent images, and expose `fallback_url` for a one-time browser load-error fallback. It never writes defaults into sports registry records or marks images enriched. Removing the setting restores the built-in blog default and prior empty sports fallback. Tests: `php admin/scripts/test-default-image.php` and the Odds API iframe browser regression.
+Blog list/detail `featuredImage` resolves blank/legacy defaults and missing local blog files to the configured image; real images and stored blog content remain unchanged. Blog editor previews and the Games admin missing-thumbnail display use the same fallback. Sports iframe/editor image blocks use the configured fallback for absent images, and expose `fallback_url` for a one-time browser load-error fallback. It never writes defaults into sports registry records or marks images enriched. Removing the setting restores the built-in blog default and prior empty sports fallback. Tests: `php admin/test/test-default-image.php` and the Odds API iframe browser regression.
 
 Blog detail metadata: public `GET /api/blog.php?slug=...` additionally returns `blog.id`, `seoTitle` (falls back to title), `focusKeyphrase`, original `content`, `categoryId`, `categoryName`, `categoryLabel`, `tagIds`, `writerId`, `status`, `isPublic`, `date`, `scheduledAt`, `createdAt`, integer `views`/`likes`/`dislikes`, and `countdownEnabled`/`countdownTarget`/`countdownTitle`/`countdownEndText`. Existing rendered HTML, public writer profile, taxonomy, timestamps, countdown and FAQ fields remain available. Draft/future posts still return 404. Admin input helpers and private user records are excluded. No new parameters, permissions or database changes.
 
@@ -350,7 +350,7 @@ Sports-list layout `created_at`/`updated_at` fields normalize both Unix seconds 
 
 Admin/super-user `GET /admin/plugin/odds-api/sports/?action=download&id=ID|all` downloads a version-1 `sports-layouts` JSON file with layout titles, sport keys, API URL templates, root paths, columns, item limits, blocks, markets and bookmakers. Runtime data, installation IDs and provider settings are excluded; common credential query parameters are replaced with `{apiKey}`. Each saved row has Download; Download all exports all saved layouts.
 
-Authenticated multipart `POST` to the same page requires CSRF, `action=import` and `layout_file` (JSON, maximum 5 MB, 1–1000 layouts). Validation completes before writes; insertion is transactional. Imports always create new IDs switched OFF, preserving existing records. Success redirects to the first imported layout; invalid files return HTML errors (422). Review imported layouts, configure destination provider credentials and register the matching tournaments before enabling. Uses the existing `iframes` table; no schema changes. Regression: `php admin/scripts/test-sports-api.php`.
+Authenticated multipart `POST` to the same page requires CSRF, `action=import` and `layout_file` (JSON, maximum 5 MB, 1–1000 layouts). Validation completes before writes; insertion is transactional. Imports always create new IDs switched OFF, preserving existing records. Success redirects to the first imported layout; invalid files return HTML errors (422). Review imported layouts, configure destination provider credentials and register the matching tournaments before enabling. Uses the existing `iframes` table; no schema changes. Regression: `php admin/test/test-sports-api.php`.
 
 Local Docker Nginx supports `/promo-api/*` as an internal alias for `/api/*` on the same project. Methods, parameters, authentication and response formats are those of the destination handler. No forwarding to sibling deployments or database changes.
 
@@ -363,3 +363,29 @@ Automatic replies are limited to once per rule per chat session for matching phr
 Game handlers now use `/game-api/{slot-list,provider-list,game,game-play}.php` and `/admin/plugin/games/` (`index.php`, `edit.php`, `save.php`). Removed `/api/` game forwarders and `/admin/slot*.php` are no longer supported. Sports layout reads use public `GET /odds-api/sports-layout.php?id=ID`; sports listings use `/odds-api/sports.php`. Methods, permissions, inputs and response shapes on surviving endpoints are unchanged. The public iframe and generated layout URLs use the canonical sports route.
 
 Shared `public_detail_slug()` and `public_detail_url()` live in `admin/includes/public-detail.php`, which loads optional game helpers and retains the absent-plugin fallback. Core/bootstrap and game import/sitemap code no longer require the deleted `admin/includes/game-*.php` wrappers. No flags or database schema changes. Regression tests target surviving routes.
+
+
+### Game inner-page detail
+
+Use public `GET /game-api/game.php?slug=example-game` as the game equivalent of `/api/blog.php`. No authentication is required. It returns `{ "ok": true, "game": { ... } }` and retains all existing fields. Errors remain 404 for missing/invalid/ineligible games, 405 for non-GET methods, and 500 for storage failures. Responses are `no-store`. PH restrictions, provider approval, global enablement, publication, processing and visibility are enforced. Removed `/api/game.php` is not recreated.
+
+Additional `game` fields:
+
+- `content_html`: sanitized long description ready to render; raw `longDescription` remains available. Plain-text newlines are preserved. Render `content_html`, not unsanitized raw content.
+- `provider.id`, `type.id`: nullable local catalogue IDs.
+- `megaways`, `bonusBuy`, `landBased`, `autoplay`, `quickspin`, `tumblingReels`, `increasingMultipliers`: booleans.
+- `reels`, `maxExposure`, `orientation`: saved strings; empty means unspecified.
+- `currencies`, `languages`, `markets`: arrays; `createdAt`: Unix timestamp (0 if unavailable).
+- `seo`: `title` from the game name, `description` from the plain short description, `canonicalUrl`, and `image`. These are derived, not separately stored SEO overrides.
+- `uniquePlayers`: count from this site's `game_players` table; `playerCountMetric: "unique_browsers_on_this_site"`. Call existing `POST /game-api/game-play.php` with `slug` and a stable `visitor_id` when the visitor actually starts the demo. Reading details never increments it.
+- `slotsLaunchPlays`: `{ "count": 1234, "metric": "plays", "source": "slotslaunch", "scope": "network", "syncedAt": 1791580800, "stale": false }`. `count` is null before sync or when a game is absent from the rankings. `syncedAt` is the local snapshot timestamp, not the provider's measurement period; `stale` becomes true after 24 hours. SlotsLaunch documents `times_played`, not unique users or a guaranteed all-time period. Never label this value as unique users.
+
+Source: [SlotsLaunch Rankings API](https://docs.slotslaunch.com/article/12-api-endpoints). Counts come from the network rankings without a `host` filter. Public requests only read local data; they never call SlotsLaunch.
+
+Refresh rankings from the `www` directory with:
+
+```sh
+php admin/plugin/games/scripts/sync-slotslaunch-rankings.php
+```
+
+Uses existing `SLOTSLAUNCH_API_TOKEN` (or existing token aliases), `SLOTSLAUNCH_ORIGIN` (registered website origin, falling back to a valid `SITE_BASE_URL`), and optional `SLOTSLAUNCH_API_SECRET` for signed requests. Keep the secret server-side. Schedule daily using your existing task runner. No scheduler is installed. Validated responses atomically replace `APP_STORAGE_DIR/slotslaunch-rankings.json`; fetch/validation failures preserve the previous snapshot. No new database tables or columns. Tests: `php admin/test/test-game-detail.php` and `php admin/test/test-game-players.php`.

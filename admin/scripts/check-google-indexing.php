@@ -20,6 +20,12 @@ try {
 } catch (Throwable $error) {
     $failed=true; fwrite(STDERR,"Google inspection failed. Check private configuration and server logs.\n");
 }
+try {
+    $submittedCount = indexing_google_process_queue($pdo);
+    echo 'Google Indexing API: '.$submittedCount." URL notification(s) published.\n";
+} catch (Throwable $error) {
+    $failed=true; error_log('Google Indexing API worker failed; queued notifications retained.');
+}
 try { echo 'IndexNow: '.indexnow_process_queue($pdo)." URL notification(s) accepted.\n"; }
 catch (Throwable $error) { $failed=true; error_log('IndexNow worker failed; queued notifications retained.'); }
 exit($failed?1:0);

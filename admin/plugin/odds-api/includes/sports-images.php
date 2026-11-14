@@ -223,7 +223,7 @@ function sports_images_record(string $type, array $entity, string $status, strin
 function sports_images_enrich(?int $tournamentId = null, array $options = []): array
 {
     $pdo = sports_images_db();
-    $limit = max(1, min(25, (int)($options['limit'] ?? 5)));
+    $limit = max(1, min(100, (int)($options['limit'] ?? 5)));
     $dry = !empty($options['dry_run']);
     $transport = $options['transport'] ?? null;
     $stats = ['enriched'=>0,'sportsdataverse'=>0,'wikimedia'=>0,'image_failures'=>0,'skipped_manual'=>0,'skipped_existing'=>0,'unmatched'=>0,'processed'=>0,'remaining'=>0,'deferred'=>0,'stopped'=>false,'errors'=>[],'results'=>[]];
@@ -249,6 +249,7 @@ function sports_images_enrich(?int $tournamentId = null, array $options = []): a
     $pending = [];
     foreach ($entities as [$type,$entity]) {
         if (($entity['image_source'] ?? '') === 'manual') { $stats['skipped_manual']++; continue; }
+        if (isset($options['completed'][$type.':'.$entity['id']])) continue;
         $record = $records[$type.':'.$entity['id']] ?? null;
         if (!empty($entity['image_path']) || ($type === 'tournament' && !empty($record['image_path']))) { $stats['skipped_existing']++; continue; }
         if ($record && isset($options['checked_since']) && (int)$record['checked_at'] >= (int)$options['checked_since']) continue;
@@ -275,8 +276,9 @@ function sports_images_enrich(?int $tournamentId = null, array $options = []): a
     $pending = array_column($ranked,'entry');
     $start = microtime(true);
     foreach (array_slice($pending, 0, $limit) as [$type,$entity]) {
-        if (microtime(true) - $start > 45 || (isset($options['deadline']) && microtime(true) >= $options['deadline'])) break;
+        if (((float)($options['batch_seconds'] ?? 45) > 0 && microtime(true) - $start > (float)($options['batch_seconds'] ?? 45)) || (isset($options['deadline']) && microtime(true) >= $options['deadline'])) break;
         $candidate = null;
+        $completed = false;
         try {
             $candidate = sports_images_sdv($entity, $type, $index);
             $path = '';
@@ -308,6 +310,7 @@ function sports_images_enrich(?int $tournamentId = null, array $options = []): a
             if ($candidate) { $stats['enriched']++; $stats[$candidate['source']]++; } else $stats['unmatched']++;
             $stats['results'][] = ['type'=>$type,'id'=>$entity['id'],'name'=>$entity['name'] ?? $entity['title'],'status'=>$status,'source'=>$candidate['source'] ?? '', 'image_path'=>$path,'metadata'=>$candidate];
             $stats['processed']++; $stats['remaining']--;
+            $completed = !$dry;
         } catch (SportsImagesRateLimit $e) {
             $stats['stopped']=true; $stats['errors'][]=$e->getMessage(); break;
         } catch (Throwable $e) {
@@ -315,6 +318,8 @@ function sports_images_enrich(?int $tournamentId = null, array $options = []): a
             $stats['errors'][]=($entity['name'] ?? $entity['title']).': '.$e->getMessage();
             if (!$dry) sports_images_record($type,$entity,'error','',[], $e->getMessage());
         }
+        // Persist after each completed item; checkpoint failures stop the run rather than being swallowed.
+        if ($completed && isset($options['on_completed'])) ($options['on_completed'])($type,(int)$entity['id'],$status);
     }
     return $stats;
 }

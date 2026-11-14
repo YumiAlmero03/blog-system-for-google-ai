@@ -115,6 +115,31 @@ function public_game_payload(array $row): array
 {
     $game = slot_list_item($row);
     foreach (['gameUrl','thumbnail','iframeUrl'] as $field) $game[$field] = public_detail_url($game[$field]);
+    require_once __DIR__ . '/slot-content.php';
+    require_once __DIR__ . '/game-rankings.php';
+    $description = (string) ($row['long_description'] ?? '');
+    $game['content_html'] = $description === '' ? '' : slot_content_html(
+        preg_match('/<\/?[a-z][^>]*>/i', $description)
+            ? $description : '<p>' . nl2br(htmlspecialchars($description, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')) . '</p>'
+    );
+    foreach (['megaways','bonus_buy','land_based','autoplay','quickspin','tumbling_reels','increasing_multipliers'] as $field) {
+        $key = lcfirst(str_replace(' ', '', ucwords(str_replace('_', ' ', $field))));
+        $game[$key] = (int) ($row[$field] ?? 0) === 1;
+    }
+    foreach (['currencies','languages','markets'] as $field) $game[$field] = slot_list_json_array($row[$field] ?? '[]');
+    $game['reels'] = (string) ($row['reels'] ?? '');
+    $game['maxExposure'] = (string) ($row['max_exposure'] ?? '');
+    $game['orientation'] = (string) ($row['orientation'] ?? '');
+    $game['createdAt'] = (int) ($row['created_at'] ?? 0);
+    $game['provider']['id'] = isset($row['provider_id']) ? (int) $row['provider_id'] : null;
+    $game['type']['id'] = isset($row['type_id']) ? (int) $row['type_id'] : null;
+    $game['seo'] = ['title'=>$game['name'], 'description'=>trim(strip_tags($game['shortDescription'])),
+        'canonicalUrl'=>$game['gameUrl'], 'image'=>$game['thumbnail']];
+    $count = blogs_pdo()->prepare('SELECT COUNT(*) FROM game_players WHERE game_id=?');
+    $count->execute([(int) $row['id']]);
+    $game['uniquePlayers'] = (int) $count->fetchColumn();
+    $game['playerCountMetric'] = 'unique_browsers_on_this_site';
+    $game['slotsLaunchPlays'] = game_rankings_count((int) $row['api_id']);
     return $game;
 }
 
