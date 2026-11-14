@@ -749,7 +749,7 @@ $blogCategoryOptions = blog_categories_all();
               <td data-seo-id="${escapeHtml(id)}"><span class="seo-rating-label">Checking...</span><span class="seo-rating-score"></span><small class="seo-rating-details"></small></td>
               <td>
                 <div class="admin-actions">
-                  ${isPublic ? `<a href="/blog/${encodeURIComponent(slug)}/" target="_blank" class="btn btn-primary btn-sm" style="text-decoration:none;">View</a>` : `<span class="btn btn-secondary btn-sm" style="opacity:0.55; cursor:not-allowed;">${status === 'scheduled' ? 'Scheduled' : 'Draft'}</span>`}
+                  ${isPublic ? `<a href="<?= h(rtrim(trim((string) (env_value('FRONTEND_URL') ?? '')), '/')) ?>/blog/${encodeURIComponent(slug)}/" target="_blank" class="btn btn-primary btn-sm" style="text-decoration:none;">View</a>` : `<span class="btn btn-secondary btn-sm" style="opacity:0.55; cursor:not-allowed;">${status === 'scheduled' ? 'Scheduled' : 'Draft'}</span>`}
                   <button type="button" class="btn btn-secondary btn-sm" data-quick-edit="${escapeHtml(id)}">Quick Edit</button>
                   <a href="/admin/blog-publish.php?id=${encodeURIComponent(id)}" class="btn btn-secondary btn-sm" style="text-decoration:none;">Edit</a>
                   <button type="button" class="btn btn-secondary btn-sm" data-delete="${escapeHtml(id)}" style="color:var(--danger); border-color:var(--danger);">Delete</button>
