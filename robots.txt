@@ -3,3 +3,4 @@ Disallow: *
 Sitemap: https://freecasinogames.ph/sitemap-index.xml
 Sitemap: https://bygame.ph/sitemap-index.xml
 Sitemap: https://freeonlinegames.info/sitemap-index.xml
+Sitemap: http://thechikin.chickenkiller.com/sitemap-index.xml

@@ -47,6 +47,12 @@ try {
         gc_check(in_array('Authorization: Bearer secret-test-token',$headers,true),'Shared bearer token');
         if (str_contains($url,'/sitemaps/')) { gc_check($method==='PUT','Sitemap PUT'); $submitted++; return ['status'=>204,'body'=>'']; }
         if (str_contains($url,'urlInspection')) return ['status'=>200,'body'=>'{}'];
+        if (str_contains($url,'urlNotifications:publish')) {
+            $data=json_decode((string)$body,true);
+            gc_check(isset($data['url']) && in_array($data['type'],['URL_UPDATED','URL_DELETED'],true),'Valid publish payload');
+            return ['status'=>200,'body'=>json_encode(['urlNotificationMetadata'=>['url'=>$data['url'],'latestUpdate'=>['type'=>$data['type'],'notifyTime'=>gmdate('c')]]])];
+        }
+        if (str_contains($url,'urlNotifications/metadata')) return ['status'=>200,'body'=>'{"urlNotificationMetadata":{}}'];
         return ['status'=>$denied?403:200,'body'=>'{"permissionLevel":"siteOwner"}'];
     };
     gc_check(google_test_connection($http)==='Connected','Property connection');
@@ -55,6 +61,20 @@ try {
     google_submit_pending_sitemap($http); gc_check($submitted===1 && !google_state()['submission_pending'],'Queued sitemap submitted');
     index_checker_inspect('https://example.test/game/test/',index_checker_config(),$http);
     gc_check(in_array('https://www.googleapis.com/auth/webmasters',$scopes,true) && in_array('https://www.googleapis.com/auth/webmasters.readonly',$scopes,true),'Only required read/write scopes');
+    $pubResult = google_publish_url('https://example.test/game/test/', 'URL_UPDATED', $http);
+    gc_check($pubResult['status'] === 200 && $pubResult['success'], 'Indexing API publish update');
+    gc_check(in_array('https://www.googleapis.com/auth/indexing', $scopes, true), 'Indexing scope requested');
+    $delResult = google_publish_url('https://example.test/game/test/', 'URL_DELETED', $http);
+    gc_check($delResult['status'] === 200 && $delResult['success'], 'Indexing API publish delete');
+    try { google_publish_url('bad-url', 'URL_UPDATED', $http); gc_check(false, 'Bad URL rejected'); } catch (InvalidArgumentException) {}
+    try { google_publish_url('https://example.test/', 'BAD_TYPE', $http); gc_check(false, 'Bad type rejected'); } catch (InvalidArgumentException) {}
+    $testIdx = google_test_indexing_api($http);
+    gc_check($testIdx['ok'] && $testIdx['status'] === 200, 'Indexing API connection test');
+    gc_check(!google_indexing_enabled(), 'Default indexing disabled');
+    google_save_configuration('https://example.test/', json_encode($credential), false, true);
+    gc_check(google_indexing_enabled(), 'Indexing enabled after save');
+    google_save_configuration('https://example.test/', json_encode($credential), false, false);
+    gc_check(!google_indexing_enabled(), 'Indexing disabled after save');
     $credential['client_email']='replacement@test-project.iam.gserviceaccount.com'; $ttl=0;
     google_save_configuration('https://example.test/',json_encode($credential));
     $before=$calls; google_access_token([],$http); google_access_token([],$http); gc_check($calls===$before+2,'Expired token refreshed automatically after replacement');

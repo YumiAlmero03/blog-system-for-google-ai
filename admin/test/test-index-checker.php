@@ -114,6 +114,11 @@ try {
             ix_check(openssl_verify($parts[0].'.'.$parts[1],$decode($parts[2]),openssl_pkey_get_details($key)['key'],OPENSSL_ALGO_SHA256)===1,'Signed service-account JWT');
             return ['status'=>200,'headers'=>[],'body'=>'{"access_token":"private-test-token","expires_in":3600}'];
         }
+        if (str_contains($url,'urlNotifications:publish')) {
+            $data=json_decode((string)$body,true);
+            ix_check(isset($data['url']) && in_array($data['type'],['URL_UPDATED','URL_DELETED'],true),'Valid publish payload');
+            return ['status'=>200,'headers'=>[],'body'=>'{"urlNotificationMetadata":{"latestUpdate":{"type":"URL_UPDATED"}}}'];
+        }
         $data=json_decode($body,true); ix_check($data['inspectionUrl']===$site.'/' && $data['siteUrl']===$site.'/','Inspection request property');
         ix_check(in_array('Authorization: Bearer private-test-token',$headers,true),'Bearer auth');
         return ['status'=>200,'headers'=>[],'body'=>'{"inspectionResult":{"indexStatusResult":{"verdict":"PASS"}}}'];
@@ -133,6 +138,19 @@ try {
         ix_check(!str_contains($body,'private-test-token') && !str_contains($body,'google-private.json'),'No HTML credentials');
     }
     [$status]=ix_handler(['path'=>'/admin/index-checker/index.php','role'=>'admin','post'=>['recheck'=>(string)$id]]); ix_check($status===303,'Manual form queues');
+    [$status]=ix_handler(['path'=>'/admin/index-checker/index.php','role'=>'editor','post'=>['publish_google'=>(string)$id]]); ix_check($status===403,'Editor denied google publish');
+    putenv('GOOGLE_INDEXING_ENABLED=true');
+    $manualRes = indexing_google_publish_manual($pdo, [$id], $http);
+    ix_check($manualRes['submitted'] === 1, 'Manual Google publish succeeded');
+    $checkRow = $pdo->query('SELECT * FROM index_checks WHERE id='.$id)->fetch();
+    ix_check(!empty($checkRow['google_submitted_at']) && $checkRow['google_submit_status'] === 'Success', 'Manual publish recorded in index_checks');
+    ix_check(google_indexing_quota_remaining($pdo, 200) === 199, 'Quota decremented after manual submit');
+    indexing_reconcile($pdo, 'blog');
+    $queuedCount = (int)$pdo->query('SELECT COUNT(*) FROM google_indexing_queue')->fetchColumn();
+    ix_check($queuedCount > 0, 'Google indexing queue populated by reconcile');
+    $processedCount = indexing_google_process_queue($pdo, $http);
+    ix_check($processedCount === $queuedCount, 'Google indexing queue processed');
+    ix_check((int)$pdo->query('SELECT COUNT(*) FROM google_indexing_queue')->fetchColumn() === 0, 'Queue drained after processing');
     [$status,$body]=ix_handler(['path'=>'/api/settings/seo.php','method'=>'GET']);
     ix_check($status===200 && !str_contains($body,'google-private') && !str_contains($body,'sc-domain:') && !str_contains($body,'private-test-token'),'Public SEO settings exclude private configuration');
     $unknown=$pdo->query('SELECT * FROM index_checks WHERE id='.(int)$game['id'])->fetch();

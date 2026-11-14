@@ -2317,9 +2317,10 @@ $writerOptions = writer_options();
         document.getElementById('csrf-token').value = value;
       }
 
+      const frontendBase = <?= json_encode(rtrim(trim((string) (env_value('FRONTEND_URL') ?? '')), '/')) ?>;
       function currentBlogPublicUrl() {
         const currentSlug = slug ? slugify(slug.value || '') : '';
-        return currentSlug ? `/blog/${encodeURIComponent(currentSlug)}/` : '';
+        return currentSlug ? `${frontendBase}/blog/${encodeURIComponent(currentSlug)}/` : '';
       }
 
       function currentBlogPreviewUrl() {

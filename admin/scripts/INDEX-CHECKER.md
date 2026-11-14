@@ -33,7 +33,7 @@ Example cron entry (replace the PHP binary, site directory and private log path 
 15 2 * * * cd /www/wwwroot/freecasinogames.ph && /usr/bin/php admin/scripts/check-google-indexing.php >> /private/logs/index-checker.log 2>&1
 ```
 
-Cron reconciles current public content with its previous public-URL snapshot, submits the queued sitemap index, inspects due URLs, and independently processes IndexNow notifications without interactive login. Google failures do not stop IndexNow. Saving credentials/property queues submission; use **Queue Sitemap Submission** to resubmit later. Failed submissions remain queued. Normal game/blog URLs are never sent to the Google Indexing API.
+Cron reconciles current public content with its previous public-URL snapshot, submits the queued sitemap index, inspects due URLs, publishes queued URL updates to the Google Indexing API (when enabled), and independently processes IndexNow notifications without interactive login. Google failures do not stop IndexNow. Saving credentials/property queues submission; use **Queue Sitemap Submission** to resubmit later. Failed submissions remain queued.
 
 Cron uses the server's timezone. This repository does not install a cron entry automatically. Use the same configuration/storage path as the website. Sitemap files must already be deployed and publicly reachable. Use the existing game sitemap generator after visibility changes; the blog sitemap is dynamic. No credentials have been provisioned by this implementation.
 
@@ -84,6 +84,20 @@ Super users configure **SEO Settings → IndexNow**: enable/disable, save an exi
 
 `indexing_public_urls` tracks canonical URLs that were publicly eligible. `indexing_notifications` deduplicates changes/removals by URL; `indexing_google_events` separately queues Google inspection changes. `indexing_jobs` holds sitemap work and IndexNow cooldowns. Content saves queue locally without contacting engines. Cron reconciliation also detects scheduled publication, imports, enrichment, and direct visibility changes. Never-public drafts, restricted games and private routes are excluded; a formerly public URL may be sent as a removal notification.
 
-The existing cron sends at most 10,000 pending IndexNow URLs per batch. HTTP 200/202 clears only the submitted versions; concurrent edits remain queued. Failures retain notifications with exponential backoff (10 minutes to one day), honoring longer `Retry-After` values. HTTP 400/403/422 waits at least one day; saving a replacement key or enabling IndexNow resets the retry delay. A worker lock prevents overlapping IndexNow batches. A Google sitemap failure has its own one-hour-to-one-day backoff. No ordinary content is sent to Google's Indexing API.
+The existing cron sends at most 10,000 pending IndexNow URLs per batch. HTTP 200/202 clears only the submitted versions; concurrent edits remain queued. Failures retain notifications with exponential backoff (10 minutes to one day), honoring longer `Retry-After` values. HTTP 400/403/422 waits at least one day; saving a replacement key or enabling IndexNow resets the retry delay. A worker lock prevents overlapping IndexNow batches. A Google sitemap failure has its own one-hour-to-one-day backoff.
+
+## Google Indexing API (Direct URL Submissions)
+
+Super users configure **SEO Settings → Google API / Search Console & Indexing API**:
+1. Enable the **Google Indexing API** in your Google Cloud Console project.
+2. Ensure the service account email is added as an **Owner** to your Google Search Console property (required by Google for Indexing API submissions).
+3. Check **Enable Google Indexing API (Direct URL Submit)** in SEO Settings and click **Save / Replace Credentials**.
+4. Click **Test Google Indexing API** to verify access.
+
+### Behavior & Quotas
+- **Automated Queue**: When blog posts or games are published, modified, or deleted, events are queued in `google_indexing_queue`. During the daily run (or manual trigger), `indexing_google_process_queue()` publishes `URL_UPDATED` or `URL_DELETED` notifications to `https://indexing.googleapis.com/v3/urlNotifications:publish`.
+- **Manual Submission**: In `/admin/index-checker/`, select up to 50 URLs and click **Submit selected to Google Indexing API** (or click **Submit to Google** on any individual row).
+- **Quota Safeguard**: Google sets a default quota of 200 requests/day per Google Cloud project. The system records all attempts in `google_indexing_attempts` and clamps requests within a rolling 24-hour window using `GOOGLE_INDEXING_DAILY_LIMIT` (default: 200).
+- **Rate-limiting & Errors**: HTTP 429 (`RESOURCE_EXHAUSTED`) or 403 halts processing immediately and initiates a 24-hour cooldown in `indexing_jobs` to protect project quota.
 
 Tests: `php admin/test/test-indexnow.php`, `php admin/test/test-google-credentials.php`, and `php admin/test/test-index-checker.php`. Remote engine responses are mocked.

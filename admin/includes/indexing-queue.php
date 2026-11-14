@@ -9,6 +9,10 @@ function indexing_schema(PDO $pdo): void
     $pdo->exec("CREATE TABLE IF NOT EXISTS indexing_google_events (url TEXT PRIMARY KEY, kind TEXT NOT NULL, removed INTEGER NOT NULL, version TEXT NOT NULL)");
     $pdo->exec("CREATE TABLE IF NOT EXISTS indexing_jobs (name TEXT PRIMARY KEY, version TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, next_at INTEGER NOT NULL DEFAULT 0)");
     $pdo->exec('CREATE INDEX IF NOT EXISTS indexing_notifications_due ON indexing_notifications(next_at)');
+    $pdo->exec("CREATE TABLE IF NOT EXISTS google_indexing_attempts (id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT NOT NULL, type TEXT NOT NULL, status_code INTEGER NOT NULL, attempted_at INTEGER NOT NULL)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS google_indexing_attempts_time ON google_indexing_attempts(attempted_at)");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS google_indexing_queue (url TEXT PRIMARY KEY, kind TEXT NOT NULL, removed INTEGER NOT NULL, version TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, next_at INTEGER NOT NULL DEFAULT 0)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS google_indexing_queue_due ON google_indexing_queue(next_at)");
 }
 
 function indexing_reconcile(PDO $pdo, string $kind): int
@@ -37,9 +41,11 @@ function indexing_reconcile(PDO $pdo, string $kind): int
         $delete=$pdo->prepare('DELETE FROM indexing_public_urls WHERE url=?');
         $queue=$pdo->prepare('INSERT INTO indexing_notifications(url,kind,removed,version) VALUES(?,?,?,?) ON CONFLICT(url) DO UPDATE SET removed=excluded.removed,version=excluded.version');
         $google=$pdo->prepare('INSERT INTO indexing_google_events(url,kind,removed,version) VALUES(?,?,?,?) ON CONFLICT(url) DO UPDATE SET removed=excluded.removed,version=excluded.version');
+        $googleQueue=$pdo->prepare('INSERT INTO google_indexing_queue(url,kind,removed,version) VALUES(?,?,?,?) ON CONFLICT(url) DO UPDATE SET removed=excluded.removed,version=excluded.version');
         foreach ($events as $url=>$removed) {
             $version=bin2hex(random_bytes(12));
             $queue->execute([$url,$kind,$removed,$version]); $google->execute([$url,$kind,$removed,$version]);
+            $googleQueue->execute([$url,$kind,$removed,$version]);
             if ($removed) $delete->execute([$url]); else $save->execute([$url,$kind,$current[$url]]);
         }
         if ($events) {
@@ -90,4 +96,173 @@ function indexing_google_sitemap_job(PDO $pdo): void
         $pdo->prepare('UPDATE indexing_jobs SET attempts=attempts+1,next_at=? WHERE name=? AND version=?')->execute([time()+$delay,$job['name'],$job['version']]);
         throw new RuntimeException('Google sitemap submission deferred.');
     }
+}
+
+function google_indexing_quota_remaining(PDO $pdo, int $dailyLimit = 200): int
+{
+    indexing_schema($pdo);
+    $now = time();
+    $stmt = $pdo->prepare('SELECT COUNT(*) FROM google_indexing_attempts WHERE attempted_at > ?');
+    $stmt->execute([$now - 86400]);
+    $used = (int)$stmt->fetchColumn();
+    return max(0, $dailyLimit - $used);
+}
+
+function indexing_google_process_queue(PDO $pdo, ?callable $http = null, ?int $limit = null): int
+{
+    indexing_schema($pdo);
+    require_once __DIR__ . '/google-credentials.php';
+    if (!google_safe_status()['configured'] || !google_indexing_enabled()) {
+        return 0;
+    }
+    if ($pdo->query("SELECT 1 FROM indexing_jobs WHERE name='google-indexing-cooldown' AND next_at>" . time())->fetchColumn()) {
+        return 0;
+    }
+    $lock = fopen(blog_storage_dir() . '/google-indexing-worker.lock', 'c');
+    if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) {
+        if ($lock) fclose($lock);
+        return 0;
+    }
+    try {
+        $dailyLimit = (int)(env_value('GOOGLE_INDEXING_DAILY_LIMIT') ?: 200);
+        if ($dailyLimit < 1) $dailyLimit = 200;
+        $now = time();
+        $quota = google_indexing_quota_remaining($pdo, $dailyLimit);
+        if ($quota <= 0) {
+            return 0;
+        }
+        $batchSize = $limit ?? min($quota, 50);
+        $stmt = $pdo->prepare('SELECT * FROM google_indexing_queue WHERE next_at <= ? ORDER BY next_at, url LIMIT ?');
+        $stmt->bindValue(1, $now, PDO::PARAM_INT);
+        $stmt->bindValue(2, $batchSize, PDO::PARAM_INT);
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!$rows) {
+            return 0;
+        }
+
+        $processed = 0;
+        foreach ($rows as $row) {
+            $type = $row['removed'] ? 'URL_DELETED' : 'URL_UPDATED';
+            try {
+                $res = google_publish_url($row['url'], $type, $http);
+                $statusCode = (int)$res['status'];
+                $pdo->prepare('INSERT INTO google_indexing_attempts(url, type, status_code, attempted_at) VALUES(?,?,?,?)')
+                    ->execute([$row['url'], $type, $statusCode, time()]);
+
+                if ($res['success']) {
+                    $pdo->prepare('DELETE FROM google_indexing_queue WHERE url=? AND version=?')
+                        ->execute([$row['url'], $row['version']]);
+                    try {
+                        $pdo->prepare('UPDATE index_checks SET google_submitted_at=?, google_submit_status="Success" WHERE url=?')
+                            ->execute([time(), $row['url']]);
+                    } catch (Throwable) {}
+                    $processed++;
+                } elseif ($statusCode === 429 || $statusCode === 403) {
+                    $delay = 86400;
+                    $pdo->prepare("INSERT INTO indexing_jobs(name, version, next_at) VALUES('google-indexing-cooldown', ?, ?) ON CONFLICT(name) DO UPDATE SET next_at = excluded.next_at")
+                        ->execute([bin2hex(random_bytes(12)), time() + $delay]);
+                    $pdo->prepare('UPDATE google_indexing_queue SET attempts=attempts+1, next_at=? WHERE url=? AND version=?')
+                        ->execute([time() + $delay, $row['url'], $row['version']]);
+                    break;
+                } else {
+                    $attempts = (int)$row['attempts'] + 1;
+                    $delay = min(86400, 600 * (2 ** min(6, $attempts - 1)));
+                    $pdo->prepare('UPDATE google_indexing_queue SET attempts=?, next_at=? WHERE url=? AND version=?')
+                        ->execute([$attempts, time() + $delay, $row['url'], $row['version']]);
+                }
+            } catch (Throwable $e) {
+                error_log('Google Indexing API publish failed: ' . $e->getMessage());
+                $attempts = (int)$row['attempts'] + 1;
+                $delay = min(86400, 600 * (2 ** min(6, $attempts - 1)));
+                $pdo->prepare('UPDATE google_indexing_queue SET attempts=?, next_at=? WHERE url=? AND version=?')
+                    ->execute([$attempts, time() + $delay, $row['url'], $row['version']]);
+            }
+        }
+        $pdo->prepare('DELETE FROM google_indexing_attempts WHERE attempted_at < ?')->execute([time() - 172800]);
+        return $processed;
+    } finally {
+        flock($lock, LOCK_UN);
+        fclose($lock);
+    }
+}
+
+function indexing_google_publish_manual(PDO $pdo, array $ids, ?callable $http = null): array
+{
+    indexing_schema($pdo);
+    require_once __DIR__ . '/google-credentials.php';
+    if (!google_safe_status()['configured']) {
+        throw new RuntimeException('Google credentials are not configured. Please configure them in SEO Settings.');
+    }
+    if (!google_indexing_enabled()) {
+        throw new RuntimeException('Google Indexing API is disabled. Please enable it in SEO Settings.');
+    }
+    if (count($ids) < 1 || count($ids) > 50) {
+        throw new InvalidArgumentException('Select between 1 and 50 URLs to submit.');
+    }
+    foreach ($ids as $id) {
+        if (!is_scalar($id) || !ctype_digit((string)$id) || (int)$id < 1) {
+            throw new InvalidArgumentException('Invalid URL selection.');
+        }
+    }
+    $ids = array_values(array_unique(array_map('intval', $ids)));
+    $dailyLimit = (int)(env_value('GOOGLE_INDEXING_DAILY_LIMIT') ?: 200);
+    $quota = google_indexing_quota_remaining($pdo, $dailyLimit);
+    if ($quota <= 0) {
+        throw new RuntimeException('Google Indexing API daily quota (' . $dailyLimit . '/day) reached. Retry in 24 hours.');
+    }
+
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = $pdo->prepare("SELECT id, url, in_sitemap FROM index_checks WHERE id IN ($placeholders)");
+    $stmt->execute($ids);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if (!$rows) {
+        throw new InvalidArgumentException('No matching URLs found.');
+    }
+
+    $submitted = 0;
+    $failed = 0;
+    $now = time();
+    foreach ($rows as $row) {
+        if ($submitted >= $quota) {
+            break;
+        }
+        $type = (int)$row['in_sitemap'] ? 'URL_UPDATED' : 'URL_DELETED';
+        try {
+            $res = google_publish_url($row['url'], $type, $http);
+            $statusCode = (int)$res['status'];
+            $pdo->prepare('INSERT INTO google_indexing_attempts(url, type, status_code, attempted_at) VALUES(?,?,?,?)')
+                ->execute([$row['url'], $type, $statusCode, time()]);
+
+            if ($res['success']) {
+                $submitted++;
+                try {
+                    $pdo->prepare('UPDATE index_checks SET google_submitted_at=?, google_submit_status="Success", updated_at=? WHERE id=?')
+                        ->execute([$now, $now, $row['id']]);
+                } catch (Throwable) {}
+            } else {
+                $failed++;
+                try {
+                    $pdo->prepare('UPDATE index_checks SET google_submit_status=?, updated_at=? WHERE id=?')
+                        ->execute(['HTTP ' . $statusCode, $now, $row['id']]);
+                } catch (Throwable) {}
+                if ($statusCode === 429 || $statusCode === 403) {
+                    break;
+                }
+            }
+        } catch (Throwable $e) {
+            $failed++;
+            error_log('Google publish manual failed: ' . $e->getMessage());
+        }
+    }
+
+    $msg = $submitted . ' URL(s) submitted to Google Indexing API.';
+    if ($failed > 0) {
+        $msg .= ' ' . $failed . ' URL(s) failed or quota reached.';
+    }
+    return [
+        'submitted' => $submitted,
+        'failed' => $failed,
+        'message' => $msg,
+    ];
 }

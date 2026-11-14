@@ -96,16 +96,33 @@ function google_property(): string
     return google_state()['property'] ?? env_value('GSC_PROPERTY') ?: seo_settings()['website_url'];
 }
 
-function google_save_configuration(string $property, ?string $json, bool $remove = false): void
+function google_save_configuration(string $property, ?string $json, bool $remove = false, ?bool $indexingApiEnabled = null): void
 {
     if (!index_checker_in_property(seo_settings()['website_url'], $property)) throw new InvalidArgumentException('The Search Console property must cover the configured site.');
     $state = google_state(); $original = $state;
     $remove = $remove || ($json === null && !empty($state['removed']));
     $credentials = $json !== null ? google_validate_credentials($json) : ($state['credentials'] ?? null);
+    $indexingEnabled = $indexingApiEnabled !== null ? $indexingApiEnabled : (!empty($state['indexing_api_enabled']));
     $state = ['property'=>$property,'status'=>'Not Configured','submission_pending'=>true];
+    if ($indexingEnabled) $state['indexing_api_enabled'] = true;
     if (!$remove && $credentials !== null) $state['credentials']=$credentials;
-    if ($remove) { $state['removed']=true; $state['submission_pending']=false; }
+    if ($remove) { $state['removed']=true; $state['submission_pending']=false; unset($state['indexing_api_enabled']); }
     google_write_state($state,$original);
+}
+
+function google_indexing_scope(): string
+{
+    return 'https://www.googleapis.com/auth/indexing';
+}
+
+function google_indexing_enabled(): bool
+{
+    $env = env_value('GOOGLE_INDEXING_ENABLED');
+    if ($env !== null && $env !== '') {
+        return filter_var($env, FILTER_VALIDATE_BOOLEAN);
+    }
+    $state = google_state();
+    return !empty($state['indexing_api_enabled']);
 }
 
 function google_safe_status(): array
@@ -113,14 +130,15 @@ function google_safe_status(): array
     $state=google_state();
     try { $key=google_credentials(); $configured=true; } catch (Throwable $e) { $key=[]; $configured=false; }
     return ['configured'=>$configured,'property'=>google_property(),'status'=>$state['status'] ?? 'Not Configured',
-        'email'=>$key['client_email'] ?? '', 'last_authenticated'=>$state['last_authenticated'] ?? null];
+        'email'=>$key['client_email'] ?? '', 'last_authenticated'=>$state['last_authenticated'] ?? null,
+        'indexing_api_enabled'=>google_indexing_enabled()];
 }
 
-function google_access_token(array $config = [], ?callable $http = null, bool $write = false): string
+function google_access_token(array $config = [], ?callable $http = null, bool $write = false, ?string $scope = null): string
 {
     static $cache=[];
     $key=google_credentials($config);
-    $scope='https://www.googleapis.com/auth/webmasters'.($write ? '' : '.readonly');
+    $scope=$scope ?? ('https://www.googleapis.com/auth/webmasters'.($write ? '' : '.readonly'));
     $id=hash('sha256',json_encode($key).$scope);
     if (isset($cache[$id]) && $cache[$id]['expires']>time()+60) return $cache[$id]['token'];
     $b64=static fn(string $v): string => rtrim(strtr(base64_encode($v),'+/','-_'),'=');
@@ -164,4 +182,75 @@ function google_submit_pending_sitemap(?callable $http = null): void
     if ($response['status']<200 || $response['status']>=300) throw new RuntimeException('Google sitemap submission failed; it remains queued.');
     $state['submission_pending']=false;
     google_write_state($state,$original);
+}
+
+function google_publish_url(string $url, string $type = 'URL_UPDATED', ?callable $http = null): array
+{
+    if (strlen($url) > 2048 || filter_var($url, FILTER_VALIDATE_URL) === false || !in_array(parse_url($url, PHP_URL_SCHEME), ['http', 'https'], true)) {
+        throw new InvalidArgumentException('Invalid publication URL.');
+    }
+    if (!in_array($type, ['URL_UPDATED', 'URL_DELETED'], true)) {
+        throw new InvalidArgumentException('Invalid notification type: must be URL_UPDATED or URL_DELETED.');
+    }
+    $token = google_access_token([], $http, false, google_indexing_scope());
+    $payload = json_encode(['url' => $url, 'type' => $type], JSON_UNESCAPED_SLASHES);
+    $headers = ['Authorization: Bearer ' . $token, 'Content-Type: application/json; charset=utf-8'];
+    $response = ($http ?? 'index_checker_http')(
+        'https://indexing.googleapis.com/v3/urlNotifications:publish',
+        $payload,
+        $headers,
+        65536,
+        'POST'
+    );
+    $status = (int)$response['status'];
+    $data = json_decode((string)($response['body'] ?? ''), true);
+    $success = ($status >= 200 && $status < 300);
+    error_log('Google Indexing publish ' . $type . ' HTTP ' . $status . ' for ' . $url);
+    return [
+        'status' => $status,
+        'success' => $success,
+        'body' => is_array($data) ? $data : [],
+        'raw' => $response['body'] ?? '',
+    ];
+}
+
+function google_get_url_notification_status(string $url, ?callable $http = null): array
+{
+    if (strlen($url) > 2048 || filter_var($url, FILTER_VALIDATE_URL) === false || !in_array(parse_url($url, PHP_URL_SCHEME), ['http', 'https'], true)) {
+        throw new InvalidArgumentException('Invalid publication URL.');
+    }
+    $token = google_access_token([], $http, false, google_indexing_scope());
+    $endpoint = 'https://indexing.googleapis.com/v3/urlNotifications/metadata?url=' . rawurlencode($url);
+    $headers = ['Authorization: Bearer ' . $token];
+    $response = ($http ?? 'index_checker_http')($endpoint, null, $headers);
+    $status = (int)$response['status'];
+    $data = json_decode((string)($response['body'] ?? ''), true);
+    return [
+        'status' => $status,
+        'success' => ($status === 200),
+        'body' => is_array($data) ? $data : [],
+        'raw' => $response['body'] ?? '',
+    ];
+}
+
+function google_test_indexing_api(?callable $http = null): array
+{
+    try {
+        $siteUrl = rtrim(seo_settings()['website_url'], '/') . '/';
+        $res = google_get_url_notification_status($siteUrl, $http);
+        $status = $res['status'];
+        if ($status === 200) {
+            return ['status' => 200, 'ok' => true, 'message' => 'Connected. Google Indexing API is active.'];
+        }
+        if ($status === 404) {
+            return ['status' => 200, 'ok' => true, 'message' => 'Connected. Google Indexing API is active and ready for URL submissions.'];
+        }
+        if ($status === 403) {
+            $msg = $res['body']['error']['message'] ?? 'Permission denied. Ensure Indexing API is enabled in Google Cloud Console and service account has owner permissions.';
+            return ['status' => 403, 'ok' => false, 'message' => 'Google Indexing API access denied (HTTP 403): ' . $msg];
+        }
+        return ['status' => $status, 'ok' => false, 'message' => 'Google Indexing API test returned HTTP ' . $status . '.'];
+    } catch (Throwable $e) {
+        return ['status' => 0, 'ok' => false, 'message' => 'Google Indexing API authentication or transport failed: ' . $e->getMessage()];
+    }
 }

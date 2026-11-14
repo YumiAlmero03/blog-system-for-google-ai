@@ -263,3 +263,13 @@ function expects_json(): bool
     $requestedWith = $_SERVER['HTTP_X_REQUESTED_WITH'] ?? '';
     return str_contains($accept, 'application/json') || strtolower($requestedWith) === 'fetch';
 }
+
+function frontend_url(string $path = '/'): string
+{
+    $base = function_exists('env_value') ? trim((string) (env_value('FRONTEND_URL') ?? '')) : '';
+    $normalizedPath = '/' . ltrim($path, '/');
+    if ($base === '') {
+        return $normalizedPath;
+    }
+    return rtrim($base, '/') . $normalizedPath;
+}

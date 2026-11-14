@@ -12,8 +12,11 @@ function index_checker_pdo(): PDO
         indexing_state TEXT NOT NULL DEFAULT "", robots_state TEXT NOT NULL DEFAULT "", last_crawl_at TEXT NOT NULL DEFAULT "",
         google_canonical TEXT NOT NULL DEFAULT "", user_canonical TEXT NOT NULL DEFAULT "",
         last_checked_at INTEGER, next_check_at INTEGER NOT NULL DEFAULT 0, error_message TEXT NOT NULL DEFAULT "",
-        failures INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+        failures INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+        google_submitted_at INTEGER DEFAULT NULL, google_submit_status TEXT NOT NULL DEFAULT ""
     )');
+    try { $pdo->exec("ALTER TABLE index_checks ADD COLUMN google_submitted_at INTEGER DEFAULT NULL"); } catch (Throwable) {}
+    try { $pdo->exec("ALTER TABLE index_checks ADD COLUMN google_submit_status TEXT NOT NULL DEFAULT ''"); } catch (Throwable) {}
     $pdo->exec('CREATE INDEX IF NOT EXISTS index_checks_due ON index_checks(in_sitemap,next_check_at)');
     $pdo->exec('CREATE TABLE IF NOT EXISTS index_check_attempts (id INTEGER PRIMARY KEY, property TEXT NOT NULL, attempted_at INTEGER NOT NULL)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS index_attempt_quota ON index_check_attempts(property,attempted_at)');
