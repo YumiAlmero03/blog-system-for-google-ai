@@ -110,6 +110,8 @@ MD;
     $script = blog_render_content(":::custom-code\n---js\n// comment\nroot.dataset.ready='yes';\n:::")['content_html'];
     check_detail(str_contains($script,"// comment\nroot.dataset.ready='yes';"),'Custom script line comments preserve next statement');
     check_detail(!str_contains(blog_render_content(":::slot-demo\nslug: ph\n:::")['content_html'],'<iframe'),'Restricted demo excluded');
+    $stagingMedia = blog_render_content("![Staging](http://thechikin.chickenkiller.com/uploads/blogs/staging.webp)\n\n[Link](http://thechikin.chickenkiller.com/blog/)")['content_html'];
+    check_detail(str_contains($stagingMedia,'src="/uploads/blogs/staging.webp"') && str_contains($stagingMedia,'href="https://example.test/blog/"') && !str_contains($stagingMedia,'thechikin.chickenkiller.com'),'Staging upload domain stripped and legacy domain replaced in content_html');
     $insert = $pdo->prepare('INSERT INTO blog_posts(id,slug,title,category,author,excerpt,content,featured_image,status,date_label,scheduled_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)');
     foreach ([['public','published',null],['draft','draft',null],['future','scheduled',time()+3600],['due','scheduled',time()-3600]] as [$slug,$status,$schedule]) {
         $insert->execute([$slug,$slug,'Title','Guides','Author','Excerpt',$markdown,'/uploads/blogs/test.webp',$status,'',$schedule,time(),time()]);
@@ -138,7 +140,8 @@ MD;
     libxml_clear_errors(); libxml_use_internal_errors($previousErrors);
     $images = new DOMXPath($imageDoc);
     $local = $images->query('//a[img[@alt="Linked local"]]')->item(0);
-    check_detail($local && $local->getAttribute('href')==='https://example.test/offers/' && str_contains($local->getAttribute('rel'),'nofollow'),'API preserves local image link and nofollow');
+    $localImage = $local ? $local->getElementsByTagName('img')->item(0) : null;
+    check_detail($local && $localImage && $localImage->getAttribute('src')==='/uploads/blogs/local.webp' && $local->getAttribute('href')==='https://example.test/offers/' && str_contains($local->getAttribute('rel'),'nofollow'),'API preserves local image link, root-relative upload src, and nofollow');
     $external = $images->query('//a[img[contains(@src,"cdn.example.test/image.webp")]]')->item(0);
     check_detail($external && $external->getAttribute('href')==='https://partner.example.test/deal?x=1&y=2' && str_contains($external->getAttribute('rel'),'nofollow'),'API preserves absolute image link, query and nofollow');
     $externalImage = $external->getElementsByTagName('img')->item(0);

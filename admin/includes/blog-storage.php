@@ -970,23 +970,32 @@ function blog_like_term(string $value): string
     ]) . '%';
 }
 
+/** Collect recognized hostnames for internal link detection (FRONTEND_URL, SITE_BASE_URL, and HTTP_HOST). */
+function blog_internal_site_hosts(): array
+{
+    $siteHosts = [];
+    foreach ([env_value('FRONTEND_URL'), env_value('SITE_BASE_URL')] as $baseUrl) {
+        if (is_string($baseUrl) && trim($baseUrl) !== '') {
+            $host = parse_url(trim($baseUrl), PHP_URL_HOST);
+            if (is_string($host) && $host !== '') {
+                $siteHosts[strtolower($host)] = true;
+            }
+        }
+    }
+    if (isset($_SERVER['HTTP_HOST']) && is_string($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] !== '') {
+        $requestHost = preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST']) ?? $_SERVER['HTTP_HOST'];
+        $siteHosts[strtolower($requestHost)] = true;
+    }
+    return $siteHosts;
+}
+
 function blog_extract_internal_link_slugs(string $content, array $knownSlugs): array
 {
     if ($content === '' || $knownSlugs === []) {
         return [];
     }
 
-    $siteHosts = [];
-    $siteBaseUrl = env_value('SITE_BASE_URL');
-    if (is_string($siteBaseUrl) && $siteBaseUrl !== '') {
-        $host = parse_url($siteBaseUrl, PHP_URL_HOST);
-        if (is_string($host) && $host !== '') {
-            $siteHosts[strtolower($host)] = true;
-        }
-    }
-    if (isset($_SERVER['HTTP_HOST']) && is_string($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] !== '') {
-        $siteHosts[strtolower(preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST']) ?? $_SERVER['HTTP_HOST'])] = true;
-    }
+    $siteHosts = blog_internal_site_hosts();
 
     $targets = [];
     $urlPatterns = [
@@ -1047,18 +1056,7 @@ function blog_count_internal_links(string $content): int
         return 0;
     }
 
-    $siteHosts = [];
-    $siteBaseUrl = env_value('SITE_BASE_URL');
-    if (is_string($siteBaseUrl) && $siteBaseUrl !== '') {
-        $host = parse_url($siteBaseUrl, PHP_URL_HOST);
-        if (is_string($host) && $host !== '') {
-            $siteHosts[strtolower($host)] = true;
-        }
-    }
-    if (isset($_SERVER['HTTP_HOST']) && is_string($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] !== '') {
-        $requestHost = preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST']) ?? $_SERVER['HTTP_HOST'];
-        $siteHosts[strtolower($requestHost)] = true;
-    }
+    $siteHosts = blog_internal_site_hosts();
 
     $urls = [];
     $patterns = [

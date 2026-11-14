@@ -1973,6 +1973,7 @@ $writerOptions = writer_options();
       const initialEditId = <?= json_encode($initialEditId, JSON_UNESCAPED_SLASHES) ?>;
       const websiteTitle = <?= json_encode($websiteTitle, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
       const siteBaseUrl = <?= json_encode((string) (env_value('SITE_BASE_URL') ?: ''), JSON_UNESCAPED_SLASHES) ?>;
+      const frontendBaseUrl = <?= json_encode((string) (env_value('FRONTEND_URL') ?: ''), JSON_UNESCAPED_SLASHES) ?>;
       const initialAllTags = <?= json_encode(blog_tags_all(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
       const form = document.getElementById('create-blog-form');
       const notice = document.getElementById('notice');
@@ -2567,6 +2568,8 @@ $writerOptions = writer_options();
         const ownHosts = new Set([window.location.hostname.toLowerCase()]);
         const configuredHost = linkHost(siteBaseUrl);
         if (configuredHost) ownHosts.add(configuredHost);
+        const frontendHost = linkHost(frontendBaseUrl);
+        if (frontendHost) ownHosts.add(frontendHost);
         return ownHosts.has(resolved.hostname.toLowerCase()) ? 'internal' : 'external';
       }
 
@@ -2767,7 +2770,7 @@ $writerOptions = writer_options();
           textTitle: fields.titleText,
           titleWidth: measureSeoTitleWidth(fields.titleText),
           locale: 'en_US',
-          permalink: window.location.origin + '/blog/' + (fields.slugText || 'blog-article') + '/',
+          permalink: (frontendBaseUrl ? frontendBaseUrl.replace(/\/+$/, '') : window.location.origin) + '/blog/' + (fields.slugText || 'blog-article') + '/',
         });
         const researcher = new modules.EnglishResearcher(paper);
         const seoAssessor = new SeoAssessor(researcher);

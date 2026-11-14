@@ -587,6 +587,7 @@ $blogCategoryOptions = blog_categories_all();
         const slugText = String(blog.slug || blog.id || '').trim();
         const excerptText = String(blog.excerpt || '').trim();
         const html = parseMarkdown(blog.content || '');
+        const frontendBaseUrl = <?= json_encode(rtrim(trim((string) (env_value('FRONTEND_URL') ?: '')), '/'), JSON_UNESCAPED_SLASHES) ?>;
         const paper = new Paper(html, {
           keyword: keyphrase,
           synonyms: '',
@@ -597,7 +598,7 @@ $blogCategoryOptions = blog_categories_all();
           textTitle: titleText,
           titleWidth: measureSeoTitleWidth(titleText),
           locale: 'en_US',
-          permalink: window.location.origin + '/blog/' + (slugText || 'blog-article') + '/',
+          permalink: (frontendBaseUrl || window.location.origin) + '/blog/' + (slugText || 'blog-article') + '/',
         });
         const researcher = new EnglishResearcher(paper);
         const seoAssessor = new SeoAssessor(researcher);
