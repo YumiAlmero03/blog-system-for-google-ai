@@ -2329,15 +2329,48 @@ $writerOptions = writer_options();
         return publicUrl ? `${publicUrl}?preview=1` : '';
       }
 
-      function currentDateTimeInput() {
-        const now = new Date();
+      const adminTimezone = <?= json_encode(blog_display_timezone()->getName(), JSON_UNESCAPED_SLASHES) ?>;
+      function formatAdminDateTimeInput(dateObj) {
+        try {
+          const parts = new Intl.DateTimeFormat('en-CA', {
+            timeZone: adminTimezone,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hourCycle: 'h23',
+          }).formatToParts(dateObj).reduce((acc, part) => {
+            acc[part.type] = part.value;
+            return acc;
+          }, {});
+          if (parts.year && parts.month && parts.day && parts.hour && parts.minute) {
+            return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+          }
+        } catch (e) {}
+        const now = new Date(dateObj.getTime());
         now.setSeconds(0, 0);
         const offsetMs = now.getTimezoneOffset() * 60000;
         return new Date(now.getTime() - offsetMs).toISOString().slice(0, 16);
       }
 
-      function ensurePublishDateValue() {
-        if (publishedAtField && !publishedAtField.value) {
+      function currentDateTimeInput() {
+        return formatAdminDateTimeInput(new Date());
+      }
+
+      function defaultScheduledDateTimeInput() {
+        return formatAdminDateTimeInput(new Date(Date.now() + 3600000));
+      }
+
+      function ensurePublishDateValue(status, bumpPastForSchedule = false) {
+        if (!publishedAtField) return;
+        const targetStatus = status || (blogStatus ? blogStatus.value : 'draft');
+        if (targetStatus === 'scheduled') {
+          if (!publishedAtField.value || (bumpPastForSchedule && publishedAtField.value <= currentDateTimeInput())) {
+            publishedAtField.value = defaultScheduledDateTimeInput();
+          }
+          if (scheduledAtField) scheduledAtField.value = publishedAtField.value;
+        } else if (!publishedAtField.value) {
           publishedAtField.value = currentDateTimeInput();
         }
       }
@@ -2360,9 +2393,22 @@ $writerOptions = writer_options();
 
       function updateSaveState(status) {
         const publishButton = document.getElementById('publish-blog-btn');
-        if (publishButton) publishButton.textContent = savedBlogStatus === 'published' ? 'Update' : 'Publish';
+        const publishedAtLabel = document.querySelector('label[for="blog-published-at"]');
+        if (publishedAtLabel) {
+          publishedAtLabel.textContent = status === 'scheduled' ? 'Scheduled Date/Time *' : 'Publish Date/Time';
+        }
         if (status === 'scheduled') {
-          ensurePublishDateValue();
+          ensurePublishDateValue('scheduled');
+          if (publishButton) {
+            publishButton.textContent = savedBlogStatus === 'scheduled' ? 'Update Schedule' : 'Schedule';
+            publishButton.dataset.saveStatus = 'scheduled';
+          }
+        } else if (publishButton) {
+          publishButton.textContent = savedBlogStatus === 'published' ? 'Update' : 'Publish';
+          publishButton.dataset.saveStatus = 'published';
+        }
+        if (saveCurrentPostBtn) {
+          saveCurrentPostBtn.textContent = status === 'scheduled' ? 'Schedule Post' : (status === 'draft' ? 'Save Draft' : 'Save Post');
         }
         setText(saveState, status === 'draft' ? 'Draft' : (status === 'scheduled' ? 'Scheduled' : 'Publish ready'));
         updateViewPageButton();
@@ -2451,7 +2497,11 @@ $writerOptions = writer_options();
 
         try {
           const currentStatus = blogStatus ? blogStatus.value : (savedBlogStatus || 'draft');
-          if (currentStatus !== 'draft') ensurePublishDateValue();
+          if (currentStatus !== 'draft') ensurePublishDateValue(currentStatus);
+          if (currentStatus === 'scheduled' && (!publishedAtField || !publishedAtField.value || publishedAtField.value <= currentDateTimeInput())) {
+            updateAutosaveIndicator('dirty', 'Set a future schedule date to save');
+            return;
+          }
 
           const data = new FormData(form);
           const cleanSlug = slugify(data.get('slug') || titleVal);
@@ -5153,6 +5203,9 @@ $writerOptions = writer_options();
       on(focusKeyphrase, 'input', () => { analyzeSeo(); markDirty(); });
       on(keyphraseSynonyms, 'input', () => { analyzeSeo(); markDirty(); });
       on(blogStatus, 'change', () => {
+        if (blogStatus.value === 'scheduled') {
+          ensurePublishDateValue('scheduled', true);
+        }
         updateSaveState(blogStatus.value);
         markDirty();
       });

@@ -724,11 +724,13 @@ $blogCategoryOptions = blog_categories_all();
           const quickEditCategory = blog.category || defaultCategory;
           const internalLinkTitles = Array.isArray(blog.internalLinkTitles) ? blog.internalLinkTitles.join(', ') : '';
           const linkedFromTitles = Array.isArray(blog.linkedFromTitles) ? blog.linkedFromTitles.join(', ') : '';
-          const publishedDate = blog.publishedAtInput
-            ? blog.publishedAtInput.replace('T', ' ')
-            : (blog.scheduledAtInput
-                ? `Scheduled: ${blog.scheduledAtInput.replace('T', ' ')}`
-                : (status === 'draft' ? `Draft (${blog.date || 'Unpublished'})` : (blog.date || '—')));
+          const publishedDate = (status === 'scheduled' && blog.scheduledAtInput)
+            ? `Scheduled: ${blog.scheduledAtInput.replace('T', ' ')}`
+            : (blog.publishedAtInput
+                ? blog.publishedAtInput.replace('T', ' ')
+                : (blog.scheduledAtInput
+                    ? `Scheduled: ${blog.scheduledAtInput.replace('T', ' ')}`
+                    : (status === 'draft' ? `Draft (${blog.date || 'Unpublished'})` : (blog.date || '—'))));
           const editRow = quickEditId === id ? quickEditRow(blog, id, status, quickEditCategory) : '';
           return `
             <tr>
@@ -899,6 +901,40 @@ $blogCategoryOptions = blog_categories_all();
         }
         showNotice('Blog post deleted.', 'ok');
         await loadBlogs().catch((error) => showNotice(error.message || 'Blog list could not be loaded.', 'error'));
+      });
+
+      const adminTimezone = <?= json_encode(blog_display_timezone()->getName(), JSON_UNESCAPED_SLASHES) ?>;
+      function defaultScheduledDateTimeInput() {
+        const target = new Date(Date.now() + 3600000);
+        try {
+          const parts = new Intl.DateTimeFormat('en-CA', {
+            timeZone: adminTimezone,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hourCycle: 'h23',
+          }).formatToParts(target).reduce((acc, part) => {
+            acc[part.type] = part.value;
+            return acc;
+          }, {});
+          if (parts.year && parts.month && parts.day && parts.hour && parts.minute) {
+            return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+          }
+        } catch (e) {}
+        target.setSeconds(0, 0);
+        return new Date(target.getTime() - target.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      }
+
+      list.addEventListener('change', (event) => {
+        const statusSelect = event.target.closest('form[data-quick-edit-form] select[name="status"]');
+        if (!statusSelect || statusSelect.value !== 'scheduled') return;
+        const form = statusSelect.closest('form[data-quick-edit-form]');
+        const scheduledInput = form ? form.querySelector('input[name="scheduled_at"]') : null;
+        if (scheduledInput && !scheduledInput.value) {
+          scheduledInput.value = defaultScheduledDateTimeInput();
+        }
       });
 
       list.addEventListener('submit', async (event) => {
