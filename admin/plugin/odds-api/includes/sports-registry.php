@@ -285,6 +285,99 @@ function sports_registry_validate_upload(array $file): array
     ];
 }
 
+/** Manual URLs are displayed by the browser; they are never downloaded by the server. */
+function sports_registry_validate_logo_url(mixed $value): string
+{
+    if (is_string($value)) $value = trim($value);
+    if (!is_string($value) || strlen($value) > 2048 || preg_match('/[\x00-\x20\x7f<>"\'\\\\]/', $value)) {
+        throw new InvalidArgumentException('Use an HTTPS logo URL or an image path under /uploads/.');
+    }
+    if (preg_match('~^/uploads/(?:[a-zA-Z0-9_-]+/)*[a-zA-Z0-9][a-zA-Z0-9._-]*\.(?:png|jpe?g|webp|avif)$~iD', $value)) return $value;
+    $parts = parse_url($value);
+    if (filter_var($value, FILTER_VALIDATE_URL) === false || !$parts || ($parts['scheme'] ?? '') !== 'https'
+        || empty($parts['host']) || isset($parts['user']) || isset($parts['pass'])) {
+        throw new InvalidArgumentException('Use an HTTPS logo URL or an image path under /uploads/.');
+    }
+    return $value;
+}
+
+function sports_registry_store_manual_logo(array $file, string $subdir, string $imageKey): string
+{
+    $validation = sports_registry_validate_upload($file);
+    $dirs = sports_registry_upload_dirs($subdir);
+    $filename = $imageKey . '-' . bin2hex(random_bytes(6)) . '.' . $validation['ext'];
+    $webDest = $dirs['web'] . '/' . $filename;
+    $adminDest = $dirs['admin'] . '/' . $filename;
+    if (optimize_uploaded_image($file['tmp_name'], $webDest, $validation['mime'], 400, 400)) {
+        @copy($webDest, $adminDest);
+    } elseif (optimize_uploaded_image($file['tmp_name'], $adminDest, $validation['mime'], 400, 400)) {
+        @copy($adminDest, $webDest);
+    } else {
+        throw new RuntimeException('Failed to save logo.');
+    }
+    @chmod($webDest, 0644);
+    @chmod($adminDest, 0644);
+    return '/uploads/' . $subdir . '/' . $filename;
+}
+
+function sports_registry_record_manual_logo(string $type, array $entity, string $path): void
+{
+    sports_registry_pdo()->prepare('INSERT INTO sports_image_assets(entity_type,entity_id,name,status,image_path,source,metadata,message,checked_at)
+        VALUES(?,?,?,\'saved\',?,\'manual\',\'{}\',\'\',?) ON CONFLICT(entity_type,entity_id) DO UPDATE SET
+        name=excluded.name,status=excluded.status,image_path=excluded.image_path,source=excluded.source,metadata=excluded.metadata,message=excluded.message,checked_at=excluded.checked_at')
+        ->execute([$type, $entity['id'], $entity['name'] ?? $entity['title'], $path, time()]);
+}
+
+function tournament_image_get(int $id): array
+{
+    $stmt = sports_registry_pdo()->prepare("SELECT * FROM sports_image_assets WHERE entity_type='tournament' AND entity_id=? AND status='saved'");
+    $stmt->execute([$id]);
+    return $stmt->fetch() ?: [];
+}
+
+function tournament_save_manual_image(int $id, array $file): array
+{
+    $tournament = tournament_get($id);
+    if (!$tournament) throw new OutOfBoundsException('Tournament not found.');
+    $path = sports_registry_store_manual_logo($file, 'tournaments', $tournament['odds_sport_key']);
+    return tournament_save_manual_image_url($id, $path);
+}
+
+function tournament_save_manual_image_url(int $id, mixed $url): array
+{
+    $tournament = tournament_get($id);
+    if (!$tournament) throw new OutOfBoundsException('Tournament not found.');
+    $path = sports_registry_validate_logo_url($url);
+    sports_registry_record_manual_logo('tournament', $tournament, $path);
+    return tournament_image_get($id);
+}
+
+function tournament_remove_image(int $id): void
+{
+    if (!tournament_get($id)) throw new OutOfBoundsException('Tournament not found.');
+    sports_registry_pdo()->prepare("DELETE FROM sports_image_assets WHERE entity_type='tournament' AND entity_id=?")->execute([$id]);
+}
+
+function participant_save_manual_image_url(int $id, mixed $url): array
+{
+    $path = sports_registry_validate_logo_url($url);
+    $participant = participant_get($id);
+    if (!$participant) throw new OutOfBoundsException('Participant not found.');
+    $pdo = sports_registry_pdo();
+    $pdo->beginTransaction();
+    try {
+        $now = time();
+        $pdo->prepare("UPDATE participants SET image_path=?,image_source='manual',image_failure=0,updated_at=? WHERE id=?")->execute([$path, $now, $id]);
+        $pdo->prepare("UPDATE teams SET image_path=?,image_source='manual',image_failure=0,updated_at=? WHERE id=?")->execute([$path, $now, $id]);
+        sports_registry_record_manual_logo('participant', $participant, $path);
+        $pdo->commit();
+    } catch (Throwable $error) {
+        $pdo->rollBack();
+        throw $error;
+    }
+    return participant_get($id) ?? [];
+}
+
 // --------------------------------------------------------------------------
 // API Key Settings
 // --------------------------------------------------------------------------
@@ -1009,47 +1102,14 @@ function participant_save_manual_image(int $participantId, array $file): array
         throw new RuntimeException('Category not found for participant.');
     }
 
-    $validation = sports_registry_validate_upload($file);
-    $dirs = sports_registry_upload_dirs('teams');
-    $pDirs = sports_registry_upload_dirs('participants');
-
     $imageKey = sports_registry_participant_image_key($participant['slug'], $cat['slug']);
-    $filename = $imageKey . '.' . $validation['ext'];
-    $webDest = $dirs['web'] . '/' . $filename;
-    $adminDest = $dirs['admin'] . '/' . $filename;
-
-    $saved = optimize_uploaded_image($file['tmp_name'], $webDest, $validation['mime'], 400, 400);
-    if (!$saved) {
-        $saved = optimize_uploaded_image($file['tmp_name'], $adminDest, $validation['mime'], 400, 400);
-        if (!$saved) {
-            throw new RuntimeException('Failed to save manual participant image.');
-        }
-        @copy($adminDest, $webDest);
-    } else {
-        @copy($webDest, $adminDest);
-    }
-
+    $publicPath = sports_registry_store_manual_logo($file, 'teams', $imageKey);
+    $filename = basename($publicPath);
+    $pDirs = sports_registry_upload_dirs('participants');
     // Mirror to /uploads/participants/
-    @copy($webDest, $pDirs['web'] . '/' . $filename);
-    @copy($webDest, $pDirs['admin'] . '/' . $filename);
-
-    @chmod($webDest, 0644);
-    @chmod($adminDest, 0644);
-
-    $publicPath = '/uploads/teams/' . $filename;
-    $pdo = sports_registry_pdo();
-    $now = time();
-    $stmt = $pdo->prepare('UPDATE participants SET image_key = ?, image_path = ?, image_source = "manual", image_failure = 0, updated_at = ? WHERE id = ?');
-    $stmt->execute([$imageKey, $publicPath, $now, $participantId]);
-
-    try {
-        $pdo->prepare('UPDATE teams SET image_key = ?, image_path = ?, image_source = "manual", image_failure = 0, updated_at = ? WHERE id = ?')
-            ->execute([$imageKey, $publicPath, $now, $participantId]);
-    } catch (Throwable) {}
-
-    $participant['image_path'] = $publicPath;
-    $participant['image_source'] = 'manual';
-    return $participant;
+    @copy(dirname(__DIR__, 4) . $publicPath, $pDirs['web'] . '/' . $filename);
+    @copy(dirname(__DIR__, 4) . $publicPath, $pDirs['admin'] . '/' . $filename);
+    return participant_save_manual_image_url($participantId, $publicPath);
 }
 
 function participant_remove_image(int $id): array
@@ -1058,17 +1118,16 @@ function participant_remove_image(int $id): array
     if (!$p) {
         throw new OutOfBoundsException('Participant not found.');
     }
-    if (!empty($p['image_path'])) {
-        sports_registry_delete_file($p['image_path']);
-    }
+    // Detach only: uploaded assets can be shared by other records.
     $pdo = sports_registry_pdo();
     $now = time();
-    $pdo->prepare('UPDATE participants SET image_path = "", image_source = "odds_api", updated_at = ? WHERE id = ?')
+    $pdo->prepare('UPDATE participants SET image_path = "", image_source = "odds_api", image_failure = 0, updated_at = ? WHERE id = ?')
         ->execute([$now, $id]);
     try {
-        $pdo->prepare('UPDATE teams SET image_path = "", image_source = "odds_api", updated_at = ? WHERE id = ?')
+        $pdo->prepare('UPDATE teams SET image_path = "", image_source = "odds_api", image_failure = 0, updated_at = ? WHERE id = ?')
             ->execute([$now, $id]);
     } catch (Throwable) {}
+    $pdo->prepare("DELETE FROM sports_image_assets WHERE entity_type='participant' AND entity_id=?")->execute([$id]);
     return participant_get($id) ?? [];
 }
 

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 // Extracted from the former blog/view.php renderer (Git e63bd79 parent).
 require_once __DIR__ . '/public-detail.php';
+require_once __DIR__ . '/slotslaunch-client.php';
 
 function blog_h(mixed $value): string
 {
@@ -85,7 +86,7 @@ function blog_parse_faq_items(string $content): array
 
   return array_map(
     static fn(array $item): array => [
-      'question' => trim((string) ($item['question'] ?? '')) ?: 'FAQ question',
+      'question' => trim(preg_replace('/^\*+|\*+$/', '', str_replace('****', '', trim((string) ($item['question'] ?? '')))) ?? '') ?: 'FAQ question',
       'answer' => trim((string) ($item['answer'] ?? '')) ?: 'FAQ answer',
     ],
     $items
@@ -199,21 +200,79 @@ function blog_render_button_block(string $content): string
     . ($button['new_tab'] ? ' target="_blank"' : '') . ' rel="' . $rel . '">' . blog_h($button['label']) . '</a></p>';
 }
 
+function blog_slot_demo_fallback_game(?string $slug, int $gameId = 0): ?array
+{
+  try {
+    $pdo = blogs_pdo();
+    $allowedPh = games_ph_allowed_sql('games.restrictions');
+    $visibility = game_visibility_sql('games');
+    $conditions = ["($allowedPh)", "($visibility)", 'published = 1'];
+    $params = [];
+    if ($slug !== null && $gameId > 0) {
+      $conditions[] = '(slug = :slug OR (api_id > 0 AND api_id = :game_id))';
+      $params[':slug'] = $slug;
+      $params[':game_id'] = $gameId;
+    } elseif ($slug !== null) {
+      $conditions[] = 'slug = :slug';
+      $params[':slug'] = $slug;
+    } elseif ($gameId > 0) {
+      $conditions[] = 'api_id = :game_id';
+      $params[':game_id'] = $gameId;
+    } else {
+      return null;
+    }
+    $where = implode(' AND ', $conditions);
+    $stmt = $pdo->prepare("SELECT * FROM games WHERE $where ORDER BY updated_at DESC, id DESC LIMIT 1");
+    $stmt->execute($params);
+    return $stmt->fetch() ?: null;
+  } catch (\Throwable) {
+    return null;
+  }
+}
+
 function blog_render_slot_demo_block(string $content): string
 {
   $options = blog_parse_block_options($content);
   $slug = public_detail_slug($options['slug'] ?? null);
   $game = $slug !== null ? public_game_find($slug) : null;
+  if ($game === null) {
+    $gameId = (int) ($options['game_id'] ?? $options['gameid'] ?? $options['id'] ?? 0);
+    if ($gameId <= 0 && !empty($options['url']) && preg_match('~^https?://slotslaunch\.com/iframe/(\d+)~i', (string) $options['url'], $m)) {
+      $gameId = (int) $m[1];
+    }
+    if ($slug !== null || $gameId > 0) {
+      $game = blog_slot_demo_fallback_game($slug, $gameId);
+    }
+  }
   if ($game === null) return '<p class="blog-slot-demo-unavailable">Game demo unavailable.</p>';
-  $label = (string)$game['name'] . ' Demo';
-  $url = blog_safe_block_url(slot_list_iframe_url($game['url'] ?? ''), '');
+  $label = (string)($game['name'] ?? 'Game') . ' Demo';
+  $url = blog_slotlaunch_signed_iframe_url($game);
   if ($url === '') return '<p class="blog-slot-demo-unavailable">Game demo unavailable.</p>';
+  $gameSlug = (string) ($game['slug'] ?? ($slug ?? ''));
   $fullscreen = 'const frame=this.closest(".blog-slot-demo-frame"); const active=document.fullscreenElement||document.webkitFullscreenElement; const action=active?(document.exitFullscreen||document.webkitExitFullscreen):(frame.requestFullscreen||frame.webkitRequestFullscreen); const status=frame.querySelector(".blog-slot-demo-status"); status.textContent=""; if(!action){status.textContent="Fullscreen is unavailable in this browser.";return;} try{Promise.resolve(action.call(active?document:frame)).catch(()=>{status.textContent="Unable to open fullscreen. Try View Game.";});}catch(error){status.textContent="Unable to open fullscreen. Try View Game.";}';
   return '<section class="blog-slot-demo-block"><div class="blog-slot-demo-frame"><div class="blog-slot-demo-header"><p class="blog-slot-demo-title">' . blog_h($label) . '</p><div class="blog-slot-demo-actions">'
-    . '<a class="blog-slot-demo-link" href="' . blog_h(public_url('/game/' . rawurlencode($slug) . '/')) . '">View Game</a>'
+    . '<a class="blog-slot-demo-link" href="' . blog_h(public_url('/game/' . rawurlencode($gameSlug) . '/')) . '">View Game</a>'
     . '<a class="blog-slot-demo-link blog-slot-demo-real" href="' . blog_h(public_url('/playnow')) . '">Play for Real</a>'
     . '<button type="button" class="blog-slot-demo-link" onclick="' . blog_h($fullscreen) . '"><span class="blog-demo-enter">Fullscreen</span><span class="blog-demo-exit">Exit fullscreen</span></button></div><span class="blog-slot-demo-status" role="status"></span></div>'
     . '<iframe src="' . blog_h(public_url($url)) . '" title="' . blog_h($label) . '" loading="lazy" allow="fullscreen" allowfullscreen></iframe></div></section>';
+}
+
+function blog_slotlaunch_signed_iframe_url(array $game): string
+{
+  $gameId = (int) ($game['api_id'] ?? $game['apiId'] ?? 0);
+  $apiKey = trim((string) (env_value('SLOTSLAUNCH_API_KEY') ?: env_value('SLOTSLAUNCH_API_TOKEN')));
+  $apiSecret = trim((string) env_value('SLOTSLAUNCH_API_SECRET'));
+  $siteDomain = trim((string) env_value('SLOTSLAUNCH_SITE_DOMAIN'));
+  $ttl = max(60, min(86400, (int) (env_value('SLOTSLAUNCH_IFRAME_TTL') ?: 3600)));
+  if ($gameId <= 0 || $apiKey === '' || $apiSecret === '' || $siteDomain === '') return '';
+
+  try {
+    $client = new \SlotsLaunch\Client($apiKey, $apiSecret, $siteDomain, 'https://slotslaunch.com', $ttl);
+    return $client->iframeUrl($gameId, $ttl);
+  } catch (Throwable $error) {
+    error_log('SlotLaunch blog demo signing failed: ' . $error->getMessage());
+    return '';
+  }
 }
 
 function blog_render_table_block(string $content): string

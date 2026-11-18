@@ -44,6 +44,49 @@ foreach (['<rss>', '<rss><channel/></rss>', '<!DOCTYPE rss [<!ENTITY x SYSTEM "f
     catch (InvalidArgumentException $e) {}
 }
 wxr_check(!str_contains(blog_wordpress_markdown("<p>:::custom-code\n---html\n&lt;script&gt;alert(1)&lt;/script&gt;\n:::</p>"), ":::"), 'Editor block injection rejected');
+// Linked images must keep their own brackets; stripping them produced "[!alt(src)](href)".
+$linked = blog_wordpress_markdown('<p><a href="https://partner.test/p" rel="nofollow"><img src="https://cdn.test/a.webp" alt="Alt [one]" class="wp-image-1"/></a></p>');
+wxr_check($linked === '[![Alt one](https://cdn.test/a.webp)](https://partner.test/p){nofollow}', 'Linked image keeps image Markdown: ' . $linked);
+wxr_check(blog_wordpress_markdown('<a href="https://partner.test/p"><img src="https://cdn.test/a.webp" alt="A"></a>') === '[![A](https://cdn.test/a.webp)](https://partner.test/p)', 'Linked image without nofollow');
+wxr_check(blog_wordpress_markdown('<a href="https://partner.test/p">plain [text]</a>') === '[plain text](https://partner.test/p)', 'Text links still strip brackets');
+wxr_check(str_contains(blog_wordpress_markdown('<img src="data:image/gif;base64,R0lGOD" data-src="https://cdn.test/lazy.webp" alt="Lazy">'), '![Lazy](https://cdn.test/lazy.webp)'), 'Lazy-loaded data-src image');
+wxr_check(str_contains(blog_wordpress_markdown('<img srcset="https://cdn.test/s.webp 300w, https://cdn.test/s2.webp 600w" alt="Set">'), '![Set](https://cdn.test/s.webp)'), 'srcset-only image');
+// Repair of posts imported before the fix, without network access.
+$broken = "Intro\n\n[!Login or Passwords(https://cdn.test/a.webp)](https://partner.test/p){nofollow}\n\n![Plain](https://cdn.test/b.png)\n\n![Missing](https://cdn.test/gone.png)\n\n![Local](/uploads/blogs/keep.webp)";
+$seen = [];
+$repair = blog_repair_image_markdown($broken, static function (string $url) use (&$seen): string {
+    $seen[] = $url;
+    if (str_contains($url, 'gone')) throw new RuntimeException('HTTP 404');
+    return '/uploads/blogs/' . md5($url) . '.webp';
+});
+wxr_check($repair['fixed'] === 1 && $repair['localized'] === 2, 'Repair counts');
+wxr_check(str_contains($repair['content'], '[![Login or Passwords](/uploads/blogs/' . md5('https://cdn.test/a.webp') . '.webp)](https://partner.test/p){nofollow}'), 'Broken linked image repaired and localized');
+wxr_check(str_contains($repair['content'], '![Plain](/uploads/blogs/' . md5('https://cdn.test/b.png') . '.webp)'), 'Plain remote image localized');
+wxr_check(str_contains($repair['content'], '![Missing](https://cdn.test/gone.png)') && count($repair['failures']) === 1, 'Failed download keeps the remote URL and is reported');
+wxr_check(str_contains($repair['content'], '![Local](/uploads/blogs/keep.webp)') && !in_array('/uploads/blogs/keep.webp', $seen, true), 'Local images are untouched');
+$again = blog_repair_image_markdown($repair['content'], static fn (string $url): string => throw new RuntimeException('Must not download local images again'));
+wxr_check($again['fixed'] === 0 && $again['localized'] === 0 && !str_contains($again['content'], '[!Login'), 'Repair is idempotent');
+$rendered = blog_render_markdown($repair['content']);
+wxr_check(str_contains($rendered, '<img src="/uploads/blogs/' . md5('https://cdn.test/a.webp') . '.webp"') && str_contains($rendered, 'href="https://partner.test/p"'), 'Repaired linked image renders as a linked <img>');
+
+// FAQ bold-marker cleanup and <wp:post_parent> attachment fallback.
+$faqHtml = '<div class="schema-faq wp-block-yoast-faq-block"><div class="schema-faq-section"><strong class="schema-faq-question"><strong>1. Does it work?</strong></strong> <p class="schema-faq-answer">Yes.</p></div></div>';
+$faqMd = blog_wordpress_markdown($faqHtml);
+wxr_check(str_contains($faqMd, "Q: 1. Does it work?\n") && !str_contains($faqMd, '*'), 'Yoast FAQ nested strong strips asterisks');
+$repairFaq = blog_repair_image_markdown(":::faq\nQ: ****1. Bold Q?****\nA: Ans\n\nQ: **2. Wrapped Q?**\nA: Ans2\n:::", static fn (string $u): string => $u);
+wxr_check(str_contains($repairFaq['content'], "Q: 1. Bold Q?\n") && str_contains($repairFaq['content'], "Q: 2. Wrapped Q?\n") && $repairFaq['fixed'] === 2, 'Existing FAQ questions stripped of leading/trailing asterisks');
+$renderedFaq = blog_render_markdown(":::faq\nQ: ****1. Bold Q?****\nA: Ans\n:::");
+wxr_check(str_contains($renderedFaq, '<summary>1. Bold Q?</summary>'), 'Renderer strips **** from FAQ question');
+$parentXml = <<<'XML'
+<rss xmlns:wp="http://wordpress.org/export/1.2/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:excerpt="http://wordpress.org/export/1.2/excerpt/"><channel>
+<wp:wxr_version>1.2</wp:wxr_version>
+<item><title>Draft Parent Image</title><wp:post_id>500</wp:post_id><wp:post_type>post</wp:post_type><wp:post_name>draft-parent</wp:post_name><wp:status>draft</wp:status><content:encoded><![CDATA[<p>Body</p>]]></content:encoded></item>
+<item><wp:post_type>attachment</wp:post_type><wp:post_id>501</wp:post_id><wp:post_parent>500</wp:post_parent><wp:attachment_url>https://cdn.test/parent-thumb.png</wp:attachment_url></item>
+</channel></rss>
+XML;
+$parentManifest = blog_wordpress_manifest($parentXml);
+wxr_check(($parentManifest['blogs'][0]['featuredImage'] ?? '') === 'https://cdn.test/parent-thumb.png', 'Attachment linked via wp:post_parent used as featured image fallback');
+
 if (isset($argv[1])) {
     $actual = blog_wordpress_manifest(file_get_contents($argv[1]));
     wxr_check(count($actual['blogs']) === 3, 'Provided export has three posts');

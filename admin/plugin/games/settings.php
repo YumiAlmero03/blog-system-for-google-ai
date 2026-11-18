@@ -31,6 +31,7 @@ $title = 'Games Settings'; require __DIR__ . '/../../partials/support-head.php';
 <input type="hidden" name="enabled" value="0">
 <label><input type="checkbox" name="enabled" value="1" <?= $enabled ? 'checked' : '' ?>> Enable slots and games</label>
 <p>When disabled, public game lists, details, blog game demos, and game sitemaps are hidden. Imports and description generation pause. You can still manage games and providers here.</p>
+<p>SlotLaunch signed embed credentials are configured in the server environment only. See <code>admin/.env.example</code>; they are not stored in the database or sent to browser code.</p>
 <button class="btn btn-primary" type="submit">Save settings</button>
 </form>
 </main></body></html>

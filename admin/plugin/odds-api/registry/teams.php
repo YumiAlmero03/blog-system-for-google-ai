@@ -86,7 +86,7 @@ require __DIR__ . '/../../../partials/support-head.php';
           <tr>
             <td>
               <?php if (!empty($t['image_path'])): ?>
-                <?php $tImgUrl = sports_registry_safe_image_url($t['image_path']) . ($t['updated_at'] ? '?t=' . $t['updated_at'] : ''); ?>
+                <?php $tImgUrl = sports_registry_safe_image_url($t['image_path']); ?>
                 <img src="<?= h($tImgUrl) ?>" alt="<?= h($t['name']) ?>" class="team-thumb">
               <?php else: ?>
                 <span class="team-thumb-empty"><?= $t['image_failure'] ? '⚠️' : '—' ?></span>
@@ -110,6 +110,7 @@ require __DIR__ . '/../../../partials/support-head.php';
             <td><small><?= date('M j, Y', (int) $t['updated_at']) ?></small></td>
             <td>
               <a class="btn btn-secondary btn-sm" href="/admin/plugin/odds-api/registry/team-edit.php?id=<?= (int) $t['id'] ?>">Edit</a>
+              <a class="btn btn-secondary btn-sm" href="/admin/plugin/odds-api/registry/team-edit.php?id=<?= (int)$t['id'] ?>#logo">Edit Logo</a>
             </td>
           </tr>
         <?php endforeach; ?>

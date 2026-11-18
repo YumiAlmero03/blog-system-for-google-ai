@@ -1,8 +1,15 @@
-# Update using two files
+# Step-by-step production update
 
-Upload only **`updater.py`** and **`site-update.zip`**. The ZIP contains the complete current application, so you do not need the server's last Git commit or intermediate update packages. The server does not need Git.
+This project deploys updates with a generated ZIP and updater pair. The server does not need Git, and the ZIP must be installed by `updater.py`; do not extract it manually.
 
-## 1. Create the two files on your computer
+## Before starting
+
+1. Finish and test the changes locally.
+2. Confirm the server uses the current layout, including `admin/includes/blog-storage.php`.
+3. Make sure the server has Python 3.10+, PHP 8.1+, and PHP's `pdo_sqlite` extension.
+4. Schedule a maintenance window. You will need to enable maintenance mode and pause aaPanel cron jobs before installation.
+
+## 1. Build the update package
 
 From this project's root folder:
 
@@ -10,15 +17,19 @@ From this project's root folder:
 python3 admin/scripts/updater.py --build .
 ```
 
-Find both files in **`admin/update-packages/full/`**. Always upload the matching pair from the same build. Rebuild after making more changes.
+The command creates a matching pair in **`admin/update-packages/full/`**: `updater.py` and `site-update.zip`. Always upload both files from the same build. Rebuild the pair after any further code changes. The package excludes `.env` files, SQLite databases, uploads, chats, logs, generated sitemap XML files, `robots.txt`, and other runtime/private data. PHP sitemap endpoints and sitemap-generation scripts remain part of the application package.
 
-## 2. Upload both files
+## 2. Upload the two files in aaPanel
 
-In **aaPanel → Files**, open the website root containing `admin` and `api`. Upload `updater.py` and `site-update.zip` there. **Do not extract the ZIP yourself.**
+1. Open **aaPanel → Files**.
+2. Open the website root, the folder containing `admin/` and `api/`.
+3. Upload `updater.py` and `site-update.zip` into that root folder.
+4. Do not upload local `.env` files, SQLite databases, or uploads.
+5. Do not extract `site-update.zip` yourself.
 
 Keep the site's existing `.env`, SQLite database, uploads, and chats. These are excluded from the package. The full package includes tracked application dependencies and current non-ignored new files; review new files before building to avoid packaging private material.
 
-## 3. Check the update
+## 3. Validate without changing anything
 
 In the aaPanel terminal, replace `YOUR_SITE_FOLDER` and run:
 
@@ -27,17 +38,23 @@ cd /www/wwwroot/YOUR_SITE_FOLDER
 python3 updater.py --check
 ```
 
-Requires **Python 3.10+** and **PHP 8.1+ with PDO SQLite**. If PHP is not on the command path, add its actual location, for example `--php /www/server/php/84/bin/php`, to both the check and installation commands.
+The check verifies the matching pair, package contents, database location, PHP version, and SQLite support. It does not change files or database records. If PHP is not on the command path, add `--php /www/server/php/84/bin/php` to both commands.
 
-## 4. Install
+## 4. Prepare the site
 
-Enable website maintenance mode and pause cron jobs first so files and database records are not being changed during the update. Then run:
+1. Enable website maintenance mode.
+2. Pause aaPanel cron jobs and workers that write to the application or databases.
+3. Confirm no imports, blog saves, game jobs, or scheduled publishing tasks are running.
+
+## 5. Install
+
+After completing the preparation steps, run:
 
 ```sh
 python3 updater.py
 ```
 
-The updater checks the matching ZIP and file hashes, backs up affected code and both SQLite databases when present, validates PHP syntax, installs the full application, removes obsolete application paths recorded in repository history, runs existing database migrations, clears API caches, and regenerates game sitemaps. Unrelated server files are left alone.
+The updater checks hashes, backs up affected code/configuration and both SQLite databases, validates PHP syntax, installs the application, removes obsolete paths, runs database initialization/migrations, clears API caches, and regenerates game sitemaps. Unrelated server files are left alone.
 
 Backups are created in **`.site-update-backups` beside the website folder**, outside the site root. The command prints the exact location. If that parent directory is not writable, use a writable private directory outside the website:
 
@@ -45,13 +62,29 @@ Backups are created in **`.site-update-backups` beside the website folder**, out
 python3 updater.py --backup-dir /path/outside/website/backups
 ```
 
-Run as the site's deployment user with permission to update code, storage, and sitemaps. The updater does not automatically enable maintenance mode or configure Nginx.
+Run as the site's deployment user with permission to update code, storage, and sitemaps. The updater does not enable maintenance mode or configure Nginx.
 
-## 5. Finish
+## 6. New database columns and schema changes
 
-Check admin login, slot editing, `/api/slot-list.php`, and your sitemaps. Then resume the site and cron jobs. Delete the uploaded `updater.py` and `site-update.zip` from the public website folder. Keep the backup privately.
+New columns are applied automatically only when the release includes idempotent migration code. The database bootstrap checks the existing schema and adds missing columns/tables defined by the release; the updater triggers that bootstrap after installing the new files.
 
-If the updater reports a failure, **keep maintenance enabled**. It prints the backup location; `restore-info.json` records the original database location and newly added files. Restore the backed-up code and both databases together before reopening the site. It does not automatically roll back migrations or undo unrelated writes.
+For every schema change:
+
+1. Include the migration/schema code in the same update package as the code that uses the new column.
+2. Never replace the server database with a local SQLite file.
+3. Keep maintenance mode and database-writing jobs paused during the first initialization.
+4. Watch the installer output for migration errors.
+5. Test the feature that uses the new column after installation.
+
+Test schema changes against a copy of production first. The updater cannot infer an arbitrary schema change that has no migration code, and SQLite constraint/type changes may require special migration handling.
+
+## 7. Verify and finish
+
+Check admin login, blog editing/publishing, slot editing, `/game-api/slot-list.php`, the feature using new columns, public pages, APIs, and sitemaps. Then disable maintenance mode and resume cron jobs/workers. Delete the uploaded `updater.py` and `site-update.zip`; keep the private backup until the release is trusted.
+
+## If the update fails
+
+Keep maintenance enabled and do not resume writers. The updater prints the backup directory and writes `restore-info.json` there. Restore the backed-up application files and matching SQLite databases together before reopening the site. It does not automatically roll back migrations or unrelated writes.
 
 ## Updating a much older installation
 

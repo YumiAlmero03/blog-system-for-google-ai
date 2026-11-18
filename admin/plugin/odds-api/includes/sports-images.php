@@ -215,7 +215,8 @@ function sports_images_record(string $type, array $entity, string $status, strin
 {
     $pdo = sports_images_db();
     $pdo->prepare('INSERT INTO sports_image_assets(entity_type,entity_id,name,status,image_path,source,metadata,message,checked_at) VALUES(?,?,?,?,?,?,?,?,?)
-        ON CONFLICT(entity_type,entity_id) DO UPDATE SET name=excluded.name,status=excluded.status,image_path=excluded.image_path,source=excluded.source,metadata=excluded.metadata,message=excluded.message,checked_at=excluded.checked_at')
+        ON CONFLICT(entity_type,entity_id) DO UPDATE SET name=excluded.name,status=excluded.status,image_path=excluded.image_path,source=excluded.source,metadata=excluded.metadata,message=excluded.message,checked_at=excluded.checked_at
+        WHERE sports_image_assets.source != \'manual\' OR excluded.source = \'manual\'')
         ->execute([$type,$entity['id'],$entity['name'] ?? $entity['title'],$status,$path,$candidate['source'] ?? '',json_encode($candidate, JSON_UNESCAPED_SLASHES),$message,time()]);
 }
 

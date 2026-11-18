@@ -27,6 +27,8 @@ def allowed(name):
     base = path.name.lower()
     return not (base.startswith(('.env', '.google-private', 'service-account'))
                 or base in ('.ds_store', 'google-config.json', 'updater.py', 'site-update.zip', 'bingsiteauth.xml')
+                or (base.startswith('robots') and path.suffix.lower() == '.txt')
+                or (base.startswith('sitemap') and path.suffix.lower() == '.xml')
                 or (base.startswith('google') and base.endswith('.html'))
                 or any(s in base for s in ('.sqlite', '.bak'))
                 or path.suffix.lower() in ('.db', '.zip', '.pem', '.key', '.log', '.sql', '.pyc', '.lock'))
@@ -57,7 +59,7 @@ def build(root):
     historical = set(git(root, 'log', '--no-renames', '--format=', '--name-only', '--diff-filter=D', '-z').decode().split('\0'))
     historical.update(names)
     deleted = sorted(n for n in historical if allowed(n) and not (root / n).exists())
-    for required in ('admin/includes/blog-storage.php', 'admin/scripts/generate-game-sitemaps.php', 'api/slot-list.php'):
+    for required in ('admin/includes/blog-storage.php', 'admin/scripts/generate-game-sitemaps.php', 'game-api/slot-list.php'):
         if required not in files:
             raise RuntimeError(f'Missing required application file: {required}')
     output = root / 'admin/update-packages/full'

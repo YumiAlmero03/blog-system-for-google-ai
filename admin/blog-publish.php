@@ -699,6 +699,9 @@ $writerOptions = writer_options();
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
       font-size: 0.82rem;
     }
+    .editor-slot-demo-status:empty {
+      display: none;
+    }
     .editor-button-block {
       display: grid;
       gap: 10px;
@@ -2996,7 +2999,7 @@ $writerOptions = writer_options();
           if (/^Q:\s*/i.test(line)) {
             if (current) items.push(current);
             current = {
-              question: line.replace(/^Q:\s*/i, '').trim(),
+              question: line.replace(/^Q:\s*/i, '').trim().replace(/\*{4,}/g, '').replace(/^\*+|\*+$/g, '').trim(),
               answer: '',
             };
           } else if (/^A:\s*/i.test(line)) {
@@ -3178,12 +3181,17 @@ $writerOptions = writer_options();
           url: '/playnow',
           title: '',
           slug: '',
+          game_id: '',
         };
         String(value || '').split(/\n/).forEach((line) => {
-          const match = line.match(/^\s*(title|url|slug)\s*:\s*(.+)\s*$/i);
+          const match = line.match(/^\s*(title|url|slug|game_id)\s*:\s*(.+)\s*$/i);
           if (!match) return;
           demo[match[1].toLowerCase()] = match[2].trim();
         });
+        if (!demo.game_id && demo.url) {
+          const match = demo.url.match(/iframe\/(\d+)/i);
+          if (match) demo.game_id = match[1];
+        }
         return demo;
       }
 
@@ -3192,9 +3200,10 @@ $writerOptions = writer_options();
           url: '/playnow',
           title: '',
           slug: '',
+          game_id: '',
         }, demo || {});
         const title = normalized.title ? `${normalized.title} Demo` : 'Select a game for this demo';
-        return `<section class="editor-block editor-slot-demo-block" data-block-type="slot-demo" data-game-slug="${escapeHtml(normalized.slug || '')}" draggable="true"><button type="button" class="editor-block-close" data-remove-block aria-label="Remove demo block" title="Remove demo block">&times;</button><div class="editor-slot-demo-search" contenteditable="false"><h3 class="editor-slot-demo-title" aria-live="polite">${escapeHtml(title)}</h3><input type="search" class="editor-slot-demo-query" placeholder="Search games..." aria-label="Search games" draggable="false"><div class="editor-slot-demo-results" role="listbox"></div></div><div class="editor-slot-demo-frame" contenteditable="false"><iframe src="${escapeHtml(normalized.url || '/playnow')}" title="${escapeHtml(title)}" loading="lazy"></iframe></div></section>`;
+        return `<section class="editor-block editor-slot-demo-block" data-block-type="slot-demo" data-game-slug="${escapeHtml(normalized.slug || '')}" data-game-id="${escapeHtml(normalized.game_id || '')}" draggable="true"><button type="button" class="editor-block-close" data-remove-block aria-label="Remove demo block" title="Remove demo block">&times;</button><div class="editor-slot-demo-search" contenteditable="false"><h3 class="editor-slot-demo-title" aria-live="polite">${escapeHtml(title)}</h3><div class="editor-slot-demo-controls"><input type="search" class="editor-slot-demo-query" placeholder="Search games..." aria-label="Search games" draggable="false" autocomplete="off"><span class="editor-slot-demo-status" role="status"></span></div><div class="editor-slot-demo-results" role="listbox"></div></div><div class="editor-slot-demo-frame" contenteditable="false"><iframe src="${escapeHtml(normalized.url || '/playnow')}" title="${escapeHtml(title)}" loading="lazy" allow="fullscreen" allowfullscreen></iframe></div></section>`;
       }
 
       function renderCustomCodePreview(code) {
@@ -3256,6 +3265,7 @@ $writerOptions = writer_options();
           tableBlocks.push(renderTableBlock(parsed));
           return '\n\n' + token + '\n\n';
         });
+        source = source.replace(/\[!([^\]\n]+?)\((https?:\/\/[^)\s<>]+|\/uploads\/blogs\/[a-zA-Z0-9._/-]+)\)\]\((https?:\/\/[^)\s]+|\/[^)\s]*)\)(\{nofollow\})?/g, (match, alt, src, href, nofollow) => `[![${alt}](${src})](${href})${nofollow || ''}`);
         let html = escapeHtml(source);
         html = html.replace(/:::button\s*\n?([\s\S]*?)\n?:::/g, (match, content) => {
           const token = `@@BUTTON_BLOCK_${buttonBlocks.length}@@`;
@@ -3277,8 +3287,8 @@ $writerOptions = writer_options();
         html = html.replace(/^## (.*)$/gim, '<h2>$1</h2>');
         html = html.replace(/^# (.*)$/gim, '<h1>$1</h1>');
         html = html.replace(/^&gt; (.*)$/gim, '<blockquote>$1</blockquote>');
-        html = html.replace(/\[!\[([^\]]*)\]\((\/uploads\/blogs\/[a-zA-Z0-9._/-]+)\)\]\((https?:\/\/[^)\s]+|\/[^)\s]*)\)(\{nofollow\})?/g, (match, alt, src, href, nofollow) => `<a href="${href}" target="_blank" rel="noopener noreferrer${nofollow ? ' nofollow' : ''}"><img src="${src}" alt="${alt}" draggable="true"></a>`);
-        html = html.replace(/!\[([^\]]*)\]\((\/uploads\/blogs\/[a-zA-Z0-9._/-]+)\)/g, '<img src="$2" alt="$1" draggable="true">');
+        html = html.replace(/\[!\[([^\]]*)\]\((\/uploads\/blogs\/[a-zA-Z0-9._/-]+|https?:\/\/[^)\s<>]+)\)\]\((https?:\/\/[^)\s]+|\/[^)\s]*)\)(\{nofollow\})?/g, (match, alt, src, href, nofollow) => `<a href="${href}" target="_blank" rel="noopener noreferrer${nofollow ? ' nofollow' : ''}"><img src="${src}" alt="${alt}" draggable="true"></a>`);
+        html = html.replace(/!\[([^\]]*)\]\((\/uploads\/blogs\/[a-zA-Z0-9._/-]+|https?:\/\/[^)\s<>]+)\)/g, '<img src="$2" alt="$1" draggable="true">');
         html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+|\/[^)\s]*)\)(\{nofollow\})?/g, (match, text, href, nofollow) => `<a href="${href}" target="_blank" rel="noopener noreferrer${nofollow ? ' nofollow' : ''}">${text}</a>`);
         html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
         html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
@@ -3332,7 +3342,7 @@ $writerOptions = writer_options();
           const faqMarkdown = items.map((item) => {
             const questionField = item.querySelector('.editor-faq-question');
             const answerField = item.querySelector('.editor-faq-answer');
-            const question = ((questionField && 'value' in questionField ? questionField.value : questionField?.textContent) || '').trim();
+            const question = ((questionField && 'value' in questionField ? questionField.value : questionField?.textContent) || '').trim().replace(/\*{4,}/g, '').replace(/^\*+|\*+$/g, '').trim();
             const answer = ((answerField && 'value' in answerField ? answerField.value : answerField?.textContent) || '').trim();
             return `Q: ${question}\nA: ${answer}`;
           }).join('\n\n') || 'Q: \nA: ';
@@ -3364,7 +3374,8 @@ $writerOptions = writer_options();
           const demoUrl = (node.querySelector('.editor-slot-demo-frame iframe')?.getAttribute('src') || '/playnow').trim();
           const title = (node.querySelector('.editor-slot-demo-title')?.textContent || '').replace(/\s+Demo\s*$/i, '').trim();
           const slug = (node.dataset.gameSlug || '').trim();
-          return `:::slot-demo\n${title && title !== 'Select a game for this demo' ? `title: ${title}\n` : ''}${slug ? `slug: ${slug}\n` : ''}url: ${demoUrl}\n:::\n\n`;
+          const gameId = (node.dataset.gameId || '').trim();
+          return `:::slot-demo\n${title && title !== 'Select a game for this demo' ? `title: ${title}\n` : ''}${slug ? `slug: ${slug}\n` : ''}${gameId && /^\d+$/.test(gameId) ? `game_id: ${gameId}\n` : ''}:::\n\n`;
         }
 
         if (tag === 'strong' || tag === 'b') return `**${children}**`;
@@ -3540,6 +3551,7 @@ $writerOptions = writer_options();
         blogContent.value = removeEmptyMarkdownHeadings(markdown || '');
         wysiwygEditor.innerHTML = parseMarkdown(blogContent.value);
         prepareEditorBlocks();
+        hydrateSlotDemoFrames();
         updateWordCounter();
       }
 
@@ -3550,6 +3562,7 @@ $writerOptions = writer_options();
         }
         wysiwygEditor.innerHTML = parseMarkdown(blogContent.value);
         prepareEditorBlocks();
+        hydrateSlotDemoFrames();
         updateWordCounter();
       }
 
@@ -4490,16 +4503,86 @@ $writerOptions = writer_options();
         });
       }
 
-      function updateSlotDemoFrame(block, url, name) {
-        const cleanUrl = String(url || '').trim() || '/playnow';
+      async function updateSlotDemoFrame(block, url, name, apiId = '', persist = true) {
+        let cleanUrl = String(url || '').trim() || '/playnow';
         const iframe = block?.querySelector('.editor-slot-demo-frame iframe');
         const title = block?.querySelector('.editor-slot-demo-title');
-        if (iframe) iframe.src = cleanUrl;
         if (title && name) {
           title.textContent = `${name} Demo`;
           if (iframe) iframe.title = `${name} Demo`;
         }
-        syncStructuredBlockChange(true);
+        let extractedId = (apiId && /^\d+$/.test(String(apiId))) ? String(apiId) : '';
+        if (!extractedId) {
+          const match = cleanUrl.match(/iframe\/(\d+)/i);
+          if (match) extractedId = match[1];
+        }
+        if (extractedId) {
+          if (block) block.dataset.gameId = extractedId;
+          const status = block?.querySelector('.editor-slot-demo-status');
+          if (status) status.textContent = 'Loading signed demo...';
+          try {
+            const response = await fetch(`/api/slotlaunch-embed.php?id=${encodeURIComponent(extractedId)}`, { headers: { 'Accept': 'application/json' } });
+            const payload = await parseJsonResponse(response);
+            if (payload && payload.url) {
+              cleanUrl = payload.url;
+              if (status) status.textContent = '';
+            }
+          } catch (error) {
+            if (status) status.textContent = error.message || 'Unable to load demo.';
+          }
+        }
+        if (iframe) iframe.src = cleanUrl;
+        if (persist) syncStructuredBlockChange(true);
+      }
+
+      async function hydrateSlotDemoFrames() {
+        const blocks = Array.from(wysiwygEditor.querySelectorAll('.editor-slot-demo-block'));
+        await Promise.all(blocks.map(async (block) => {
+          const slug = String(block.dataset.gameSlug || '').trim();
+          let apiId = String(block.dataset.gameId || '').trim();
+          const iframe = block.querySelector('.editor-slot-demo-frame iframe');
+          const currentSrc = (iframe?.getAttribute('src') || '').trim();
+
+          if (currentSrc.includes('token=') && currentSrc.includes('sig=') && !currentSrc.includes('Kljjshk')) {
+            return;
+          }
+
+          if (!apiId && currentSrc) {
+            const match = currentSrc.match(/iframe\/(\d+)/i);
+            if (match) apiId = match[1];
+          }
+
+          let gameName = '';
+          if (!apiId && slug) {
+            try {
+              const response = await fetch(`/admin/game-search.php?slug=${encodeURIComponent(slug)}`, { headers: { 'Accept': 'application/json' } });
+              const payload = await parseJsonResponse(response);
+              const game = payload.game || (Array.isArray(payload.slots) ? payload.slots[0] : null);
+              if (game) {
+                apiId = String(game.apiId || game.api_id || '');
+                gameName = game.name || '';
+                if (gameName) {
+                  const title = block.querySelector('.editor-slot-demo-title');
+                  if (title) title.textContent = `${gameName} Demo`;
+                }
+              }
+            } catch (error) {
+              // fallback
+            }
+          }
+
+          if (apiId) {
+            block.dataset.gameId = apiId;
+            await updateSlotDemoFrame(block, currentSrc, gameName, apiId, false);
+          }
+        }));
+      }
+
+      function debounceSlotDemoSearch(block, query) {
+        if (slotDemoSearchTimer) clearTimeout(slotDemoSearchTimer);
+        slotDemoSearchTimer = setTimeout(() => {
+          searchSlotDemoGames(block, query);
+        }, 250);
       }
 
       async function searchSlotDemoGames(block, query) {
@@ -4512,17 +4595,15 @@ $writerOptions = writer_options();
         }
         results.innerHTML = '<div class="editor-slot-demo-status">Searching...</div>';
         try {
-          const request = new URL('/game-api/slot-list.php', window.location.origin);
+          const request = new URL('/admin/game-search.php', window.location.origin);
           request.searchParams.set('search', cleanQuery);
-          request.searchParams.set('count', '5');
-          request.searchParams.set('published', '1');
+          request.searchParams.set('limit', '8');
           const response = await fetch(request.toString(), {
             headers: { 'Accept': 'application/json', 'X-Requested-With': 'fetch' },
           });
           const payload = await parseJsonResponse(response);
           const slots = Array.isArray(payload.slots) ? payload.slots : [];
-          const matches = slots.slice(0, 5);
-          results.innerHTML = matches.length ? matches.map((slot) => `<button type="button" class="editor-slot-demo-result" data-demo-url="${escapeHtml(slot.iframeUrl || slot.gameUrl || '')}" data-demo-name="${escapeHtml(slot.name || slot.slug || 'Game')}" data-demo-slug="${escapeHtml(slot.slug || '')}"><span>${escapeHtml(slot.name || slot.slug || 'Game')}</span><small>${escapeHtml(slot.provider?.name || '')}</small></button>`).join('') : '<div class="editor-slot-demo-status">No games found.</div>';
+          results.innerHTML = slots.length ? slots.map((slot) => `<button type="button" class="editor-slot-demo-result" data-demo-id="${escapeHtml(slot.apiId || '')}" data-demo-url="${escapeHtml(slot.iframeUrl || slot.gameUrl || '')}" data-demo-name="${escapeHtml(slot.name || slot.slug || 'Game')}" data-demo-slug="${escapeHtml(slot.slug || '')}"><span>${escapeHtml(slot.name || slot.slug || 'Game')}</span><small>${escapeHtml(slot.provider?.name || '')}</small></button>`).join('') : '<div class="editor-slot-demo-status">No games found.</div>';
         } catch (error) {
           results.innerHTML = `<div class="editor-slot-demo-status">${escapeHtml(error.message || 'Search failed.')}</div>`;
         }
@@ -5283,7 +5364,7 @@ $writerOptions = writer_options();
         if (buttonBlock) updateButtonPreview(buttonBlock);
         const slotQuery = event.target && event.target.closest ? event.target.closest('.editor-slot-demo-query') : null;
         if (slotQuery && wysiwygEditor.contains(slotQuery)) {
-          searchSlotDemoGames(slotQuery.closest('.editor-slot-demo-block'), slotQuery.value);
+          debounceSlotDemoSearch(slotQuery.closest('.editor-slot-demo-block'), slotQuery.value);
         }
         normalizeEmptyEditorHeadings();
         prepareEditorBlocks();
@@ -5300,6 +5381,24 @@ $writerOptions = writer_options();
       on(wysiwygEditor, 'focus', saveEditorSelection);
       if (wysiwygEditor) {
         wysiwygEditor.addEventListener('keydown', (event) => {
+          const slotQuery = event.target && event.target.closest ? event.target.closest('.editor-slot-demo-query') : null;
+          if (slotQuery && wysiwygEditor.contains(slotQuery)) {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              event.stopPropagation();
+              if (slotDemoSearchTimer) clearTimeout(slotDemoSearchTimer);
+              searchSlotDemoGames(slotQuery.closest('.editor-slot-demo-block'), slotQuery.value);
+              return;
+            }
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              event.stopPropagation();
+              const block = slotQuery.closest('.editor-slot-demo-block');
+              const results = block?.querySelector('.editor-slot-demo-results');
+              if (results) results.innerHTML = '';
+              return;
+            }
+          }
           if (eventTargetInStructuredField(event) && !((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && (event.key || '').toLowerCase() === 'a')) {
             event.stopPropagation();
             return;
@@ -5394,12 +5493,26 @@ $writerOptions = writer_options();
         if (demoResult && wysiwygEditor.contains(demoResult)) {
           event.preventDefault();
           const demoUrl = demoResult.dataset.demoUrl || '';
-          if (demoUrl) {
-            const block = demoResult.closest('.editor-slot-demo-block');
-            if (block) block.dataset.gameSlug = demoResult.dataset.demoSlug || '';
-            updateSlotDemoFrame(block, demoUrl, demoResult.dataset.demoName || 'Game');
+          const demoId = demoResult.dataset.demoId || '';
+          const demoSlug = demoResult.dataset.demoSlug || '';
+          const demoName = demoResult.dataset.demoName || 'Game';
+          const block = demoResult.closest('.editor-slot-demo-block');
+          if (block) {
+            block.dataset.gameSlug = demoSlug;
+            block.dataset.gameId = demoId;
+            const queryInput = block.querySelector('.editor-slot-demo-query');
+            if (queryInput) queryInput.value = '';
+            const results = block.querySelector('.editor-slot-demo-results');
+            if (results) results.innerHTML = '';
+            updateSlotDemoFrame(block, demoUrl, demoName, demoId, true);
           }
           return;
+        }
+
+        if (!event.target.closest('.editor-slot-demo-search')) {
+          wysiwygEditor.querySelectorAll('.editor-slot-demo-results').forEach((res) => {
+            if (res.innerHTML !== '') res.innerHTML = '';
+          });
         }
 
         const image = event.target.closest ? event.target.closest('img') : null;
@@ -5823,10 +5936,12 @@ $writerOptions = writer_options();
         updateSaveState(blogStatus ? blogStatus.value : (blog.status || 'draft'));
         if (authorField) authorField.value = blog.author || ' Editorial Team';
         const writerId = blog.writerId == null ? '' : String(blog.writerId);
-        if (writerId && !Array.from(writerField.options).some(option => option.value === writerId)) {
-          writerField.add(new Option(blog.writer?.name || 'Assigned writer', writerId));
+        if (writerField) {
+          if (writerId && !Array.from(writerField.options).some(option => option.value === writerId)) {
+            writerField.add(new Option(blog.writer?.name || 'Assigned writer', writerId));
+          }
+          writerField.value = writerId;
         }
-        writerField.value = writerId;
         if (excerpt) excerpt.value = blog.excerpt || '';
         updateTitleDisplay();
         updateSeoTitleCounter();

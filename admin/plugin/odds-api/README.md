@@ -13,6 +13,8 @@ Sports categories, tournaments, participants, logos, image uploads and provider 
 
 Registry implementation: `includes/sports-registry.php`. Existing `sports-registry.sqlite` storage and upload paths are retained; no data migration is required.
 
+To edit logos, open a category's tournament list and choose **Edit Logo**, or open **Participants → Edit Logo** for a team. Tournament settings, team details, and the tournament's participant editor support a manual upload or an HTTPS image URL / existing `/uploads/` image path. Uploads accept JPEG, PNG, WebP and AVIF up to 10 MB. Preview the logo, then save; an uploaded file takes priority over the URL. **Remove Logo** clears the assignment while retaining uploaded files that may be used elsewhere. Manual logos are preserved by provider syncs and image enrichment, and appear in public odds layouts through the existing registry image resolution. No new settings or database schema are required. Regression: `php admin/test/test-registry-logos.php`.
+
 Run synchronization from the project root:
 
 ```sh

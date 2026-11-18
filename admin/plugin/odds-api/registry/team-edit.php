@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../../../includes/auth.php';
-require_auth();
+require_admin();
 require_once __DIR__ . '/../includes/sports-registry.php';
 
 $id = (int) ($_GET['id'] ?? 0);
@@ -22,7 +22,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? 'save';
 
     try {
-        if ($action === 'save') {
+        if ($action === 'remove_image') {
+            $participant = participant_remove_image($id);
+            $notice = 'Team logo removed.';
+            csrf_rotate();
+        } elseif ($action === 'save') {
             $updated = participant_save([
                 'id' => $id,
                 'name' => $_POST['name'] ?? '',
@@ -31,8 +35,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
 
             $uploadFile = $_FILES['participant_image'] ?? ($_FILES['team_image'] ?? null);
-            if ($uploadFile && ($uploadFile['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
+            if ($uploadFile && ($uploadFile['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
                 $updated = participant_save_manual_image($id, $uploadFile);
+            } elseif (isset($_POST['logo_url']) && $_POST['logo_url'] !== $participant['image_path']) {
+                $updated = $_POST['logo_url'] === '' ? participant_remove_image($id) : participant_save_manual_image_url($id, $_POST['logo_url']);
             }
 
             $participant = $updated;
@@ -71,27 +77,13 @@ require __DIR__ . '/../../../partials/support-head.php';
 
     <p><label><input type="checkbox" name="enabled" value="1" <?= $participant['enabled'] ? 'checked' : '' ?>> Enabled</label></p>
 
-    <!-- Participant Image Section -->
-    <fieldset style="border:1px solid var(--border);border-radius:8px;padding:16px;">
-      <legend style="padding:0 8px;font-weight:700;">Participant Logo (Source: <?= strtoupper($participant['image_source']) ?>)</legend>
-      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
-        <div>
-          <?php if (!empty($participant['image_path'])): ?>
-            <?php $pImgUrl = sports_registry_safe_image_url($participant['image_path']) . ($participant['updated_at'] ? '?t=' . $participant['updated_at'] : ''); ?>
-            <img src="<?= h($pImgUrl) ?>" alt="<?= h($participant['name']) ?>" style="max-width:100px;max-height:100px;object-fit:contain;background:#1e293b;border-radius:8px;padding:4px;border:1px solid var(--border);">
-          <?php else: ?>
-            <div style="width:80px;height:80px;border-radius:8px;background:var(--surface-soft);display:flex;align-items:center;justify-content:center;color:var(--text-muted);border:1px dashed var(--border);">No Image</div>
-          <?php endif; ?>
-        </div>
-        <div>
-          <label>Manual Upload Override<br><input type="file" name="participant_image" accept="image/jpeg,image/png,image/webp,image/avif"></label>
-          <p style="font-size:0.8rem;color:var(--text-muted);margin:4px 0 0;">Uploading a manual image marks this participant as <strong>MANUAL</strong>, protecting it from being overwritten during future API syncs.</p>
-          <?php if (!empty($participant['image_path'])): ?>
-            <p style="font-size:0.75rem;color:var(--text-muted);margin:4px 0 0;word-break:break-all;">Local Path: <code><?= h($participant['image_path']) ?></code></p>
-          <?php endif; ?>
-        </div>
-      </div>
-    </fieldset>
+    <div id="logo">
+    <?php
+    $logoLabel = 'Team Logo'; $logoPath = $participant['image_path']; $logoSource = $participant['image_source'];
+    $logoUploadName = 'participant_image'; $logoRemoveAction = 'remove_image';
+    require __DIR__ . '/../includes/logo-fields.php';
+    ?>
+    </div>
 
     <div style="display:flex;gap:10px;margin-top:12px;">
       <button type="submit" class="btn btn-primary">Save Participant</button>
@@ -99,4 +91,5 @@ require __DIR__ . '/../../../partials/support-head.php';
     </div>
   </form>
 </div>
+<script src="/admin/plugin/odds-api/registry/logo-editor.js" defer></script>
 </main></body></html>

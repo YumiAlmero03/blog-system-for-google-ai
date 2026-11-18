@@ -34,7 +34,7 @@
       let result = await request(upload, false);
       while (!result.done) {
         onProgress(result.phase === 'images'
-          ? `Restoring images: ${result.imagesProcessed} / ${result.imagesTotal}. Keep this page open.`
+          ? `Image queue: ${result.imagesProcessed} / ${result.imagesTotal}${result.counts?.imageFailures ? ` (${result.counts.imageFailures} failed)` : ''}. Keep this page open.`
           : `Importing posts: ${result.processed} / ${result.total}. Keep this page open.`);
         const batch = new FormData();
         batch.append('job_id', result.jobId);
