@@ -47,7 +47,9 @@
 
 ## Python
 
-`admin/scripts/enrich-game-descriptions.py` is the only Python utility. Use it only for game catalog or description enrichment.
+Game enrichment utilities in `admin/scripts/` and `admin/plugin/games/scripts/` are for game catalog or description enrichment.
+
+Deployment also uses `admin/scripts/updater.py` to build/install the matching backend ZIP pair. Cleanup is restricted to `admin/`, `api/`, `game-api/`, `odds-api/` and `promo-code/`; never delete the separately deployed frontend from historical Git removals. Keep installed code readable and application directories traversable by the web server, while preserving private runtime data. See `UPDATE.md`; regression: `python3 admin/test/test-updater.py`.
 
 After implementation, report:
 
@@ -86,6 +88,10 @@ Game admin handlers are `/admin/plugin/games/save.php` (POST, `slots.edit`, form
 List POSTs use form fields, not JSON. Public engagement/click/chat/ticket writes accept JSON or form data and may change records or send email. SEO settings GET is public; POST is admin-only. Chat `admin_action=messages` uses authenticated GET with `chat.view`; `admin_action=reply` uses authenticated form POST with `chat.reply` and CSRF.
 
 ### Contact and chat admin pages
+
+- PH recheck response integrity: `POST /admin/plugin/games/recheck-ph.php` keeps PHP diagnostics in server logs and returns JSON warnings if sitemap refresh fails after a committed batch. Existing admin/CSRF/input/output contracts remain; the client continues availability checks after sitemap warnings and can resume from its last confirmed cursor and totals on the same open page. Existing sitemap locks are opened read-only for exclusive `flock`, so locks created by a root CLI update remain usable by PHP workers. No new flags, tables or game fields. Regressions: `php admin/test/test-game-ph-recheck.php`, `php admin/test/test-game-sitemaps.php`, `node admin/test/test-game-ph-recheck-client.cjs`.
+
+- Blog demo search: authenticated GET `/admin/game-search.php` requires `blogs.edit`, including editor accounts. Inputs: `search`/legacy `query`, optional `limit` (1–20, default 8), or `slug` for reopening a saved demo. Existing `{ok, slots, game}` output, game IDs/URLs, and publication/provider/visibility/PH filtering remain. The editor displays HTTP/API errors, cancels outdated requests separately per block, and does not dirty/autosave a post merely for typing a search. No flags or database changes. Tests: `php admin/test/test-blog-demo-search.php` and `node admin/test/test-blog-demo-search-client.cjs`.
 
 - Player presence indicators appear in the Live Chat list and conversation view. Reuse the existing 75-second player heartbeat: legacy/untracked sessions display Unavailable. `GET /api/chat-session.php?admin_action=player_presence&session_ids[]=...` requires `chat.view`, accepts at most 25 IDs, and returns a nullable boolean per session in `players`. Admin message polls include `playerOnline` even for unchanged transcripts. List and detail polling run every four seconds while visible; green dots mean online, red dots offline, and gray unavailable. Reads time out after ten seconds; errors clear stale online indicators and reconnecting refreshes presence. These reads do not extend presence.
 

@@ -21,27 +21,38 @@ function indexnow_save(bool $enabled,string $key,bool $generate=false): void
     if (!function_exists('auth_can') || !auth_can('super_user')) throw new DomainException('Access denied.');
     if ($generate) $key=bin2hex(random_bytes(16));
     if (!indexnow_key_valid($key)) throw new InvalidArgumentException('IndexNow keys require 8–128 letters, digits, or hyphens.');
-    $root=env_value('INDEXNOW_PUBLIC_DIR') ?: dirname(__DIR__);
-    if (!is_dir($root)) throw new RuntimeException('Public key directory unavailable.');
+    $customRoot=env_value('INDEXNOW_PUBLIC_DIR');
+    $hasCustomRoot=$customRoot !== null && $customRoot !== '';
+    $root=$hasCustomRoot ? $customRoot : dirname(__DIR__);
+    if ($hasCustomRoot && !is_dir($root)) throw new RuntimeException('Public key directory unavailable.');
     $old=indexnow_settings(); $path=$root.'/'.$key.'.txt';
     if (is_link($path) || (file_exists($path) && (!is_file($path) || file_get_contents($path)!==$key))) throw new InvalidArgumentException('The key filename is already used by another file.');
-    $created=!is_file($path);
-    if ($created) {
+    $created=false;
+    if (is_dir($root) && !is_file($path)) {
         $file=@fopen($path,'x');
-        if (!$file) throw new RuntimeException('Cannot create the public IndexNow key file.');
-        try { if (fwrite($file,$key)!==strlen($key) || !chmod($path,0644)) throw new RuntimeException('Cannot write public key file.'); }
-        catch (Throwable $e) { fclose($file); unlink($path); throw $e; }
-        fclose($file);
+        if (!$file) {
+            if ($hasCustomRoot) throw new RuntimeException('Cannot create the public IndexNow key file.');
+        } else {
+            $ok=false;
+            try { $ok=fwrite($file,$key)===strlen($key) && @chmod($path,0644); }
+            finally { fclose($file); }
+            if (!$ok) {
+                @unlink($path);
+                if ($hasCustomRoot) throw new RuntimeException('Cannot write public key file.');
+            } else {
+                $created=true;
+            }
+        }
     }
     try { indexnow_store(['enabled'=>$enabled,'key'=>$key,'status'=>'Verification Pending','http_status'=>null]); }
-    catch (Throwable $e) { if ($created) unlink($path); throw $e; }
+    catch (Throwable $e) { if ($created) @unlink($path); throw $e; }
     if ($old['key']!==$key || (!$old['enabled'] && $enabled)) {
         $pdo=blogs_pdo(); indexing_schema($pdo);
         $pdo->exec("UPDATE indexing_notifications SET attempts=0,next_at=0; DELETE FROM indexing_jobs WHERE name='indexnow-cooldown'");
     }
     if ($old['key']!==$key && indexnow_key_valid($old['key'])) {
         $previous=$root.'/'.$old['key'].'.txt';
-        if (!is_link($previous) && is_file($previous) && file_get_contents($previous)===$old['key']) unlink($previous);
+        if (!is_link($previous) && is_file($previous) && @file_get_contents($previous)===$old['key']) @unlink($previous);
     }
 }
 function indexnow_url_allowed(string $url): bool

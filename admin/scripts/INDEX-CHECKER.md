@@ -35,27 +35,24 @@ Admin page: `/admin/index-checker/`. Opening it only reads saved data. Recheck b
 7. If you enabled the Indexing API, click **Test Google Indexing API** to verify access (`Connected`).
 8. Click **Queue Sitemap Submission** any time you want to re-queue `/sitemap-index.xml` for submission on the next cron run.
 
-### 4. Private storage & environment variables (`admin/.env`)
+### 4. SQLite storage & environment variables (`admin/.env`)
 
-- Credentials are stored atomically with mode `0600` in `google-config.json`, inside a mode `0700` directory.
-- Storage path resolution (`admin/includes/google-credentials.php`):
-  1. Custom `GOOGLE_PRIVATE_DIR` (if set in `admin/.env`; if inside the site root, it must reside inside protected `admin/storage/` and must never be a symlink).
-  2. Sibling directory `../.google-private-<site-path-hash>` **outside the public site** when the parent directory is writable.
-  3. Protected fallback `admin/storage/.google-private` on aaPanel / `open_basedir`-restricted hosts where PHP cannot write outside the site root.
-- Never publish the private Google directory through a web-server mapping or include it in deployment archives.
+- Google configuration and service-account credentials (`property`, `status`, `submission_pending`, `indexing_api_enabled`, `credentials`, `last_authenticated`, `removed`) are stored atomically inside SQLite (`admin/storage/blogs.sqlite` → `app_settings` table under `setting_key = 'google_config'`), avoiding filesystem directory/permission or `open_basedir` restrictions on aaPanel.
+- **Automatic Legacy Migration**: If a legacy `google-config.json` file exists in `google_private_dir()` (resolved from `GOOGLE_PRIVATE_DIR`, `../.google-private-<site-path-hash>`, or `admin/storage/.google-private`), `google_state()` automatically imports it into `app_settings.google_config` and removes the legacy JSON file.
+- `google_config` is strictly private: `/api/settings/seo.php` queries only its allowlisted public keys, and only `super_user` accounts can view/manage Google credentials.
 - Optional environment variables in `admin/.env`:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `GOOGLE_PRIVATE_DIR` | *(auto)* | Override directory for `google-config.json`. |
-| `GOOGLE_INDEXING_ENABLED` | `false` *(or UI checkbox)* | Explicitly enable (`true`) or disable (`false`) Google Indexing API direct URL notifications; overrides the UI checkbox when set. |
+| `GOOGLE_INDEXING_ENABLED` | `false` *(or UI checkbox)* | Fallback toggle (`true`/`false`) for Google Indexing API direct URL notifications when not explicitly set via **SEO Settings** in SQLite. |
 | `GOOGLE_INDEXING_DAILY_LIMIT` | `200` | Rolling 24-hour request budget for Google Indexing API submissions. |
+| `GOOGLE_PRIVATE_DIR` | *(auto)* | Legacy directory searched once when migrating an existing `google-config.json` into SQLite. |
 | `GSC_SERVICE_ACCOUNT_FILE` | *(empty)* | Legacy path to a private service-account JSON file outside public web paths (or inside `admin/storage/`). |
 | `GSC_PROPERTY` | *(empty)* | Legacy Search Console property override. |
 
-> Saved UI settings take precedence over legacy `GSC_*` file fallback; removing credentials in the UI also disables legacy file fallback. If no saved or env property is set, the worker falls back to the configured SEO Website URL (`SITE_BASE_URL` takes precedence).
+> Saved UI settings in SQLite (`app_settings.google_config`) take precedence over `GOOGLE_INDEXING_ENABLED` and legacy `GSC_*` file fallback; removing credentials in the UI also disables legacy file fallback. If no saved or env property is set, the worker falls back to the configured SEO Website URL (`SITE_BASE_URL` takes precedence).
 
-PHP needs PDO SQLite, DOM, cURL, and OpenSSL. No Composer packages are required. URL Inspection and connection tests request `https://www.googleapis.com/auth/webmasters.readonly`; sitemap submission requests `https://www.googleapis.com/auth/webmasters`; Indexing API requests `https://www.googleapis.com/auth/indexing`. Access tokens are held only in process memory; key material and raw Google responses are not stored in SQLite.
+PHP needs PDO SQLite, DOM, cURL, and OpenSSL. No Composer packages are required. URL Inspection and connection tests request `https://www.googleapis.com/auth/webmasters.readonly`; sitemap submission requests `https://www.googleapis.com/auth/webmasters`; Indexing API requests `https://www.googleapis.com/auth/indexing`. Access tokens are held only in process memory; raw Google responses are never persisted.
 
 ## Schedule & CLI output reference
 
@@ -130,7 +127,7 @@ This inspects Google's stored index information. It neither submits URLs for ind
 
 ## IndexNow
 
-Super users configure **SEO Settings → IndexNow**: enable/disable, save an existing 8–128 character alphanumeric/hyphen key, or generate a random key. The root `/{key}.txt` file contains only the key; replacement removes the previous matching file without overwriting unrelated files. The web process needs write permission to the public root. `INDEXNOW_PUBLIC_DIR` is a filesystem override for tests or deployments that map that directory to the same public root. Admins can view status; editors cannot manage these settings. The public SEO API exposes enabled/configured/status/key-location fields, not Google credentials.
+Super users configure **SEO Settings → IndexNow**: enable/disable, save an existing 8–128 character alphanumeric/hyphen key, or generate a random key. IndexNow settings (`indexnow_config`) are stored in SQLite (`blogs.sqlite` → `app_settings`). Saving also attempts to maintain the static `/{key}.txt` file in `admin/` (or `INDEXNOW_PUBLIC_DIR` if explicitly configured); on hosts where `admin/` is read-only for PHP-FPM, `.htaccess` falls back to `admin/indexnow-key.php` so `/{key}.txt` is served directly from SQLite. Admins can view status; editors cannot manage these settings. The public SEO API exposes enabled/configured/status/key-location fields, not Google credentials.
 
 **Test IndexNow** fetches the public key file and submits the site home URL. HTTP 200 means accepted; 202 means accepted with key verification pending, not indexing confirmation. Neither reports Google status. The shared helper uses `https://api.indexnow.org/indexnow` for Bing, Yandex and participating engines.
 

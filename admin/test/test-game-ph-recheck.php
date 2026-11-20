@@ -22,12 +22,16 @@ function ph_check(bool $ok, string $message): void {
     if (!$ok) throw new RuntimeException('FAIL: ' . $message);
     $count++;
 }
-function ph_handler(array $request): array {
+function ph_handler(array $request, bool $expectSitemapWarning = false): array {
     $pipes = [];
-    $process = proc_open([PHP_BINARY, __DIR__ . '/test-game-visibility.php', '--handler'], [0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']], $pipes);
+    $process = proc_open([PHP_BINARY, '-d', 'display_errors=1', '-d', 'html_errors=1', __DIR__ . '/test-game-visibility.php', '--handler'], [0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']], $pipes);
     fwrite($pipes[0], json_encode($request)); fclose($pipes[0]);
     $body = stream_get_contents($pipes[1]); fclose($pipes[1]);
     $errors = stream_get_contents($pipes[2]); fclose($pipes[2]);
+    if ($expectSitemapWarning) {
+        ph_check(str_contains($errors, 'PH recheck sitemap refresh failed: Cannot open the sitemap lock.'), 'Lock refresh failure is logged server-side: ' . $errors);
+        $errors = preg_replace('/^(?:\[[^\r\n]+\] )?PH recheck sitemap refresh failed: [^\r\n]+\r?\n/', '', $errors);
+    }
     ph_check(proc_close($process) === 0 && preg_match('/^STATUS:(\d+)$/', $errors, $match), 'Admin request has no warnings: ' . $errors);
     return [(int)$match[1], json_decode($body, true), $body];
 }
@@ -111,6 +115,13 @@ try {
     [$status,$payload,$body] = ph_handler(['path'=>$path,'role'=>'super_user','post'=>['after_id'=>'99999','max_id'=>'99999']]);
     ph_check($status===200 && $payload['ok'] && $payload['done'] && $payload['processed']===0 && !str_contains($body,'ph-test-'), 'Authenticated response exposes no credentials');
     ph_check($payload['changed']===0 && !str_contains(file_get_contents($dir.'/sitemap-games-1.xml'), '/game/unpublished/'), 'Completed recheck removes stale unpublished URL even without database changes');
+    // Force an unopenable lock even as root; displayed PHP errors must not corrupt JSON.
+    $lockPath = $dir . '/.game-sitemaps.lock';
+    unlink($lockPath); mkdir($lockPath);
+    try {
+        [$status,$payload,$body] = ph_handler(['path'=>$path,'role'=>'super_user','post'=>['after_id'=>'99999','max_id'=>'99999']], true);
+        ph_check($status===200 && $payload['ok'] && isset($payload['warning']) && !str_contains($body, '<br'), 'Sitemap lock failure returns valid JSON with a warning even when display_errors was enabled');
+    } finally { rmdir($lockPath); touch($lockPath); }
     [$status,,$html] = ph_handler(['path'=>'/admin/plugin/games/index.php','role'=>'super_user','method'=>'GET']);
     ph_check($status===200 && str_contains($html,'Recheck PH Availability') && str_contains($html,'data-recheck-ph="1"'), 'Admin list contains bulk and individual controls');
     [$status,,$html] = ph_handler(['path'=>'/admin/plugin/games/index.php','role'=>'editor','method'=>'GET']);

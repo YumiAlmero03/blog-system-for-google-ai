@@ -499,6 +499,6 @@ $featuredCount = (int) $pdo->query('SELECT COUNT(*) FROM games WHERE ' . $eligib
       </div>
     </main>
   </div>
-<script src="/admin/plugin/games/recheck-ph.js" defer></script>
+<script src="/admin/plugin/games/recheck-ph.js?v=<?= filemtime(__DIR__ . '/recheck-ph.js') ?>" defer></script>
 </body>
 </html>

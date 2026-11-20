@@ -8,7 +8,7 @@ function auth_route_capability(): string
     $routes = [
         '/admin/index.php'=>'blogs.view', '/admin/blogs.php'=>'blogs.view',
         '/admin/blog-list.php'=>'blogs.view', '/admin/blog-edit.php'=>'blogs.edit',
-        '/admin/blog-publish.php'=>'blogs.edit', '/admin/blog-create.php'=>'blogs.edit',
+        '/admin/blog-publish.php'=>'blogs.edit', '/admin/blog-create.php'=>'blogs.edit', '/admin/game-search.php'=>'blogs.edit',
         '/admin/blog-save.php'=>'blogs.publish', '/admin/blog-delete.php'=>'blogs.edit',
         '/admin/blog-category-list.php'=>'blogs.view', '/admin/blog-tag-list.php'=>'blogs.view', '/admin/upload-image.php'=>'blogs.edit',
         '/admin/plugin/games/index.php'=>(($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' ? 'slots.edit' : 'slots.view'),

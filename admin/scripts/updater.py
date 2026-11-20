@@ -16,6 +16,7 @@ import zipfile
 EXPECTED_ZIP_SHA256 = ''
 EXCLUDED = {'storage', 'uploads', 'chats', 'data', 'update-packages', 'node_modules',
             '.git', '.codex', '.agents', '__pycache__', '.vscode'}
+BACKEND_DIRECTORIES = {'admin', 'api', 'game-api', 'odds-api', 'promo-code'}
 
 
 def allowed(name):
@@ -38,6 +39,42 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def deletion_allowed(name):
+    # This repository no longer owns the public frontend. Its historical Git
+    # deletions include index.html, assets and thousands of generated routes.
+    return allowed(name) and PurePosixPath(name).parts[0] in BACKEND_DIRECTORIES
+
+
+def ensure_application_directory(root, directory):
+    if directory == root:
+        return
+    ensure_application_directory(root, directory.parent)
+    if not directory.exists():
+        owner = directory.parent.stat()
+        directory.mkdir(mode=0o755)
+        if os.geteuid() == 0:
+            os.chown(directory, owner.st_uid, owner.st_gid)
+    # Code directories must stay traversable even under a deployment umask of 077.
+    directory.chmod((directory.stat().st_mode & 0o777) | 0o755)
+
+
+def install_application_file(root, target, data):
+    ensure_application_directory(root, target.parent)
+    previous = target.stat() if target.exists() else target.parent.stat()
+    mode = ((previous.st_mode & 0o777) | 0o644) if target.exists() else (0o755 if target.suffix == '.sh' else 0o644)
+    fd, tmp = tempfile.mkstemp(prefix='.update-', dir=target.parent)
+    try:
+        with os.fdopen(fd, 'wb') as output:
+            output.write(data)
+        if os.geteuid() == 0:
+            os.chown(tmp, previous.st_uid, previous.st_gid)
+        os.chmod(tmp, mode)
+        os.replace(tmp, target)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+
+
 def git(root, *args):
     return subprocess.check_output(['git', '-C', str(root), *args])
 
@@ -55,10 +92,10 @@ def build(root):
             raise RuntimeError(f'Cannot package symlink: {name}')
         if path.is_file():
             files[name] = path.read_bytes()
-    # Include all historical removed paths, not just changes since the last release.
+    # Only backend paths may be cleaned up; frontend history is not a deletion list.
     historical = set(git(root, 'log', '--no-renames', '--format=', '--name-only', '--diff-filter=D', '-z').decode().split('\0'))
     historical.update(names)
-    deleted = sorted(n for n in historical if allowed(n) and not (root / n).exists())
+    deleted = sorted(n for n in historical if deletion_allowed(n) and not (root / n).exists())
     for required in ('admin/includes/blog-storage.php', 'admin/scripts/generate-game-sitemaps.php', 'game-api/slot-list.php'):
         if required not in files:
             raise RuntimeError(f'Missing required application file: {required}')
@@ -109,8 +146,8 @@ def inspect_bundle(archive):
         for name, checksum in manifest['files'].items():
             if not allowed(name) or digest(bundle.read(name)) != checksum:
                 raise RuntimeError(f'Invalid file: {name}')
-        if any(not allowed(n) or n in manifest['files'] for n in manifest['delete']):
-            raise RuntimeError('Invalid deletion entry.')
+        if any(not deletion_allowed(n) or n in manifest['files'] for n in manifest['delete']):
+            raise RuntimeError('Invalid or frontend deletion entry. Rebuild the update with the current updater.')
     return manifest
 
 
@@ -183,19 +220,7 @@ def install(args):
                         subprocess.run([php, '-l', str(target)], check=True, stdout=subprocess.DEVNULL)
                 for name in manifest['files']:
                     target = safe_target(root, name)
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    previous = target.stat() if target.exists() else target.parent.stat()
-                    fd, tmp = tempfile.mkstemp(prefix='.update-', dir=target.parent)
-                    try:
-                        with os.fdopen(fd, 'wb') as output:
-                            output.write((stage / name).read_bytes())
-                        os.chmod(tmp, (previous.st_mode & 0o777) if target.exists() else (0o755 if target.suffix == '.sh' else 0o644))
-                        if os.geteuid() == 0:
-                            os.chown(tmp, previous.st_uid, previous.st_gid)
-                        os.replace(tmp, target)
-                    finally:
-                        if os.path.exists(tmp):
-                            os.unlink(tmp)
+                    install_application_file(root, target, (stage / name).read_bytes())
                 for name in manifest['delete']:
                     safe_target(root, name).unlink(missing_ok=True)
             php_run(php, root, 'require "admin/includes/blog-storage.php"; blogs_pdo(); blog_clear_api_cache();')

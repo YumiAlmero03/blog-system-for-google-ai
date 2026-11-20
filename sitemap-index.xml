@@ -15,7 +15,4 @@
   <sitemap>
     <loc>http://localhost:8082/sitemap-blog.php</loc>
   </sitemap>
-  <sitemap>
-    <loc>http://localhost:8082/sitemap-games-1.xml</loc>
-  </sitemap>
 </sitemapindex>

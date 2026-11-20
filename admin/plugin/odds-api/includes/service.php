@@ -34,7 +34,7 @@ function odds_api_pdo(): PDO
     if (!is_dir($dir) && !mkdir($dir, 0700, true) && !is_dir($dir)) throw new RuntimeException('Odds storage unavailable.');
     $path = $dir . '/odds-api.sqlite';
     $pdo = new PDO('sqlite:' . $path, null, null, [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
-    chmod($path, 0600);
+    @chmod($path, 0600);
     $pdo->exec('PRAGMA busy_timeout=5000');
     $pdo->exec("CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY CHECK(id=1), enabled INTEGER NOT NULL DEFAULT 0, api_key TEXT NOT NULL DEFAULT '', regions TEXT NOT NULL DEFAULT 'us', markets TEXT NOT NULL DEFAULT 'h2h', bookmakers TEXT NOT NULL DEFAULT '')");
     $pdo->exec('INSERT OR IGNORE INTO settings(id) VALUES(1)');

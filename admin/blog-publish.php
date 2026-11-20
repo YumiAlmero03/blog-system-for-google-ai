@@ -2158,7 +2158,7 @@ $writerOptions = writer_options();
       let tablePickerRows = 1;
       let tablePickerCols = 1;
       let isChoosingTableSize = false;
-      let slotDemoSearchTimer = 0;
+      const slotDemoSearches = new WeakMap();
       let yoastLoaderPromise = null;
       let yoastAnalysisRequest = 0;
       let editorHistory = [];
@@ -4578,14 +4578,29 @@ $writerOptions = writer_options();
         }));
       }
 
+      function cancelSlotDemoSearch(block) {
+        const previous = slotDemoSearches.get(block);
+        if (!previous) return;
+        clearTimeout(previous.timer);
+        previous.controller?.abort();
+        slotDemoSearches.delete(block);
+      }
+
       function debounceSlotDemoSearch(block, query) {
-        if (slotDemoSearchTimer) clearTimeout(slotDemoSearchTimer);
-        slotDemoSearchTimer = setTimeout(() => {
-          searchSlotDemoGames(block, query);
-        }, 250);
+        cancelSlotDemoSearch(block);
+        const results = block?.querySelector('.editor-slot-demo-results');
+        if (!results) return;
+        if (String(query || '').trim().length < 2) {
+          results.innerHTML = '';
+          return;
+        }
+        results.innerHTML = '<div class="editor-slot-demo-status">Searching...</div>';
+        const timer = setTimeout(() => searchSlotDemoGames(block, query), 250);
+        slotDemoSearches.set(block, { timer });
       }
 
       async function searchSlotDemoGames(block, query) {
+        cancelSlotDemoSearch(block);
         const results = block?.querySelector('.editor-slot-demo-results');
         if (!results) return;
         const cleanQuery = String(query || '').trim();
@@ -4593,6 +4608,8 @@ $writerOptions = writer_options();
           results.innerHTML = '';
           return;
         }
+        const state = { controller: new AbortController(), timer: 0 };
+        slotDemoSearches.set(block, state);
         results.innerHTML = '<div class="editor-slot-demo-status">Searching...</div>';
         try {
           const request = new URL('/admin/game-search.php', window.location.origin);
@@ -4600,12 +4617,18 @@ $writerOptions = writer_options();
           request.searchParams.set('limit', '8');
           const response = await fetch(request.toString(), {
             headers: { 'Accept': 'application/json', 'X-Requested-With': 'fetch' },
+            signal: state.controller.signal,
           });
           const payload = await parseJsonResponse(response);
+          if (!response.ok || payload?.ok !== true) throw new Error(payload?.error || 'Unable to search games. Please try again.');
+          if (slotDemoSearches.get(block) !== state || !block.isConnected) return;
           const slots = Array.isArray(payload.slots) ? payload.slots : [];
           results.innerHTML = slots.length ? slots.map((slot) => `<button type="button" class="editor-slot-demo-result" data-demo-id="${escapeHtml(slot.apiId || '')}" data-demo-url="${escapeHtml(slot.iframeUrl || slot.gameUrl || '')}" data-demo-name="${escapeHtml(slot.name || slot.slug || 'Game')}" data-demo-slug="${escapeHtml(slot.slug || '')}"><span>${escapeHtml(slot.name || slot.slug || 'Game')}</span><small>${escapeHtml(slot.provider?.name || '')}</small></button>`).join('') : '<div class="editor-slot-demo-status">No games found.</div>';
         } catch (error) {
+          if (state.controller.signal.aborted || slotDemoSearches.get(block) !== state || !block.isConnected) return;
           results.innerHTML = `<div class="editor-slot-demo-status">${escapeHtml(error.message || 'Search failed.')}</div>`;
+        } finally {
+          if (slotDemoSearches.get(block) === state) slotDemoSearches.delete(block);
         }
       }
 
@@ -5365,6 +5388,7 @@ $writerOptions = writer_options();
         const slotQuery = event.target && event.target.closest ? event.target.closest('.editor-slot-demo-query') : null;
         if (slotQuery && wysiwygEditor.contains(slotQuery)) {
           debounceSlotDemoSearch(slotQuery.closest('.editor-slot-demo-block'), slotQuery.value);
+          return;
         }
         normalizeEmptyEditorHeadings();
         prepareEditorBlocks();
@@ -5386,7 +5410,6 @@ $writerOptions = writer_options();
             if (event.key === 'Enter') {
               event.preventDefault();
               event.stopPropagation();
-              if (slotDemoSearchTimer) clearTimeout(slotDemoSearchTimer);
               searchSlotDemoGames(slotQuery.closest('.editor-slot-demo-block'), slotQuery.value);
               return;
             }
@@ -5394,6 +5417,7 @@ $writerOptions = writer_options();
               event.preventDefault();
               event.stopPropagation();
               const block = slotQuery.closest('.editor-slot-demo-block');
+              cancelSlotDemoSearch(block);
               const results = block?.querySelector('.editor-slot-demo-results');
               if (results) results.innerHTML = '';
               return;
@@ -5498,6 +5522,7 @@ $writerOptions = writer_options();
           const demoName = demoResult.dataset.demoName || 'Game';
           const block = demoResult.closest('.editor-slot-demo-block');
           if (block) {
+            cancelSlotDemoSearch(block);
             block.dataset.gameSlug = demoSlug;
             block.dataset.gameId = demoId;
             const queryInput = block.querySelector('.editor-slot-demo-query');
@@ -5511,6 +5536,7 @@ $writerOptions = writer_options();
 
         if (!event.target.closest('.editor-slot-demo-search')) {
           wysiwygEditor.querySelectorAll('.editor-slot-demo-results').forEach((res) => {
+            cancelSlotDemoSearch(res.closest('.editor-slot-demo-block'));
             if (res.innerHTML !== '') res.innerHTML = '';
           });
         }

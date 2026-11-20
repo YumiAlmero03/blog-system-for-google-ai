@@ -54,7 +54,11 @@ After completing the preparation steps, run:
 python3 updater.py
 ```
 
-The updater checks hashes, backs up affected code/configuration and both SQLite databases, validates PHP syntax, installs the application, removes obsolete paths, runs database initialization/migrations, clears API caches, and regenerates game sitemaps. Unrelated server files are left alone.
+The updater checks hashes, backs up affected code/configuration and both SQLite databases, validates PHP syntax, installs the application, removes obsolete backend paths, runs database initialization/migrations, clears API caches, and regenerates game sitemaps. Historical frontend deletions are excluded: the server's `index.html`, `blog/`, `game/`, `games/`, `assets/` and other separately deployed frontend paths are preserved. Old packages that list frontend deletions are rejected by the current updater; rebuild and upload the matching pair.
+
+Installed code files are readable by the web server (at least `0644`), and application directories are traversable (`0755`), including with a restrictive deployment umask. Existing executable bits are retained. When run as root, replacement files keep their existing owner/group and new directories/files inherit the nearest application directory's owner/group. Private `.env`, storage and upload permissions are not changed.
+
+If an earlier update removed the homepage and the site now returns 403, restore the frontend build (especially `index.html` and its matching assets) from the deployment or the private update backup's `files/` directory. This backend package does not contain the frontend build and cannot recreate it. Retain the server's frontend routing configuration.
 
 Backups are created in **`.site-update-backups` beside the website folder**, outside the site root. The command prints the exact location. If that parent directory is not writable, use a writable private directory outside the website:
 

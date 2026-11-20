@@ -1,5 +1,8 @@
 <?php
 declare(strict_types=1);
+// Warnings belong in the PHP log, never before this endpoint's JSON response.
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
 require_once __DIR__ . '/../../includes/auth.php';
 require_admin();
 header('Content-Type: application/json; charset=utf-8');
@@ -25,7 +28,7 @@ try {
     if ($result['changed'] > 0 || $result['done']) {
         try { game_visibility_refresh(); }
         catch (Throwable $error) {
-            error_log('PH recheck sitemap refresh failed.');
+            error_log('PH recheck sitemap refresh failed: ' . ($error->getPrevious() ?? $error)->getMessage());
             $result['warning'] = 'Availability was saved, but sitemap refresh failed. Save Games Settings to retry the refresh.';
         }
     }
