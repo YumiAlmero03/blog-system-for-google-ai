@@ -67,6 +67,22 @@ try {
     check($index === file_get_contents($dir . '/sitemap-index.xml'), 'Stable repeat');
     check(substr_count(file_get_contents($dir . '/robots.txt'), 'Sitemap: ' . public_url('/sitemap-index.xml')) === 1, 'Robots no duplicate');
     check($before === hash_file('sha256', $db), 'Database unchanged');
+    // Reproduce a root-created lock readable, but not writable, by PHP workers.
+    $lockPath = $dir . '/.game-sitemaps.lock';
+    chmod($lockPath, 0444);
+    $warnings = [];
+    set_error_handler(static function (int $severity, string $message) use (&$warnings): bool { $warnings[] = $message; return true; });
+    try {
+        check(generate_game_sitemaps($db, $dir)['eligible'] === 2005, 'Readable lock works without write permission');
+        $heldLock = fopen($lockPath, 'r');
+        flock($heldLock, LOCK_EX);
+        $busy = false;
+        try { generate_game_sitemaps($db, $dir); }
+        catch (RuntimeException $error) { $busy = str_contains($error->getMessage(), 'Another sitemap'); }
+        finally { flock($heldLock, LOCK_UN); fclose($heldLock); }
+        check($busy, 'Read-only handles still enforce exclusive generation');
+        check($warnings === [], 'Lock handling emits no PHP warnings into responses');
+    } finally { restore_error_handler(); chmod($lockPath, 0644); }
     $pdo->exec("CREATE TABLE index_checks (id INTEGER PRIMARY KEY, url TEXT UNIQUE, sitemap_url TEXT, content_type TEXT, in_sitemap INTEGER DEFAULT 1, queued INTEGER DEFAULT 0, created_at INTEGER, updated_at INTEGER)");
     $pdo->prepare("INSERT INTO index_checks(url,content_type,queued) VALUES(?,'page',1)")->execute([public_url('/contact/')]);
     generate_game_sitemaps($db, $dir);

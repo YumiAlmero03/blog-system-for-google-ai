@@ -12,4 +12,7 @@
   <sitemap>
     <loc>http://thechikin.chickenkiller.com/sitemap-blog.php</loc>
   </sitemap>
+  <sitemap>
+    <loc>http://localhost:8082/sitemap-blog.php</loc>
+  </sitemap>
 </sitemapindex>

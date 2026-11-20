@@ -1,6 +1,6 @@
 <?php
 /**
- * Checks credential validation, private storage, signed tokens, permissions, and secret removal.
+ * Checks credential validation, SQLite storage, legacy migration, signed tokens, permissions, and secret removal.
  *
  * Uses temporary credentials/storage and mocked Google transport; invokes authenticated handlers
  * in PHP subprocesses.
@@ -16,6 +16,7 @@ putenv('ADMIN_USERNAME=super_user'); putenv('ADMIN_PASSWORD_HASH='.password_hash
 putenv('ADMIN_JWT_SECRET='.str_repeat('google-auth-test-',5)); ini_set('session.save_path',$dir);
 require_once __DIR__ . '/../includes/index-checker-client.php';
 require_once __DIR__ . '/../includes/auth.php';
+putenv('GOOGLE_INDEXING_ENABLED'); unset($_ENV['GOOGLE_INDEXING_ENABLED'], $_SERVER['GOOGLE_INDEXING_ENABLED']);
 function gc_check(bool $ok,string $message): void { if (!$ok) throw new RuntimeException($message); }
 function gc_remove(string $dir): void { foreach(scandir($dir) as $f) if ($f!=='.' && $f!=='..') { $p=$dir.'/'.$f; is_dir($p)?gc_remove($p):unlink($p); } rmdir($dir); }
 function gc_handler(array $request): array {
@@ -26,15 +27,25 @@ function gc_handler(array $request): array {
 try {
     $key=openssl_pkey_new(['private_key_bits'=>2048]); openssl_pkey_export($key,$pem);
     $credential=['type'=>'service_account','project_id'=>'test-project','private_key'=>$pem,'client_email'=>'test@test-project.iam.gserviceaccount.com','token_uri'=>'https://oauth2.googleapis.com/token'];
+
+    mkdir($dir.'/private',0700,true);
+    $legacyPath=google_private_dir().'/google-config.json';
+    file_put_contents($legacyPath,json_encode(['property'=>'sc-domain:example.test','status'=>'Connected','submission_pending'=>false,'credentials'=>$credential]));
+    gc_check(google_safe_status()['configured'] && google_state()['status']==='Connected','Legacy JSON migrates to SQLite');
+    gc_check(!is_file($legacyPath),'Migrated legacy file removed');
+    $migrated=blogs_pdo()->query("SELECT setting_value FROM app_settings WHERE setting_key='google_config'")->fetchColumn();
+    gc_check(is_string($migrated) && str_contains($migrated,'PRIVATE KEY'),'Legacy credentials migrated into SQLite app_settings');
+    blogs_pdo()->exec("DELETE FROM app_settings WHERE setting_key='google_config'");
+
     google_save_configuration('sc-domain:example.test',json_encode($credential));
     gc_check(google_safe_status()['configured'],'Valid credentials');
-    $path=google_private_dir().'/google-config.json';
-    gc_check(!str_starts_with(realpath($path),realpath(dirname(__DIR__)).'/'),'Outside document root');
-    gc_check((fileperms($path)&0777)===0600,'Private file permissions');
-    $saved=file_get_contents($path);
+    gc_check(!is_file($legacyPath),'No google-config.json written on disk');
+    $saved=blogs_pdo()->query("SELECT setting_value FROM app_settings WHERE setting_key='google_config'")->fetchColumn();
+    gc_check(is_string($saved) && str_contains($saved,'test@test-project.iam.gserviceaccount.com'),'Google config persisted in SQLite');
     foreach(['invalid','{}',json_encode(array_replace($credential,['token_uri'=>'https://evil.test/token'])),json_encode(array_replace($credential,['private_key'=>'bad']))] as $bad) {
         try {google_save_configuration('sc-domain:example.test',$bad); throw new RuntimeException('Invalid accepted');} catch(InvalidArgumentException $e) {}
-        gc_check(file_get_contents($path)===$saved,'Invalid replacement preserves working credentials');
+        $current=blogs_pdo()->query("SELECT setting_value FROM app_settings WHERE setting_key='google_config'")->fetchColumn();
+        gc_check($current===$saved,'Invalid replacement preserves working credentials in SQLite');
     }
     $calls=0; $ttl=3600; $denied=false; $scopes=[]; $submitted=0;
     $http=static function($url,$body=null,$headers=[],$max=0,$method=null) use (&$calls,&$ttl,&$denied,&$scopes,&$submitted,$key): array {
@@ -90,6 +101,8 @@ try {
     [$status,$body]=gc_handler(['path'=>'/api/settings/seo.php','method'=>'GET']);
     gc_check($status===200 && !str_contains($body,'PRIVATE KEY') && !str_contains($body,'secret-test-token') && !str_contains($body,'private_key'),'Public settings contain no secrets');
     [$status]=gc_handler(['path'=>'/admin/settings/seo/index.php','role'=>'super_user','bad_csrf'=>true,'post'=>['google_action'=>'remove']]); gc_check($status===403,'CSRF required');
-    google_save_configuration('https://example.test/',null,true); gc_check(!google_safe_status()['configured'] && !str_contains(file_get_contents($path),'PRIVATE KEY'),'Removal clears stored secret');
-    echo "PASS: validation/atomic replacement, private path/modes, signed tokens/cache/expiry, property testing, shared inspection/sitemap auth, removal, role/CSRF restrictions and public API secrecy. Google transport mocked.\n";
+    google_save_configuration('https://example.test/',null,true);
+    $afterRemove=(string)blogs_pdo()->query("SELECT setting_value FROM app_settings WHERE setting_key='google_config'")->fetchColumn();
+    gc_check(!google_safe_status()['configured'] && !str_contains($afterRemove,'PRIVATE KEY'),'Removal clears stored secret from SQLite');
+    echo "PASS: validation/atomic replacement, SQLite storage, legacy JSON migration, signed tokens/cache/expiry, property testing, shared inspection/sitemap auth, removal, role/CSRF restrictions and public API secrecy. Google transport mocked.\n";
 } finally { gc_remove($dir); }

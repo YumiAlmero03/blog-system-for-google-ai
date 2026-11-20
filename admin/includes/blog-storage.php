@@ -568,7 +568,7 @@ function blog_post_is_public(array $post, ?int $now = null): bool
     ], $now);
 }
 
-function blogs_publish_due_scheduled(PDO $pdo, ?int $now = null): void
+function blogs_publish_due_scheduled(PDO $pdo, ?int $now = null): int
 {
     $now ??= time();
     $stmt = $pdo->prepare(
@@ -581,6 +581,17 @@ function blogs_publish_due_scheduled(PDO $pdo, ?int $now = null): void
            AND scheduled_at <= :now'
     );
     $stmt->execute([':now' => $now]);
+    $publishedCount = $stmt->rowCount();
+    if ($publishedCount > 0) {
+        $GLOBALS['blogs_published_scheduled_count'] = (int) ($GLOBALS['blogs_published_scheduled_count'] ?? 0) + $publishedCount;
+        blog_clear_api_cache();
+        if (!$pdo->inTransaction()) {
+            require_once __DIR__ . '/indexing-queue.php';
+            indexing_content_changed($pdo, 'blog');
+        }
+    }
+
+    return $publishedCount;
 }
 
 function normalize_focus_keyphrase(mixed $value): string
@@ -970,23 +981,32 @@ function blog_like_term(string $value): string
     ]) . '%';
 }
 
+/** Collect recognized hostnames for internal link detection (FRONTEND_URL, SITE_BASE_URL, and HTTP_HOST). */
+function blog_internal_site_hosts(): array
+{
+    $siteHosts = [];
+    foreach ([env_value('FRONTEND_URL'), env_value('SITE_BASE_URL')] as $baseUrl) {
+        if (is_string($baseUrl) && trim($baseUrl) !== '') {
+            $host = parse_url(trim($baseUrl), PHP_URL_HOST);
+            if (is_string($host) && $host !== '') {
+                $siteHosts[strtolower($host)] = true;
+            }
+        }
+    }
+    if (isset($_SERVER['HTTP_HOST']) && is_string($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] !== '') {
+        $requestHost = preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST']) ?? $_SERVER['HTTP_HOST'];
+        $siteHosts[strtolower($requestHost)] = true;
+    }
+    return $siteHosts;
+}
+
 function blog_extract_internal_link_slugs(string $content, array $knownSlugs): array
 {
     if ($content === '' || $knownSlugs === []) {
         return [];
     }
 
-    $siteHosts = [];
-    $siteBaseUrl = env_value('SITE_BASE_URL');
-    if (is_string($siteBaseUrl) && $siteBaseUrl !== '') {
-        $host = parse_url($siteBaseUrl, PHP_URL_HOST);
-        if (is_string($host) && $host !== '') {
-            $siteHosts[strtolower($host)] = true;
-        }
-    }
-    if (isset($_SERVER['HTTP_HOST']) && is_string($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] !== '') {
-        $siteHosts[strtolower(preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST']) ?? $_SERVER['HTTP_HOST'])] = true;
-    }
+    $siteHosts = blog_internal_site_hosts();
 
     $targets = [];
     $urlPatterns = [
@@ -1047,18 +1067,7 @@ function blog_count_internal_links(string $content): int
         return 0;
     }
 
-    $siteHosts = [];
-    $siteBaseUrl = env_value('SITE_BASE_URL');
-    if (is_string($siteBaseUrl) && $siteBaseUrl !== '') {
-        $host = parse_url($siteBaseUrl, PHP_URL_HOST);
-        if (is_string($host) && $host !== '') {
-            $siteHosts[strtolower($host)] = true;
-        }
-    }
-    if (isset($_SERVER['HTTP_HOST']) && is_string($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] !== '') {
-        $requestHost = preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST']) ?? $_SERVER['HTTP_HOST'];
-        $siteHosts[strtolower($requestHost)] = true;
-    }
+    $siteHosts = blog_internal_site_hosts();
 
     $urls = [];
     $patterns = [
@@ -1245,7 +1254,9 @@ function blogs_public_all(): array
 
 function blogs_have_future_scheduled_posts(?int $now = null): bool
 {
-    $stmt = blogs_pdo()->prepare(
+    $pdo = blogs_pdo();
+    blogs_publish_due_scheduled($pdo, $now);
+    $stmt = $pdo->prepare(
         'SELECT COUNT(*) FROM blog_posts
          WHERE status = "scheduled"
            AND scheduled_at IS NOT NULL
@@ -1471,6 +1482,9 @@ function blogs_upsert(array $blog, bool $manageTransaction = true): array
             $pdo->commit();
         }
         blogs_publish_due_scheduled($pdo, $now);
+        if ($blog['status'] === 'scheduled' && is_int($blog['scheduledAt']) && $blog['scheduledAt'] <= $now) {
+            $blog['status'] = 'published';
+        }
         blog_clear_api_cache();
     } catch (Throwable $exception) {
         if ($manageTransaction && $pdo->inTransaction()) {
@@ -1612,6 +1626,8 @@ function blog_payload_from_post(): array
     }
     if ($status === 'scheduled' && $scheduledAt === null) {
         $errors[] = 'Scheduled publish date is required.';
+    } elseif ($status === 'scheduled' && $scheduledAt !== null && $scheduledAt <= time()) {
+        $errors[] = 'Scheduled publish date must be in the future (' . blog_display_timezone()->getName() . ').';
     }
 
     if ($errors !== []) {

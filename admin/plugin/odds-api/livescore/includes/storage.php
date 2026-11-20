@@ -25,7 +25,7 @@ function sports_livescore_pdo(): PDO
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     ]);
-    chmod($path, 0600);
+    @chmod($path, 0600);
     $connection->exec('PRAGMA busy_timeout=5000');
     $connection->exec('PRAGMA foreign_keys=ON');
     $connection->exec('CREATE TABLE IF NOT EXISTS matches (

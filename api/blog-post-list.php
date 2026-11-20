@@ -12,7 +12,11 @@ function blog_post_list_cache_dir(): string
 
 function blog_post_list_cache_key(int $count, int $page, ?string $category): string
 {
-    $dbMtime = is_file(blogs_db_path()) ? (int) @filemtime(blogs_db_path()) : 0;
+    $dbPath = blogs_db_path();
+    $dbMtime = max(
+        is_file($dbPath) ? (int) @filemtime($dbPath) : 0,
+        is_file($dbPath . '-wal') ? (int) @filemtime($dbPath . '-wal') : 0
+    );
 
     return hash('sha256', json_encode([
         'endpoint' => 'blog-post-list-taxonomy-v5',
@@ -169,8 +173,8 @@ $page = blog_post_list_positive_int('page', 1, 1, 1000000);
 $category = normalize_blog_category_filter(blog_post_list_param('category'));
 
 try {
-    $cacheKey = blog_post_list_cache_key($count, $page, $category);
     $allowCache = !blogs_have_future_scheduled_posts();
+    $cacheKey = blog_post_list_cache_key($count, $page, $category);
     $cachedPayload = $allowCache ? blog_post_list_cache_read($cacheKey) : null;
     if ($cachedPayload !== null) {
         header('X-API-Cache: HIT');

@@ -1,6 +1,13 @@
 <?php
 declare(strict_types=1);
 
+function blog_clean_faq_question(string $question): string
+{
+    $cleaned = str_replace('****', '', trim($question));
+    $cleaned = preg_replace('/^\*+|\*+$/', '', $cleaned) ?? $cleaned;
+    return trim(preg_replace('/\s+/u', ' ', $cleaned) ?? '');
+}
+
 // Convert WordPress article HTML to the editor's Markdown, without executing HTML.
 function blog_wordpress_markdown(string $html): string
 {
@@ -14,9 +21,11 @@ function blog_wordpress_markdown(string $html): string
         libxml_use_internal_errors($previous);
     }
     $render = static function (DOMNode $node) use (&$render): string {
-        if ($node instanceof DOMText) return preg_replace('/\s+/u', ' ', $node->textContent) ?? '';
+        if ($node instanceof DOMText) return str_replace(':::', ': : :', preg_replace('/\s+/u', ' ', $node->textContent) ?? '');
         if (!$node instanceof DOMElement) return '';
         $tag = strtolower($node->tagName);
+        // Never carry inline code/styles into a post; their text would otherwise show as content.
+        if (in_array($tag, ['script', 'style', 'noscript', 'template'], true)) return '';
         if ($node->getAttribute('data-faq-block') === '1') {
             return "\n\n" . trim($node->textContent) . "\n\n";
         }
@@ -58,10 +67,23 @@ function blog_wordpress_markdown(string $html): string
         };
         if ($tag === 'a') {
             $href = $url($node->getAttribute('href'));
-            return $href !== '' ? '[' . str_replace(['[', ']'], '', trim($text)) . '](' . $href . ')' . (in_array('nofollow', explode(' ', $node->getAttribute('rel')), true) ? '{nofollow}' : '') : $text;
+            $nofollow = in_array('nofollow', explode(' ', $node->getAttribute('rel')), true) ? '{nofollow}' : '';
+            $label = trim($text);
+            // A linked image must keep its own brackets: [![alt](src)](href). Stripping them
+            // produced "[!alt(src)](href)", which no editor or renderer shows as an image.
+            if ($href !== '' && preg_match('/^(?:!\[[^\]]*\]\([^)\s]+\)\s*)+$/', $label) === 1) {
+                return "\n\n[" . $label . '](' . $href . ')' . $nofollow . "\n\n";
+            }
+            return $href !== '' ? '[' . str_replace(['[', ']'], '', $label) . '](' . $href . ')' . $nofollow : $text;
         }
         if ($tag === 'img') {
-            $src = $url($node->getAttribute('src'));
+            // Lazy-loading plugins often leave src empty/placeholder and keep the real URL elsewhere.
+            $srcset = trim((string) (preg_split('/[\s,]+/', trim($node->getAttribute('srcset')))[0] ?? ''));
+            $src = '';
+            foreach ([$node->getAttribute('src'), $node->getAttribute('data-src'), $node->getAttribute('data-lazy-src'), $srcset] as $candidate) {
+                $src = $url($candidate);
+                if ($src !== '') break;
+            }
             return $src !== '' ? "\n\n![" . str_replace(['[', ']'], '', $node->getAttribute('alt')) . '](' . $src . ")\n\n" : '';
         }
         if (preg_match('/^h([1-6])$/', $tag, $match)) return "\n\n" . str_repeat('#', (int) $match[1]) . ' ' . trim($text) . "\n\n";
@@ -70,7 +92,7 @@ function blog_wordpress_markdown(string $html): string
         if ($tag === 'br') return "\n";
         if ($tag === 'li') return "\n" . ($node->parentNode?->nodeName === 'ol' ? '1. ' : '- ') . trim($text);
         if ($tag === 'blockquote') return "\n\n> " . str_replace("\n", "\n> ", trim($text)) . "\n\n";
-        if ($tag === 'pre') return "\n\n```\n" . $node->textContent . "\n```\n\n";
+        if ($tag === 'pre') return "\n\n```\n" . str_replace(':::', ': : :', $node->textContent) . "\n```\n\n";
         if ($tag === 'code') return '`' . trim($text) . '`';
         if (in_array($tag, ['td', 'th'], true)) return trim($text) . ' | ';
         if (in_array($tag, ['p', 'div', 'section', 'figure', 'ul', 'ol'], true)) return "\n\n" . trim($text) . "\n\n";
@@ -184,7 +206,7 @@ function blog_wordpress_markdown(string $html): string
         if ($items) {
             $faqLines = [];
             foreach ($items as $item) {
-                $q = trim(preg_replace('/\s+/u', ' ', $item['q']) ?? '');
+                $q = blog_clean_faq_question((string) $item['q']);
                 $a = trim(preg_replace('/\s+/u', ' ', $item['a']) ?? '');
                 $a = preg_replace('/^(?:A|Answer)\s*:\s*/i', '', $a);
                 if ($q !== '' || $a !== '') {
@@ -218,7 +240,7 @@ function blog_wordpress_markdown(string $html): string
             $q = trim($render($qEl));
             $a = $aEl ? trim($render($aEl)) : '';
             $q = preg_replace('/^#+\s*/', '', $q);
-            $q = trim(preg_replace('/^(?:Q|Question)\s*:\s*/i', '', $q));
+            $q = blog_clean_faq_question(preg_replace('/^(?:Q|Question)\s*:\s*/i', '', $q) ?? $q);
             $a = trim(preg_replace('/^(?:A|Answer)\s*:\s*/i', '', $a));
             if ($q !== '' || $a !== '') {
                 $items[] = 'Q: ' . $q . "\nA: " . $a;
@@ -257,7 +279,7 @@ function blog_wordpress_markdown(string $html): string
             foreach ($itemNode->childNodes as $c) {
                 if ($c !== $summary) $a .= ' ' . trim($render($c));
             }
-            $q = trim(preg_replace('/\s+/u', ' ', $q) ?? '');
+            $q = blog_clean_faq_question($q);
             $a = trim(preg_replace('/\s+/u', ' ', $a) ?? '');
             $a = preg_replace('/^(?:A|Answer)\s*:\s*/i', '', $a);
             if ($q !== '' || $a !== '') {
@@ -301,7 +323,7 @@ function blog_convert_markdown_faqs(string $markdown): string
         $items = [];
         foreach ($matches as $match) {
             $q = trim(preg_replace('/^#+\s*/', '', $match[1]));
-            $q = trim(preg_replace('/^(?:Q|Question)\s*:\s*/i', '', $q));
+            $q = blog_clean_faq_question(preg_replace('/^(?:Q|Question)\s*:\s*/i', '', $q) ?? $q);
             $a = trim(preg_replace('/\s+/u', ' ', $match[2]) ?? '');
             $a = trim(preg_replace('/^(?:A|Answer)\s*:\s*/i', '', $a));
             if ($q !== '' || $a !== '') {
@@ -313,6 +335,48 @@ function blog_convert_markdown_faqs(string $markdown): string
         }
         return $heading . "\n:::faq\n" . implode("\n\n", $items) . "\n:::\n\n";
     }, $markdown) ?? $markdown;
+}
+
+/**
+ * Repair image Markdown left behind by earlier WordPress imports.
+ *  - "[!alt(src)](href){nofollow}" (brackets lost) becomes "[![alt](src)](href){nofollow}".
+ *  - Remote image URLs in "![alt](https://…)" are swapped for local copies via $localize(url): string,
+ *    which may throw; failed URLs stay untouched and are reported.
+ * Returns ['content' => string, 'fixed' => int, 'localized' => int, 'failures' => string[]].
+ */
+function blog_repair_image_markdown(string $markdown, callable $localize): array
+{
+    $fixed = $localized = 0;
+    $failures = [];
+    $markdown = preg_replace_callback(
+        '/\[!([^\[\]()\n]*)\((https?:\/\/[^)\s]+)\)\]\((https?:\/\/[^)\s]+|\/[^)\s]*)\)(\{nofollow\})?/',
+        static function (array $m) use (&$fixed): string {
+            $fixed++;
+            return '[![' . $m[1] . '](' . $m[2] . ')](' . $m[3] . ')' . ($m[4] ?? '');
+        },
+        $markdown
+    ) ?? $markdown;
+    $markdown = preg_replace_callback('/^(Q:\s*)(.+)$/m', static function (array $m) use (&$fixed): string {
+        $cleaned = blog_clean_faq_question($m[2]);
+        if ($cleaned !== trim($m[2])) $fixed++;
+        return $m[1] . $cleaned;
+    }, $markdown) ?? $markdown;
+    $cache = [];
+    $markdown = preg_replace_callback(
+        '/(!\[[^\]]*\]\()(https?:\/\/[^)\s]+)(\))/',
+        static function (array $m) use (&$cache, &$localized, &$failures, $localize): string {
+            $remote = $m[2];
+            if (!array_key_exists($remote, $cache)) {
+                try { $cache[$remote] = (string) $localize($remote); }
+                catch (Throwable $error) { $cache[$remote] = null; $failures[] = $remote . ' (' . $error->getMessage() . ')'; }
+            }
+            if ($cache[$remote] === null) return $m[0];
+            $localized++;
+            return $m[1] . $cache[$remote] . $m[3];
+        },
+        $markdown
+    ) ?? $markdown;
+    return ['content' => $markdown, 'fixed' => $fixed, 'localized' => $localized, 'failures' => $failures];
 }
 
 function blog_wordpress_manifest(string $xml, bool $deferContent = false): array
@@ -330,12 +394,20 @@ function blog_wordpress_manifest(string $xml, bool $deferContent = false): array
     $namespaces = $root->getDocNamespaces(true);
     $wp = $namespaces['wp'] ?? '';
     if ($root->getName() !== 'rss' || !preg_match('#^http://wordpress.org/export/1\.[012]/$#', $wp) || !isset($root->channel) || trim((string) $root->channel->children($wp)->wxr_version) === '') throw new InvalidArgumentException('Select a WordPress WXR XML export.');
-    $authors = $images = $blogs = [];
+    $authors = $images = $parentImages = $blogs = [];
+    $remoteImages = [];
     $skipped = 0;
     foreach ($root->channel->children($wp)->author as $author) $authors[(string) $author->author_login] = (string) $author->author_display_name;
     foreach ($root->channel->item as $item) {
         $data = $item->children($wp);
-        if ((string) $data->post_type === 'attachment') $images[(string) $data->post_id] = (string) $data->attachment_url;
+        if ((string) $data->post_type === 'attachment') {
+            $attachmentUrl = (string) $data->attachment_url;
+            $images[(string) $data->post_id] = $attachmentUrl;
+            $parentId = (string) $data->post_parent;
+            if ($parentId !== '' && (int) $parentId > 0 && $attachmentUrl !== '' && !isset($parentImages[$parentId])) {
+                $parentImages[$parentId] = $attachmentUrl;
+            }
+        }
     }
     foreach ($root->channel->item as $item) {
         $data = $item->children($wp);
@@ -354,6 +426,14 @@ function blog_wordpress_manifest(string $xml, bool $deferContent = false): array
         $slug = normalize_slug((string) $data->post_name) ?: normalize_slug($title);
         $creator = (string) $item->children('http://purl.org/dc/elements/1.1/')->creator;
         $rawContent = (string) $item->children('http://purl.org/rss/1.0/modules/content/')->encoded;
+        if (preg_match_all('#(?:src|srcset)=["\']([^"\']+)["\']#i', $rawContent, $matches)) {
+            foreach ($matches[1] as $candidate) {
+                foreach (preg_split('/\s*,\s*/', $candidate) ?: [] as $part) {
+                    $url = trim((string) preg_split('/\s+/', trim($part))[0]);
+                    if (preg_match('#^https?://#i', $url)) $remoteImages[$url] = true;
+                }
+            }
+        }
         $content = $deferContent ? '' : blog_wordpress_markdown($rawContent);
         $excerpt = trim(strip_tags((string) $item->children($namespaces['excerpt'] ?? $wp . 'excerpt/')->encoded));
         $blogs[] = [
@@ -364,7 +444,7 @@ function blog_wordpress_manifest(string $xml, bool $deferContent = false): array
             'excerpt' => $meta['_yoast_wpseo_metadesc'] ?? ($excerpt ?: mb_substr(strip_tags((string) $item->children('http://purl.org/rss/1.0/modules/content/')->encoded), 0, 360)),
             'seoTitle' => !empty($meta['_yoast_wpseo_title']) && !str_contains($meta['_yoast_wpseo_title'], '%%') ? $meta['_yoast_wpseo_title'] : $title,
             'focusKeyphrase' => $meta['_yoast_wpseo_focuskw'] ?? '',
-            'featuredImage' => $images[$meta['_thumbnail_id'] ?? ''] ?? '',
+            'featuredImage' => ($images[$meta['_thumbnail_id'] ?? ''] ?? '') ?: ($parentImages[(string) $data->post_id] ?? ''),
             'status' => trim((string) $data->post_password) !== '' ? 'draft' : match ($status) { 'publish' => 'published', 'future' => 'scheduled', default => 'draft' },
             'publishedAt' => $status === 'publish' ? $published : null,
             'scheduledAt' => $status === 'future' ? $published : null,
@@ -372,5 +452,6 @@ function blog_wordpress_manifest(string $xml, bool $deferContent = false): array
         ];
     }
     if (!$blogs) throw new InvalidArgumentException('The WordPress export contains no importable blog posts.');
-    return ['format' => 'wordpress-wxr', 'blogs' => $blogs, 'skipped' => $skipped];
+    foreach ($images as $url) if (preg_match('#^https?://#i', $url)) $remoteImages[$url] = true;
+    return ['format' => 'wordpress-wxr', 'blogs' => $blogs, 'skipped' => $skipped, 'images' => array_keys($remoteImages)];
 }

@@ -202,8 +202,19 @@ function seo_v2_resolve_internal_link(string $href, string $pagePath): ?string
     }
 
     $host = parse_url($href, PHP_URL_HOST);
-    if (is_string($host) && $host !== '' && strtolower($host) !== SEO_V2_SITE_HOST && strtolower($host) !== 'localhost') {
-        return null;
+    if (is_string($host) && $host !== '') {
+        $allowedHosts = [SEO_V2_SITE_HOST => true, 'localhost' => true];
+        foreach ([env_value('FRONTEND_URL'), env_value('SITE_BASE_URL')] as $envUrl) {
+            if (is_string($envUrl) && trim($envUrl) !== '') {
+                $envHost = parse_url(trim($envUrl), PHP_URL_HOST);
+                if (is_string($envHost) && $envHost !== '') {
+                    $allowedHosts[strtolower($envHost)] = true;
+                }
+            }
+        }
+        if (!isset($allowedHosts[strtolower($host)])) {
+            return null;
+        }
     }
 
     $path = parse_url($href, PHP_URL_PATH);

@@ -109,6 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $tournaments = tournament_get_all($sportId, false, false);
+$tournamentLogos = sports_registry_pdo()->query("SELECT entity_id,image_path FROM sports_image_assets WHERE entity_type='tournament' AND status='saved'")->fetchAll(PDO::FETCH_KEY_PAIR);
 $participants = participant_get_all(['sports_category_id' => $sportId]);
 $oddsKey = sports_odds_api_key_get();
 $apiSportsKey = sports_api_sports_key_get();
@@ -166,6 +167,7 @@ require __DIR__ . '/../../../partials/support-head.php';
     <table data-paginate data-pagination-label="<?= h($sport['name']) ?> Tournaments">
       <thead>
         <tr>
+          <th>Logo</th>
           <th>Odds Sport Key</th>
           <th>Title</th>
           <th>Description</th>
@@ -177,10 +179,15 @@ require __DIR__ . '/../../../partials/support-head.php';
       </thead>
       <tbody>
         <?php if (!$tournaments): ?>
-          <tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted);">No tournaments registered for this category yet. Click "Sync Sports" in the main Sports Categories page to import from The Odds API.</td></tr>
+          <tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">No tournaments registered for this category yet. Click "Sync Sports" in the main Sports Categories page to import from The Odds API.</td></tr>
         <?php endif; ?>
         <?php foreach ($tournaments as $t): ?>
           <tr>
+            <td><a href="/admin/plugin/odds-api/registry/tournament-edit.php?id=<?= (int)$t['id'] ?>#logo" title="Edit tournament logo">
+              <?php $logo = $tournamentLogos[(int)$t['id']] ?? ''; if ($logo !== ''): ?>
+              <img src="<?= h($logo) ?>" alt="<?= h($t['title']) ?> logo" width="38" height="38" style="object-fit:contain;" loading="lazy">
+              <?php else: ?>Edit Logo<?php endif; ?>
+            </a></td>
             <td><code><strong><a href="/admin/plugin/odds-api/registry/tournament-edit.php?id=<?= (int) $t['id'] ?>"><?= h($t['odds_sport_key']) ?></a></strong></code></td>
             <td>
               <strong><a href="/admin/plugin/odds-api/registry/tournament-edit.php?id=<?= (int) $t['id'] ?>"><?= h($t['title']) ?></a></strong>
@@ -202,7 +209,8 @@ require __DIR__ . '/../../../partials/support-head.php';
               </form>
             </td>
             <td>
-              <a class="btn btn-primary btn-sm" href="/admin/plugin/odds-api/registry/tournament-edit.php?id=<?= (int) $t['id'] ?>">Manage</a> ·
+              <a class="btn btn-primary btn-sm" href="/admin/plugin/odds-api/registry/tournament-edit.php?id=<?= (int) $t['id'] ?>">Manage</a>
+              <a class="btn btn-secondary btn-sm" href="/admin/plugin/odds-api/registry/tournament-edit.php?id=<?= (int)$t['id'] ?>#logo">Edit Logo</a> ·
               <form method="post" style="display:inline;margin:0;">
                 <?= csrf_input() ?>
                 <input type="hidden" name="action" value="sync_odds_participants">
