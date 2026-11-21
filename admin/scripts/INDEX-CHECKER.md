@@ -135,6 +135,14 @@ Super users configure **SEO Settings → IndexNow**: enable/disable, save an exi
 
 The existing cron sends at most 10,000 pending IndexNow URLs per batch. HTTP 200/202 clears only the submitted versions; concurrent edits remain queued. Failures retain notifications with exponential backoff (10 minutes to one day), honoring longer `Retry-After` values. HTTP 400/403/422 waits at least one day; saving a replacement key or enabling IndexNow resets the retry delay. A worker lock prevents overlapping IndexNow batches. A Google sitemap failure has its own one-hour-to-one-day backoff.
 
+### Index now steps
+1. Go to [Bing Index now](https://www.bing.com/indexnow/getstarted#)
+2. Download and Copy API Key
+3. go to Bloggerist/admin/settings/seo/
+4. insert key and click "Save IndexNow" 
+5. upload the downloaded file to public file ex: examplesite.com/{key}.txt (make sure it is visible )
+6. Click "Test IndexNow" make sure it works and wait for the verification pending 
+
 ## Google Indexing API (Direct URL Submissions)
 
 Super users configure **SEO Settings → Google API / Search Console & Indexing API**:

@@ -91,6 +91,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         try {
             blog_setting_set_multiline('ignored_engagement_ips', $ignoredEngagementIps, 4000);
             $ignoredEngagementIps = blog_ignored_engagement_ips();
+            require_once __DIR__ . '/includes/playnow-promos.php';
+            playnow_tracker_sync_ignored();
             $notice = 'Ignored IP addresses saved.';
             $noticeType = 'ok';
             csrf_rotate();

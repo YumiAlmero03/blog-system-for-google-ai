@@ -3,9 +3,12 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/blog-storage.php';
+require_once __DIR__ . '/includes/playnow-promos.php';
 require_once __DIR__ . '/includes/admin-date.php';
 
 require_auth();
+
+playnow_tracker_sync_ignored();
 
 function tracker_path(): string
 {
@@ -61,12 +64,20 @@ function tracker_event_date(array $event): ?DateTimeImmutable
 
 function tracker_filtered(array $data, string $period): array
 {
-    if ($period === 'all') return tracker_recent($data);
     [$from, $to] = tracker_period($period);
     $events = [];
     foreach (tracker_recent($data) as $event) {
-        $date = tracker_event_date($event);
-        if ($date !== null && $from !== null && $date >= $from && $date < $to) $events[] = $event;
+        $ip = (string) ($event['ip'] ?? '');
+        if ($ip !== '' && function_exists('blog_ip_is_ignored') && blog_ip_is_ignored($ip)) {
+            continue;
+        }
+        if ($period !== 'all') {
+            $date = tracker_event_date($event);
+            if ($date === null || $from === null || $date < $from || $date >= $to) {
+                continue;
+            }
+        }
+        $events[] = $event;
     }
     return $events;
 }
@@ -75,7 +86,11 @@ function tracker_aggregate(array $events): array
 {
     $result = ['byPage' => [], 'byButton' => [], 'byIp' => [], 'byTarget' => []];
     foreach ($events as $event) {
-        foreach (['byPage' => ($event['pagePath'] ?? ($event['pageUrl'] ?? '')), 'byButton' => ($event['buttonKey'] ?? ($event['buttonText'] ?? '')), 'byIp' => ($event['ip'] ?? ''), 'byTarget' => ($event['targetUrl'] ?? '')] as $bucket => $value) {
+        $ip = (string) ($event['ip'] ?? '');
+        if ($ip !== '' && function_exists('blog_ip_is_ignored') && blog_ip_is_ignored($ip)) {
+            continue;
+        }
+        foreach (['byPage' => ($event['pagePath'] ?? ($event['pageUrl'] ?? '')), 'byButton' => ($event['buttonKey'] ?? ($event['buttonText'] ?? '')), 'byIp' => $ip, 'byTarget' => ($event['targetUrl'] ?? '')] as $bucket => $value) {
             $result[$bucket][$value] = (int) ($result[$bucket][$value] ?? 0) + 1;
         }
     }
@@ -94,6 +109,13 @@ $byPage = $period === 'all' && is_array($data['byPage'] ?? null) ? $data['byPage
 $byButton = $period === 'all' && is_array($data['byButton'] ?? null) ? $data['byButton'] : $filtered['byButton'];
 $byIp = $period === 'all' && is_array($data['byIp'] ?? null) ? $data['byIp'] : $filtered['byIp'];
 $byTarget = $period === 'all' && is_array($data['byTarget'] ?? null) ? $data['byTarget'] : $filtered['byTarget'];
+if (is_array($byIp)) {
+    foreach (array_keys($byIp) as $ipKey) {
+        if (function_exists('blog_ip_is_ignored') && blog_ip_is_ignored((string) $ipKey)) {
+            unset($byIp[$ipKey]);
+        }
+    }
+}
 $recent = $filteredEvents;
 $notice = (string) ($_SESSION['tracker_notice'] ?? '');
 unset($_SESSION['tracker_notice']);

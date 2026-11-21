@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../admin/includes/env.php';
+require_once __DIR__ . '/../admin/includes/blog-storage.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, max-age=0');
@@ -24,6 +25,13 @@ function playnow_storage_dir(): string
 
 function playnow_client_ip(): string
 {
+    if (function_exists('blog_request_ip')) {
+        $ip = blog_request_ip();
+        if ($ip !== '') {
+            return $ip;
+        }
+    }
+
     $headers = [
         'HTTP_CF_CONNECTING_IP',
         'HTTP_X_REAL_IP',
@@ -85,10 +93,33 @@ if ($location === '') {
 
 $buttonKey = $buttonText !== '' ? $buttonText : ($buttonId !== '' ? '#' . $buttonId : 'playnow-link');
 
+$clientIp = playnow_client_ip();
+if ($clientIp !== 'unknown' && function_exists('blog_ip_is_ignored') && blog_ip_is_ignored($clientIp)) {
+    $storageDir = playnow_storage_dir();
+    $path = $storageDir . '/playnow-clicks.json';
+    $totalClicks = 0;
+    $locationClicks = 0;
+    if (is_file($path) && is_readable($path)) {
+        $existing = @file_get_contents($path);
+        $data = json_decode($existing !== false ? $existing : '', true);
+        if (is_array($data)) {
+            $totalClicks = (int) ($data['totalClicks'] ?? 0);
+            $locationClicks = (int) ($data['byLocation'][$location] ?? 0);
+        }
+    }
+    echo json_encode([
+        'ok' => true,
+        'ignored' => true,
+        'totalClicks' => $totalClicks,
+        'locationClicks' => $locationClicks,
+    ]);
+    exit;
+}
+
 $event = [
     'time' => gmdate('c'),
     'timestamp' => time(),
-    'ip' => playnow_client_ip(),
+    'ip' => $clientIp,
     'pageUrl' => $pageUrl,
     'pagePath' => $pagePath,
     'pageTitle' => $pageTitle,

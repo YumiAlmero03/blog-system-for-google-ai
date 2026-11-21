@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['indexnow_action'])) {
         } else throw new InvalidArgumentException('Invalid IndexNow action.');
         csrf_rotate();
     } catch (InvalidArgumentException $error) { $indexnowMessage=$error->getMessage(); }
-    catch (Throwable $error) { $indexnowMessage='IndexNow operation failed. Check the public key file and server configuration.'; }
+    catch (Throwable $error) { $indexnowMessage='IndexNow operation failed: '.$error->getMessage(); }
 }
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['indexnow_action'])) {
     require_capability('super_user'); require_post(); require_valid_csrf();
