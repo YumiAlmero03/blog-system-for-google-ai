@@ -52,8 +52,16 @@ function generate_game_sitemaps(string $dbPath, string $output): array
         throw new RuntimeException('Database or output directory does not exist.');
     }
     $lockPath = realpath($output) === site_root_path() ? app_root_path() . '/.game-sitemaps.lock' : $output . '/.game-sitemaps.lock';
-    $lock = fopen($lockPath, 'c');
-    if ($lock === false || !flock($lock, LOCK_EX | LOCK_NB)) {
+    // A root-run updater may own this existing file. flock() needs a readable
+    // handle, not write access to the lock file; keep using the same inode.
+    $lockExists = is_file($lockPath);
+    $lock = @fopen($lockPath, $lockExists ? 'r' : 'c');
+    if ($lock === false) {
+        throw new RuntimeException('Cannot open the sitemap lock. Check its read permissions.');
+    }
+    if (!$lockExists) @chmod($lockPath, 0644);
+    if (!flock($lock, LOCK_EX | LOCK_NB)) {
+        fclose($lock);
         throw new RuntimeException('Another sitemap generation is running.');
     }
     $staged = [];

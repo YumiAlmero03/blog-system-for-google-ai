@@ -36,31 +36,98 @@ function google_private_dir(): string
     return $dir;
 }
 
+function google_legacy_config_path(): ?string
+{
+    $candidates = [];
+    try {
+        $candidates[] = google_private_dir() . '/google-config.json';
+    } catch (Throwable) {
+    }
+    $storageDir = function_exists('blog_storage_dir') ? blog_storage_dir() : (__DIR__ . '/../storage');
+    $resolvedStorage = @realpath($storageDir) ?: $storageDir;
+    $fallback = $resolvedStorage . '/.google-private/google-config.json';
+    if (!in_array($fallback, $candidates, true)) {
+        $candidates[] = $fallback;
+    }
+    foreach ($candidates as $path) {
+        if (@is_file($path) && @is_readable($path)) {
+            return $path;
+        }
+    }
+    return null;
+}
+
+function google_read_sqlite_state(PDO $pdo): ?array
+{
+    $stmt = $pdo->prepare('SELECT setting_value FROM app_settings WHERE setting_key = ?');
+    $stmt->execute(['google_config']);
+    $raw = $stmt->fetchColumn();
+    if ($raw === false || $raw === null || $raw === '') {
+        return null;
+    }
+    $data = json_decode((string) $raw, true);
+    if (!is_array($data)) {
+        throw new RuntimeException('Private Google configuration is unavailable.');
+    }
+    return $data;
+}
+
 function google_state(): array
 {
-    $path = google_private_dir() . '/google-config.json';
-    if (!is_file($path)) return [];
-    $data = json_decode((string) @file_get_contents($path), true);
-    if (!is_array($data)) throw new RuntimeException('Private Google configuration is unavailable.');
-    return $data;
+    $pdo = blogs_pdo();
+    $data = google_read_sqlite_state($pdo);
+    if ($data !== null) {
+        return $data;
+    }
+    $legacyPath = google_legacy_config_path();
+    if ($legacyPath !== null) {
+        $legacy = json_decode((string) @file_get_contents($legacyPath), true);
+        if (is_array($legacy)) {
+            google_write_state($legacy);
+            @unlink($legacyPath);
+            return $legacy;
+        }
+    }
+    return [];
 }
 
 function google_write_state(array $state, ?array $expected = null): void
 {
-    $dir = google_private_dir();
-    if (!is_dir($dir) && !@mkdir($dir, 0700, true)) throw new RuntimeException('Private Google storage is not writable.');
-    if (!@chmod($dir,0700)) throw new RuntimeException('Cannot secure private Google storage.');
-    $lock = fopen($dir . '/config.lock','c');
-    if (!$lock || !flock($lock,LOCK_EX)) throw new RuntimeException('Cannot lock private Google configuration.');
-    chmod($dir . '/config.lock',0600);
-    if ($expected !== null && google_state() !== $expected) { flock($lock,LOCK_UN); fclose($lock); throw new RuntimeException('Google configuration changed; retry the operation.'); }
-    $tmp = tempnam($dir, '.google-');
-    if ($tmp === false) { flock($lock,LOCK_UN); fclose($lock); throw new RuntimeException('Cannot save private Google configuration.'); }
+    $json = json_encode($state, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+    $pdo = blogs_pdo();
+    $own = !$pdo->inTransaction();
+    if ($own) {
+        $pdo->exec('BEGIN IMMEDIATE');
+    }
     try {
-        $json = json_encode($state,JSON_THROW_ON_ERROR);
-        if (!chmod($tmp,0600) || file_put_contents($tmp,$json) !== strlen($json)
-            || !rename($tmp,$dir.'/google-config.json')) throw new RuntimeException('Cannot save private Google configuration.');
-    } finally { if (is_file($tmp)) unlink($tmp); flock($lock,LOCK_UN); fclose($lock); }
+        if ($expected !== null) {
+            $current = google_read_sqlite_state($pdo) ?? [];
+            if ($current !== $expected) {
+                throw new RuntimeException('Google configuration changed; retry the operation.');
+            }
+        }
+        $stmt = $pdo->prepare(
+            'INSERT INTO app_settings (setting_key, setting_value, updated_at)
+             VALUES (?, ?, ?)
+             ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = excluded.updated_at'
+        );
+        $stmt->execute(['google_config', $json, time()]);
+        if ($own) {
+            $pdo->exec('COMMIT');
+        }
+    } catch (Throwable $error) {
+        if ($own) {
+            try {
+                $pdo->exec('ROLLBACK');
+            } catch (Throwable) {
+            }
+        }
+        throw $error;
+    }
+    $legacyPath = google_legacy_config_path();
+    if ($legacyPath !== null) {
+        @unlink($legacyPath);
+    }
 }
 
 function google_validate_credentials(string $json): array
@@ -102,11 +169,20 @@ function google_save_configuration(string $property, ?string $json, bool $remove
     $state = google_state(); $original = $state;
     $remove = $remove || ($json === null && !empty($state['removed']));
     $credentials = $json !== null ? google_validate_credentials($json) : ($state['credentials'] ?? null);
-    $indexingEnabled = $indexingApiEnabled !== null ? $indexingApiEnabled : (!empty($state['indexing_api_enabled']));
     $state = ['property'=>$property,'status'=>'Not Configured','submission_pending'=>true];
-    if ($indexingEnabled) $state['indexing_api_enabled'] = true;
-    if (!$remove && $credentials !== null) $state['credentials']=$credentials;
-    if ($remove) { $state['removed']=true; $state['submission_pending']=false; unset($state['indexing_api_enabled']); }
+    if ($remove) {
+        $state['removed'] = true;
+        $state['submission_pending'] = false;
+    } else {
+        if ($indexingApiEnabled !== null) {
+            $state['indexing_api_enabled'] = $indexingApiEnabled;
+        } elseif (array_key_exists('indexing_api_enabled', $original)) {
+            $state['indexing_api_enabled'] = (bool) $original['indexing_api_enabled'];
+        }
+        if ($credentials !== null) {
+            $state['credentials'] = $credentials;
+        }
+    }
     google_write_state($state,$original);
 }
 
@@ -117,12 +193,15 @@ function google_indexing_scope(): string
 
 function google_indexing_enabled(): bool
 {
+    $state = google_state();
+    if (array_key_exists('indexing_api_enabled', $state)) {
+        return (bool) $state['indexing_api_enabled'];
+    }
     $env = env_value('GOOGLE_INDEXING_ENABLED');
     if ($env !== null && $env !== '') {
         return filter_var($env, FILTER_VALIDATE_BOOLEAN);
     }
-    $state = google_state();
-    return !empty($state['indexing_api_enabled']);
+    return false;
 }
 
 function google_safe_status(): array

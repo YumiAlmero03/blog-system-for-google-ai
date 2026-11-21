@@ -10,6 +10,59 @@ const BLOG_IMPORT_BATCH_POSTS = 10;
 const BLOG_IMPORT_BATCH_IMAGES = 3;
 const BLOG_IMPORT_BATCH_SECONDS = 3.0;
 
+function blog_import_log(array &$state, string $status, string $message, ?string $url = null): void
+{
+    $entry = ['time' => gmdate('c'), 'status' => $status, 'message' => $message];
+    if ($url !== null) $entry['url'] = $url;
+    $state['logs'][] = $entry;
+    if (count($state['logs']) > 200) array_shift($state['logs']);
+    error_log('Blog import [' . $status . '] ' . $message . ($url !== null ? ' ' . $url : ''));
+}
+
+/**
+ * Download one remote image, validate it, and store it in both upload roots.
+ * Files are named by content hash, so repeated imports/repairs reuse the same file instead of
+ * piling up duplicates. Returns the local web path, e.g. /uploads/blogs/<hash>.webp.
+ */
+function blog_import_localize_remote_image(string $url): string
+{
+    if (!preg_match('#^https?://#i', $url) || strlen($url) > 2048) throw new RuntimeException('Unsupported remote image URL.');
+    $uploadDirAdmin = dirname(__DIR__) . '/uploads/blogs';
+    $uploadDirWeb = dirname(__DIR__, 2) . '/uploads/blogs';
+    if (!is_dir($uploadDirAdmin)) @mkdir($uploadDirAdmin, 0755, true);
+    if (!is_dir($uploadDirWeb)) @mkdir($uploadDirWeb, 0755, true);
+    $temporaryImage = tempnam(sys_get_temp_dir(), 'blog-import-remote-');
+    if ($temporaryImage === false) throw new RuntimeException('An image could not be prepared.');
+    try {
+        if (!function_exists('curl_init')) throw new RuntimeException('Remote image fetching requires cURL.');
+        $handle = fopen($temporaryImage, 'wb');
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [CURLOPT_FILE => $handle, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 3, CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_TIMEOUT => 20, CURLOPT_USERAGENT => 'BlogImporter/1.0', CURLOPT_HTTPHEADER => ['Accept: image/avif,image/webp,image/png,image/jpeg,*/*;q=0.8'], CURLOPT_FAILONERROR => true, CURLOPT_SSL_VERIFYPEER => true, CURLOPT_SSL_VERIFYHOST => 2]);
+        $ok = curl_exec($ch) !== false;
+        $curlError = $ok ? '' : curl_error($ch);
+        // curl_close() is a no-op and deprecated on PHP 8.5+; releasing the handle is sufficient.
+        unset($ch); fclose($handle);
+        if (!$ok || !is_file($temporaryImage) || (int) filesize($temporaryImage) <= 0 || (int) filesize($temporaryImage) > BLOG_IMPORT_MAX_IMAGE_BYTES) throw new RuntimeException('Remote image could not be downloaded or is too large' . ($curlError !== '' ? ': ' . $curlError : '') . '.');
+        $validation = validate_blog_image_file($temporaryImage);
+        if (($validation['ok'] ?? false) !== true) throw new RuntimeException('Remote image failed validation.');
+        $extension = match ($validation['mime'] ?? '') { 'image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/avif' => 'avif', default => throw new RuntimeException('Remote image type is not supported.') };
+        $destinationName = substr((string) hash_file('sha256', $temporaryImage), 0, 32) . '.' . $extension;
+        foreach ([$uploadDirAdmin, $uploadDirWeb] as $directory) {
+            $destination = $directory . '/' . $destinationName;
+            if (is_file($destination) && (int) filesize($destination) === (int) filesize($temporaryImage)) continue;
+            if (!@copy($temporaryImage, $destination)) throw new RuntimeException('Remote image could not be stored.');
+            @chmod($destination, 0644);
+        }
+        return '/uploads/blogs/' . $destinationName;
+    } finally { @unlink($temporaryImage); }
+}
+
+function blog_import_restore_remote_image(string $url, array &$imageMap, string $jobId): void
+{
+    unset($jobId); // Remote images are content-addressed; the job id no longer affects the file name.
+    $imageMap[$url] = blog_import_localize_remote_image($url);
+}
+
 function blog_import_restore_image(ZipArchive $zip, string $name, array $manifest, array &$imageMap, string $jobId): void
 {
     $uploadDirAdmin = dirname(__DIR__) . '/uploads/blogs';
@@ -72,6 +125,11 @@ function blog_import_record(PDO $pdo, mixed $record, bool $isWordPress, array $i
     if (!is_array($record)) {
         return 'failed';
     }
+    // Resolve imported image URLs before normalization, because normalization intentionally
+    // rejects remote featured-image URLs and would otherwise replace them with the default.
+    if (isset($record['featuredImage']) && is_string($record['featuredImage'])) {
+        $record['featuredImage'] = $imageMap[$record['featuredImage']] ?? $record['featuredImage'];
+    }
     $normalized = blog_normalize_existing($record);
     $slug = is_string($record['slug'] ?? null) ? normalize_slug($record['slug']) : '';
     if ($normalized === null || $slug === '') {
@@ -81,7 +139,7 @@ function blog_import_record(PDO $pdo, mixed $record, bool $isWordPress, array $i
     if (!is_string($originalContent) || strlen($originalContent) > 60000) {
         return 'failed';
     }
-    $normalized['content'] = preg_replace_callback('#/uploads/blogs/[A-Za-z0-9._/-]+#', static fn (array $match): string => $imageMap[$match[0]] ?? $match[0], $originalContent) ?? $originalContent;
+    $normalized['content'] = preg_replace_callback('#https?://[^\s)\\"\']+|/uploads/blogs/[A-Za-z0-9._/-]+#i', static fn (array $match): string => $imageMap[$match[0]] ?? $match[0], $originalContent) ?? $originalContent;
     $normalized['featuredImage'] = $imageMap[$normalized['featuredImage']] ?? $normalized['featuredImage'];
     $existingStmt = $pdo->prepare('SELECT id FROM blog_posts WHERE slug = :slug LIMIT 1');
     $existingStmt->execute([':slug' => $slug]);
@@ -180,11 +238,13 @@ function blog_import_start(PDO $pdo, string $source, bool $isWordPress, string $
         $output = null;
         $state = [
             'jobId' => $id, 'directory' => $directory, 'wordpress' => $isWordPress,
-            'images' => $images, 'imageSources' => $manifest['images'] ?? [], 'imageMap' => [],
+            'images' => $isWordPress ? ($manifest['images'] ?? []) : $images, 'imageSources' => $manifest['images'] ?? [], 'imageMap' => [],
             'imageCursor' => 0, 'postCursor' => 0, 'postOffset' => 0, 'revision' => 0,
             'total' => count($manifest['blogs']), 'done' => false,
             'counts' => ['imported' => 0, 'updated' => 0, 'skipped' => (int) ($manifest['skipped'] ?? 0), 'failed' => 0, 'imagesRestored' => 0],
+            'logs' => [],
         ];
+        blog_import_log($state, 'queued', 'Import queued with ' . count($state['images']) . ' images and ' . count($manifest['blogs']) . ' posts.');
         $stmt = $pdo->prepare('INSERT INTO blog_import_jobs(id,owner,state,expires_at) VALUES(?,?,?,?)');
         $stmt->execute([$id, $owner, json_encode($state, JSON_THROW_ON_ERROR), time() + 86400]);
         return blog_import_progress($state);
@@ -204,7 +264,8 @@ function blog_import_progress(array $state): array
         'processed' => $state['postCursor'], 'total' => $state['total'],
         'imagesProcessed' => $state['imageCursor'], 'imagesTotal' => count($state['images']),
         'counts' => $state['counts'],
-        'message' => $state['wordpress'] ? 'XML does not include image files. Upload featured images separately; inline images keep their original URLs. Private, password-protected, and pending posts become drafts.' : '',
+        'logs' => array_slice($state['logs'] ?? [], -20),
+        'message' => $state['wordpress'] ? 'Fetching featured and inline images from the WordPress source. Private, password-protected, and pending posts become drafts.' : '',
     ];
 }
 
@@ -226,16 +287,26 @@ function blog_import_batch(PDO $pdo, string $id, string $owner, int $revision): 
             return blog_import_progress($state);
         }
         if ($state['imageCursor'] < count($state['images'])) {
-            $zip = new ZipArchive();
-            if ($zip->open($state['directory'] . '/source.zip') !== true) throw new RuntimeException('Staged ZIP is unavailable. Please select the file again.');
+            if (!$state['wordpress']) {
+                $zip = new ZipArchive();
+                if ($zip->open($state['directory'] . '/source.zip') !== true) throw new RuntimeException('Staged ZIP is unavailable. Please select the file again.');
+            }
             for ($i = 0; $i < BLOG_IMPORT_BATCH_IMAGES && $state['imageCursor'] < count($state['images']); $i++) {
-                blog_import_restore_image($zip, $state['images'][$state['imageCursor']], ['images' => $state['imageSources']], $state['imageMap'], $state['jobId']);
+                $imageSource = (string) $state['images'][$state['imageCursor']];
+                blog_import_log($state, 'downloading', 'Downloading image ' . ($state['imageCursor'] + 1) . ' of ' . count($state['images']) . '.', $state['wordpress'] ? $imageSource : null);
+                try {
+                    if ($state['wordpress']) blog_import_restore_remote_image($imageSource, $state['imageMap'], $state['jobId']);
+                    else blog_import_restore_image($zip, $imageSource, ['images' => $state['imageSources']], $state['imageMap'], $state['jobId']);
+                    $state['counts']['imagesRestored']++;
+                    blog_import_log($state, 'completed', 'Image uploaded and mapped locally.', $state['wordpress'] ? $imageSource : null);
+                } catch (Throwable $error) {
+                    $state['counts']['imageFailures'] = ($state['counts']['imageFailures'] ?? 0) + 1;
+                    blog_import_log($state, 'failed', $error->getMessage(), $state['wordpress'] ? $imageSource : null);
+                }
                 $state['imageCursor']++;
-                $state['counts']['imagesRestored']++;
                 if (microtime(true) - $started >= BLOG_IMPORT_BATCH_SECONDS) break;
             }
-            $zip->close();
-            $zip = null;
+            if ($zip instanceof ZipArchive) { $zip->close(); $zip = null; }
         } else {
             $input = fopen($state['directory'] . '/posts.jsonl', 'rb');
             if ($input === false || fseek($input, $state['postOffset']) !== 0) throw new RuntimeException('Staged posts are unavailable. Please select the file again.');

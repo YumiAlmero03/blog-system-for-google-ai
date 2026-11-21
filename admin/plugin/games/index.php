@@ -371,6 +371,7 @@ $featuredCount = (int) $pdo->query('SELECT COUNT(*) FROM games WHERE ' . $eligib
           </div>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <?php if (auth_can('admin')): ?>
+            <button type="button" class="btn btn-secondary btn-sm" data-recheck-ph="">Recheck PH Availability</button>
             <a href="/admin/plugin/games/providers.php" class="btn btn-secondary btn-sm">Providers</a>
             <a href="/admin/plugin/games/settings.php" class="btn btn-secondary btn-sm">Games Settings</a>
             <?php endif; ?>
@@ -378,6 +379,7 @@ $featuredCount = (int) $pdo->query('SELECT COUNT(*) FROM games WHERE ' . $eligib
           </div>
         </div>
 
+        <p id="ph-recheck-status" role="status" aria-live="polite"></p>
         <div class="slot-metrics">
           <div class="slot-metric"><strong><?= number_format($total) ?></strong><span>Filtered Games</span></div>
           <div class="slot-metric"><strong><?= number_format($eligibleCount) ?></strong><span>Total Games</span></div>
@@ -453,6 +455,9 @@ $featuredCount = (int) $pdo->query('SELECT COUNT(*) FROM games WHERE ' . $eligib
                 <?php endif; ?>
               </div>
               <div class="slot-actions">
+                <?php if (auth_can('admin')): ?>
+                <button type="button" class="btn btn-secondary btn-sm" data-recheck-ph="<?= (int)$slot['id'] ?>">Recheck PH</button>
+                <?php endif; ?>
                 <form class="slot-featured-form" method="post" action="/admin/plugin/games/">
                   <?= csrf_input() ?>
                   <input type="hidden" name="action" value="visibility">
@@ -494,5 +499,6 @@ $featuredCount = (int) $pdo->query('SELECT COUNT(*) FROM games WHERE ' . $eligib
       </div>
     </main>
   </div>
+<script src="/admin/plugin/games/recheck-ph.js?v=<?= filemtime(__DIR__ . '/recheck-ph.js') ?>" defer></script>
 </body>
 </html>

@@ -5,6 +5,7 @@ require_once __DIR__ . '/blog-storage.php';
 const SEO_SETTING_KEYS = [
     'website_name'=>'website_title', 'website_url'=>'site_base_url',
     'google_analytics_id'=>'google_analytics_id',
+    'google_tag_id'=>'google_tag_id',
     'google_search_console_verification'=>'google_search_console_verification',
     'default_seo_title'=>'default_seo_title', 'default_meta_description'=>'default_meta_description',
     'default_og_image'=>'default_og_image',
@@ -41,7 +42,7 @@ function seo_valid_url(string $url): bool
 function seo_settings_save(array $input): array
 {
     if (!function_exists('auth_can') || !auth_can('admin')) throw new DomainException('Access denied.');
-    $limits = ['website_name'=>120,'website_url'=>2048,'google_analytics_id'=>32,'google_search_console_verification'=>512,'default_seo_title'=>200,'default_meta_description'=>500,'default_og_image'=>2048];
+    $limits = ['website_name'=>120,'website_url'=>2048,'google_analytics_id'=>32,'google_tag_id'=>32,'google_search_console_verification'=>512,'default_seo_title'=>200,'default_meta_description'=>500,'default_og_image'=>2048];
     $clean = [];
     foreach ($input as $key=>$value) {
         if (!isset($limits[$key])) throw new InvalidArgumentException('Unknown SEO setting.');
@@ -55,6 +56,7 @@ function seo_settings_save(array $input): array
             if (env_value('SITE_BASE_URL') && $value !== site_base_url()) throw new InvalidArgumentException('Website URL is controlled by SITE_BASE_URL in this environment.');
         }
         if ($key === 'google_analytics_id' && $value !== '' && !preg_match('/^G-[A-Z0-9]{10}$/D',$value)) throw new InvalidArgumentException('Use a Google Analytics measurement ID such as G-XXXXXXXXXX.');
+        if ($key === 'google_tag_id' && $value !== '' && !preg_match('/^(?:GTM|GT|G|AW)-[A-Z0-9]{4,16}$/D',$value)) throw new InvalidArgumentException('Use a Google Tag ID such as GTM-WNT87BPK.');
         if ($key === 'google_search_console_verification' && $value !== '' && !preg_match('/^[A-Za-z0-9_-]+$/D',$value)) throw new InvalidArgumentException('Enter only the Search Console verification token.');
         if ($key === 'default_og_image' && $value !== '') {
             $local = preg_match('~^/uploads/blogs/[A-Za-z0-9._-]+\.(?:webp|png|jpe?g|svg)$~iD',$value);

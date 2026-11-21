@@ -36,6 +36,8 @@ Options -Indexes
     RewriteRule ^uploads/(.*)$ admin/uploads/$1 [L]
     RewriteCond %{DOCUMENT_ROOT}/admin/$1.txt -f
     RewriteRule ^([a-zA-Z0-9-]{8,128})\.txt$ admin/$1.txt [L]
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^([a-zA-Z0-9-]{8,128})\.txt$ admin/indexnow-key.php?key=$1 [L,QSA]
     RewriteRule ^(login(?:-handler)?|logout)\.php$ admin/$1.php [L]
 
     RewriteRule ^game/([A-Za-z0-9-]+)/?$ /game/index.php?slug=$1 [L,QSA]
