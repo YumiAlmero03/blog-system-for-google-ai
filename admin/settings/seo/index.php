@@ -56,7 +56,7 @@ catch (Throwable $error) { $googleStatus = ['property'=>'','status'=>'Not Config
 $settings = seo_settings();
 $title = 'SEO Settings';
 require __DIR__ . '/../../partials/support-head.php';
-$fields = ['website_name'=>'Website Name','website_url'=>'Website URL','google_analytics_id'=>'Google Analytics ID','google_search_console_verification'=>'Google Search Console Verification','default_seo_title'=>'Default SEO Title','default_meta_description'=>'Default Meta Description','default_og_image'=>'Default OG Image'];
+$fields = ['website_name'=>'Website Name','website_url'=>'Website URL','google_analytics_id'=>'Google Analytics ID','google_tag_id'=>'Google Tag ID','google_search_console_verification'=>'Google Search Console Verification','default_seo_title'=>'Default SEO Title','default_meta_description'=>'Default Meta Description','default_og_image'=>'Default OG Image'];
 ?>
 <form id="seo-settings-form" class="user-form">
 <?= csrf_input() ?>
@@ -65,9 +65,10 @@ $fields = ['website_name'=>'Website Name','website_url'=>'Website URL','google_a
 <?php if ($key === 'default_meta_description'): ?>
 <textarea id="<?= h($key) ?>" name="<?= h($key) ?>" maxlength="500" rows="3"><?= h($settings[$key]) ?></textarea>
 <?php else: ?>
-<input id="<?= h($key) ?>" name="<?= h($key) ?>" value="<?= h($settings[$key]) ?>" style="width:100%;max-width:720px" maxlength="<?= in_array($key,['website_url','default_og_image'],true) ? 2048 : ($key === 'google_search_console_verification' ? 512 : ($key === 'default_seo_title' ? 200 : ($key === 'google_analytics_id' ? 32 : 120))) ?>" <?= $key === 'website_url' && env_value('SITE_BASE_URL') ? 'readonly' : '' ?>>
+<input id="<?= h($key) ?>" name="<?= h($key) ?>" value="<?= h($settings[$key]) ?>" style="width:100%;max-width:720px" maxlength="<?= in_array($key,['website_url','default_og_image'],true) ? 2048 : ($key === 'google_search_console_verification' ? 512 : ($key === 'default_seo_title' ? 200 : (in_array($key,['google_analytics_id','google_tag_id'],true) ? 32 : 120))) ?>" <?= $key === 'website_url' && env_value('SITE_BASE_URL') ? 'readonly' : '' ?>>
 <?php endif; ?>
 <?php if ($key === 'website_url' && env_value('SITE_BASE_URL')): ?><small>Controlled by SITE_BASE_URL for this environment.</small><?php endif; ?>
+<?php if ($key === 'google_tag_id'): ?><small>Enter a Google Tag Manager or Google Tag ID such as GTM-WNT87BPK.</small><?php endif; ?>
 <?php if ($key === 'google_search_console_verification'): ?><small>Enter the verification token, without the HTML meta tag.</small><?php endif; ?>
 <?php if ($key === 'default_og_image'): ?><br><label>Upload image <input type="file" id="seo-image" accept="image/jpeg,image/png,image/webp"></label><small>JPEG, PNG or WebP, up to 3 MB. You can also enter an image URL above.</small><?php endif; ?>
 </p>

@@ -23,9 +23,24 @@ function public_head_html(array $page = []): string
         $GLOBALS['seo_tracking_rendered'] = true;
         if ($settings['google_search_console_verification'] !== '') $html .= '<meta name="google-site-verification" content="' . $escape($settings['google_search_console_verification']) . '">' . "\n";
         $id = $settings['google_analytics_id'];
+        $hasGtag = false;
         if ($id !== '' && preg_match('/^G-[A-Z0-9]{10}$/D',$id)) {
+            $hasGtag = true;
             $html .= '<script async src="https://www.googletagmanager.com/gtag/js?id=' . rawurlencode($id) . '"></script>' . "\n";
             $html .= '<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag("js",new Date());gtag("config",' . json_encode($id,JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) . ');</script>' . "\n";
+        }
+        $tagId = $settings['google_tag_id'] ?? '';
+        if ($tagId !== '' && preg_match('/^GTM-[A-Z0-9]{4,16}$/D',$tagId)) {
+            $tagJson = json_encode($tagId,JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+            $html .= '<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({\'gtm.start\':new Date().getTime(),event:\'gtm.js\'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!=\'dataLayer\'?\'&l=\'+l:\'\';j.async=true;j.src=\'https://www.googletagmanager.com/gtm.js?id=\'+i+dl;f.parentNode.insertBefore(j,f);})(window,document,\'script\',\'dataLayer\',' . $tagJson . ');</script>' . "\n";
+        } elseif ($tagId !== '' && preg_match('/^(?:GT|G|AW)-[A-Z0-9]{4,16}$/D',$tagId) && $tagId !== $id) {
+            $tagJson = json_encode($tagId,JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+            if (!$hasGtag) {
+                $html .= '<script async src="https://www.googletagmanager.com/gtag/js?id=' . rawurlencode($tagId) . '"></script>' . "\n";
+                $html .= '<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag("js",new Date());gtag("config",' . $tagJson . ');</script>' . "\n";
+            } else {
+                $html .= '<script>gtag("config",' . $tagJson . ');</script>' . "\n";
+            }
         }
     }
     return $html;
