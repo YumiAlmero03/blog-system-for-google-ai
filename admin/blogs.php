@@ -504,9 +504,9 @@ $blogCategoryOptions = blog_categories_all();
         html = html.replace(/^## (.*)$/gim, '<h2>$1</h2>');
         html = html.replace(/^# (.*)$/gim, '<h1>$1</h1>');
         html = html.replace(/^&gt; (.*)$/gim, '<blockquote>$1</blockquote>');
-        html = html.replace(/\[!\[([^\]]*)\]\((\/uploads\/blogs\/[a-zA-Z0-9._/-]+)\)\]\((https?:\/\/[^)\s]+|\/[^)\s]*)\)/g, '<a href="$3"><img src="$2" alt="$1"></a>');
-        html = html.replace(/!\[([^\]]*)\]\((\/uploads\/blogs\/[a-zA-Z0-9._/-]+)\)/g, '<img src="$2" alt="$1">');
-        html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+|\/[^)\s]*)\)/g, '<a href="$2">$1</a>');
+        html = html.replace(/\[!\[([^\]]*)\]\((\/uploads\/blogs\/[a-zA-Z0-9._/-]+|https?:\/\/[^)\s<>]+)\)\]\((https?:\/\/[^)\s]+|\/[^)\s]*)\)(\{nofollow\})?/g, '<a href="$3"><img src="$2" alt="$1"></a>');
+        html = html.replace(/!\[([^\]]*)\]\((\/uploads\/blogs\/[a-zA-Z0-9._/-]+|https?:\/\/[^)\s<>]+)\)/g, '<img src="$2" alt="$1">');
+        html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+|\/[^)\s]*)\)(\{nofollow\})?/g, '<a href="$2">$1</a>');
         html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
         html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
         html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
@@ -724,11 +724,13 @@ $blogCategoryOptions = blog_categories_all();
           const quickEditCategory = blog.category || defaultCategory;
           const internalLinkTitles = Array.isArray(blog.internalLinkTitles) ? blog.internalLinkTitles.join(', ') : '';
           const linkedFromTitles = Array.isArray(blog.linkedFromTitles) ? blog.linkedFromTitles.join(', ') : '';
-          const publishedDate = blog.publishedAtInput
-            ? blog.publishedAtInput.replace('T', ' ')
-            : (blog.scheduledAtInput
-                ? `Scheduled: ${blog.scheduledAtInput.replace('T', ' ')}`
-                : (status === 'draft' ? `Draft (${blog.date || 'Unpublished'})` : (blog.date || '—')));
+          const publishedDate = (status === 'scheduled' && blog.scheduledAtInput)
+            ? `Scheduled: ${blog.scheduledAtInput.replace('T', ' ')}`
+            : (blog.publishedAtInput
+                ? blog.publishedAtInput.replace('T', ' ')
+                : (blog.scheduledAtInput
+                    ? `Scheduled: ${blog.scheduledAtInput.replace('T', ' ')}`
+                    : (status === 'draft' ? `Draft (${blog.date || 'Unpublished'})` : (blog.date || '—'))));
           const editRow = quickEditId === id ? quickEditRow(blog, id, status, quickEditCategory) : '';
           return `
             <tr>
@@ -899,6 +901,40 @@ $blogCategoryOptions = blog_categories_all();
         }
         showNotice('Blog post deleted.', 'ok');
         await loadBlogs().catch((error) => showNotice(error.message || 'Blog list could not be loaded.', 'error'));
+      });
+
+      const adminTimezone = <?= json_encode(blog_display_timezone()->getName(), JSON_UNESCAPED_SLASHES) ?>;
+      function defaultScheduledDateTimeInput() {
+        const target = new Date(Date.now() + 3600000);
+        try {
+          const parts = new Intl.DateTimeFormat('en-CA', {
+            timeZone: adminTimezone,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hourCycle: 'h23',
+          }).formatToParts(target).reduce((acc, part) => {
+            acc[part.type] = part.value;
+            return acc;
+          }, {});
+          if (parts.year && parts.month && parts.day && parts.hour && parts.minute) {
+            return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+          }
+        } catch (e) {}
+        target.setSeconds(0, 0);
+        return new Date(target.getTime() - target.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      }
+
+      list.addEventListener('change', (event) => {
+        const statusSelect = event.target.closest('form[data-quick-edit-form] select[name="status"]');
+        if (!statusSelect || statusSelect.value !== 'scheduled') return;
+        const form = statusSelect.closest('form[data-quick-edit-form]');
+        const scheduledInput = form ? form.querySelector('input[name="scheduled_at"]') : null;
+        if (scheduledInput && !scheduledInput.value) {
+          scheduledInput.value = defaultScheduledDateTimeInput();
+        }
       });
 
       list.addEventListener('submit', async (event) => {

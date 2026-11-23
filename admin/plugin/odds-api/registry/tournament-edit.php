@@ -27,7 +27,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? 'save';
 
     try {
-        if ($action === 'save') {
+        if ($action === 'remove_tournament_image') {
+            tournament_remove_image($id);
+            $notice = 'Tournament logo removed.';
+            csrf_rotate();
+        } elseif ($action === 'save') {
             $oddsSportKey = trim((string) ($_POST['odds_sport_key'] ?? ''));
             $title = trim((string) ($_POST['title'] ?? ''));
             $catId = (int) ($_POST['sports_category_id'] ?? 0);
@@ -58,6 +62,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'enrich_api_url' => trim((string) ($_POST['enrich_api_url'] ?? '')),
             ]);
 
+            $file = $_FILES['tournament_image'] ?? null;
+            $currentImage = tournament_image_get($id);
+            if ($file && ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+                tournament_save_manual_image($id, $file);
+            } elseif (isset($_POST['logo_url']) && $_POST['logo_url'] !== ($currentImage['image_path'] ?? '')) {
+                if ($_POST['logo_url'] === '') tournament_remove_image($id);
+                else tournament_save_manual_image_url($id, $_POST['logo_url']);
+            }
             $tournament = $updated;
             $notice = 'Tournament updated successfully.';
             csrf_rotate();
@@ -111,9 +123,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $file = $_FILES['participant_image'] ?? null;
-            if ($file && ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
+            if ($file && ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
                 $savedP = participant_save_manual_image($pId, $file);
                 $notice = sprintf("Participant '%s' and logo updated successfully (Manual override).", $savedP['name']);
+            } elseif (isset($_POST['logo_url']) && $_POST['logo_url'] !== $savedP['image_path']) {
+                $savedP = $_POST['logo_url'] === '' ? participant_remove_image($pId) : participant_save_manual_image_url($pId, $_POST['logo_url']);
+                $notice = sprintf("Logo for '%s' updated successfully.", $savedP['name']);
             } elseif ($hasName) {
                 $notice = sprintf("Participant '%s' updated successfully.", $savedP['name']);
             } elseif ($action === 'upload_participant_image') {
@@ -158,6 +173,7 @@ $participants = participant_get_all([
 ]);
 
 $title = 'Tournament — ' . $tournament['title'];
+$tournamentImage = tournament_image_get($id);
 require __DIR__ . '/../../../partials/support-head.php';
 ?>
 <style>
@@ -253,7 +269,7 @@ require __DIR__ . '/../../../partials/support-head.php';
     <!-- Edit Tournament Settings Card -->
     <div class="panel-card" style="margin-bottom:0;">
       <span style="font-size:1.05rem;font-weight:700;display:block;margin-bottom:12px;">Tournament Configuration</span>
-      <form method="post" action="/admin/plugin/odds-api/registry/tournament-edit.php?id=<?= $id ?>" class="user-form" style="display:grid;gap:12px;">
+      <form method="post" action="/admin/plugin/odds-api/registry/tournament-edit.php?id=<?= $id ?>" enctype="multipart/form-data" class="user-form" style="display:grid;gap:12px;">
         <?= csrf_input() ?>
         <input type="hidden" name="action" value="save">
 
@@ -310,6 +326,13 @@ require __DIR__ . '/../../../partials/support-head.php';
           </label>
         </div>
 
+        <div id="logo">
+        <?php
+        $logoLabel = 'Tournament Logo'; $logoPath = $tournamentImage['image_path'] ?? ''; $logoSource = $tournamentImage['source'] ?? '';
+        $logoUploadName = 'tournament_image'; $logoRemoveAction = 'remove_tournament_image';
+        require __DIR__ . '/../includes/logo-fields.php';
+        ?>
+        </div>
         <div style="display:flex;gap:8px;margin-top:8px;">
           <button type="submit" class="btn btn-primary btn-sm">Save Tournament Settings</button>
         </div>
@@ -362,7 +385,7 @@ require __DIR__ . '/../../../partials/support-head.php';
           <?php foreach ($participants as $p): ?>
             <?php
               $rawImg = !empty($p['image_path']) ? sports_registry_safe_image_url($p['image_path']) : '';
-              $imgUrl = $rawImg !== '' ? $rawImg . ($p['updated_at'] ? '?t=' . $p['updated_at'] : '') : '';
+              $imgUrl = $rawImg;
               $pSource = strtoupper($p['image_source'] ?: 'NONE');
               $badgeClass = match ($p['image_source']) {
                   'manual' => 'badge-manual',
@@ -487,6 +510,9 @@ require __DIR__ . '/../../../partials/support-head.php';
           Upload / Replace Logo (Optional)
         </label>
         <input type="file" name="participant_image" accept="image/jpeg,image/png,image/webp,image/avif" style="margin-top:2px;font-size:0.85rem;">
+        <label style="display:block;margin-top:12px;">Logo URL or uploaded image path
+          <input type="text" name="logo_url" id="modal-logo-url" maxlength="2048" placeholder="https://example.com/logo.png or /uploads/sports/logo.png" style="width:100%;box-sizing:border-box;">
+        </label>
         <p style="font-size:0.75rem;color:var(--text-muted);margin:4px 0 0;">
           Manual uploads are saved locally and marked as <strong>MANUAL</strong> to prevent automated API enrichments from overwriting them.
         </p>
@@ -517,6 +543,8 @@ function openImageModal(id, name, slug, imgUrl, source, key, path, enabled) {
   document.getElementById('modal-slug-input').value = slug;
   document.getElementById('modal-key-display').textContent = key;
   document.getElementById('modal-path-display').textContent = path || '';
+  document.getElementById('modal-logo-url').value = path || '';
+  document.querySelector('#image-modal input[type="file"]').value = '';
   document.getElementById('modal-enabled-input').checked = (enabled == 1 || enabled === true);
 
   var sourceBadge = document.getElementById('modal-source-badge');
@@ -542,4 +570,5 @@ function openImageModal(id, name, slug, imgUrl, source, key, path, enabled) {
   document.getElementById('image-modal').showModal();
 }
 </script>
+<script src="/admin/plugin/odds-api/registry/logo-editor.js" defer></script>
 </main></body></html>

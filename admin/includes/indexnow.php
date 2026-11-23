@@ -21,27 +21,56 @@ function indexnow_save(bool $enabled,string $key,bool $generate=false): void
     if (!function_exists('auth_can') || !auth_can('super_user')) throw new DomainException('Access denied.');
     if ($generate) $key=bin2hex(random_bytes(16));
     if (!indexnow_key_valid($key)) throw new InvalidArgumentException('IndexNow keys require 8–128 letters, digits, or hyphens.');
-    $root=env_value('INDEXNOW_PUBLIC_DIR') ?: dirname(__DIR__);
-    if (!is_dir($root)) throw new RuntimeException('Public key directory unavailable.');
-    $old=indexnow_settings(); $path=$root.'/'.$key.'.txt';
-    if (is_link($path) || (file_exists($path) && (!is_file($path) || file_get_contents($path)!==$key))) throw new InvalidArgumentException('The key filename is already used by another file.');
-    $created=!is_file($path);
-    if ($created) {
-        $file=@fopen($path,'x');
-        if (!$file) throw new RuntimeException('Cannot create the public IndexNow key file.');
-        try { if (fwrite($file,$key)!==strlen($key) || !chmod($path,0644)) throw new RuntimeException('Cannot write public key file.'); }
-        catch (Throwable $e) { fclose($file); unlink($path); throw $e; }
-        fclose($file);
+    $customRoot=env_value('INDEXNOW_PUBLIC_DIR');
+    $hasCustomRoot=$customRoot !== null && $customRoot !== '';
+    $roots=[];
+    if ($hasCustomRoot) {
+        if (!is_dir($customRoot)) throw new RuntimeException('Public key directory unavailable.');
+        $roots[] = rtrim($customRoot, '/\\');
+    } else {
+        $siteRoot = function_exists('site_root_path') ? site_root_path() : dirname(__DIR__, 2);
+        if ($siteRoot && is_dir($siteRoot)) $roots[] = rtrim($siteRoot, '/\\');
+        $adminDir = dirname(__DIR__);
+        if ($adminDir && is_dir($adminDir) && !in_array($adminDir, $roots, true)) $roots[] = rtrim($adminDir, '/\\');
+    }
+    $old=indexnow_settings();
+    foreach ($roots as $root) {
+        $path=$root.'/'.$key.'.txt';
+        if (is_link($path) || (file_exists($path) && (!is_file($path) || trim((string)@file_get_contents($path))!==$key))) {
+            throw new InvalidArgumentException('The key filename is already used by another file.');
+        }
+    }
+    $createdPaths=[];
+    foreach ($roots as $root) {
+        $path=$root.'/'.$key.'.txt';
+        if (!is_file($path)) {
+            $file=@fopen($path,'x');
+            if (!$file) {
+                if ($hasCustomRoot) throw new RuntimeException('Cannot create the public IndexNow key file.');
+            } else {
+                $ok=false;
+                try { $ok=fwrite($file,$key)===strlen($key) && @chmod($path,0644); }
+                finally { fclose($file); }
+                if (!$ok) {
+                    @unlink($path);
+                    if ($hasCustomRoot) throw new RuntimeException('Cannot write public key file.');
+                } else {
+                    $createdPaths[]=$path;
+                }
+            }
+        }
     }
     try { indexnow_store(['enabled'=>$enabled,'key'=>$key,'status'=>'Verification Pending','http_status'=>null]); }
-    catch (Throwable $e) { if ($created) unlink($path); throw $e; }
+    catch (Throwable $e) { foreach ($createdPaths as $cp) @unlink($cp); throw $e; }
     if ($old['key']!==$key || (!$old['enabled'] && $enabled)) {
         $pdo=blogs_pdo(); indexing_schema($pdo);
         $pdo->exec("UPDATE indexing_notifications SET attempts=0,next_at=0; DELETE FROM indexing_jobs WHERE name='indexnow-cooldown'");
     }
     if ($old['key']!==$key && indexnow_key_valid($old['key'])) {
-        $previous=$root.'/'.$old['key'].'.txt';
-        if (!is_link($previous) && is_file($previous) && file_get_contents($previous)===$old['key']) unlink($previous);
+        foreach ($roots as $root) {
+            $previous=$root.'/'.$old['key'].'.txt';
+            if (!is_link($previous) && is_file($previous) && @file_get_contents($previous)===$old['key']) @unlink($previous);
+        }
     }
 }
 function indexnow_url_allowed(string $url): bool
@@ -73,11 +102,26 @@ function indexnow_test(?callable $http=null): int
     $s=indexnow_settings();
     if (!indexnow_key_valid($s['key'])) throw new InvalidArgumentException('Configure a valid IndexNow key first.');
     if (!$s['enabled']) throw new InvalidArgumentException('Enable IndexNow and save settings before testing.');
-    $result=($http ?? 'index_checker_http')(indexnow_key_location($s['key']),null,[],1024);
-    if ($result['status']!==200 || $result['body']!==$s['key']) {
+    $location = indexnow_key_location($s['key']);
+    try {
+        $result=($http ?? 'index_checker_http')($location,null,[],1024);
+        if (in_array((int)($result['status'] ?? 0), [301, 302, 307, 308], true) && !empty($result['headers']['location'][0])) {
+            $redirectUrl = (string)$result['headers']['location'][0];
+            if (filter_var($redirectUrl, FILTER_VALIDATE_URL) && strtolower((string)parse_url($redirectUrl, PHP_URL_HOST)) === strtolower((string)parse_url($location, PHP_URL_HOST))) {
+                $location = $redirectUrl;
+                $result = ($http ?? 'index_checker_http')($location, null, [], 1024);
+            }
+        }
+    } catch (Throwable $e) {
+        $s['status']='Error'; $s['http_status']=0; indexnow_store($s);
+        error_log('IndexNow key request error: ' . $e->getMessage());
+        throw new RuntimeException('Cannot reach public key at ' . $location . ': ' . $e->getMessage());
+    }
+    if ($result['status']!==200 || trim((string)$result['body'])!==$s['key']) {
         $s['status']='Error'; $s['http_status']=$result['status']; indexnow_store($s);
-        error_log('IndexNow key verification failed HTTP '.(int)$result['status']);
-        throw new RuntimeException('The public IndexNow key file could not be verified.');
+        $detail = $result['status'] ? 'HTTP ' . (int)$result['status'] : 'network failure';
+        error_log('IndexNow key verification failed ' . $detail);
+        throw new RuntimeException('The public IndexNow key file could not be verified (' . $detail . ' at ' . $location . ').');
     }
     return (int)submitToIndexNow([public_url('/')],$http)['status'];
 }

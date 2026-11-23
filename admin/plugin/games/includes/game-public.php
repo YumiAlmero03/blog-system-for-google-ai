@@ -29,13 +29,33 @@ function slot_list_number(mixed $value): null|int|float
     return floor($number) === $number ? (int) $number : $number;
 }
 
-function slot_list_iframe_url(mixed $value): string
+function slot_list_iframe_url(mixed $value, ?int $apiId = null): string
 {
     if (!is_string($value) || trim($value) === '') {
         return '';
     }
 
     $url = trim($value);
+    $gameId = $apiId;
+    if (($gameId === null || $gameId <= 0) && preg_match('~^https?://slotslaunch\.com/iframe/(\d+)~i', $url, $matches)) {
+        $gameId = (int) $matches[1];
+    }
+
+    $apiKey = trim((string) (env_value('SLOTSLAUNCH_API_KEY') ?: env_value('SLOTSLAUNCH_API_TOKEN')));
+    $apiSecret = trim((string) env_value('SLOTSLAUNCH_API_SECRET'));
+    $siteDomain = trim((string) env_value('SLOTSLAUNCH_SITE_DOMAIN'));
+    $ttl = max(60, min(86400, (int) (env_value('SLOTSLAUNCH_IFRAME_TTL') ?: 3600)));
+
+    if ($gameId !== null && $gameId > 0 && $apiKey !== '' && $apiSecret !== '' && $siteDomain !== '') {
+        try {
+            require_once __DIR__ . '/../../../includes/slotslaunch-client.php';
+            $client = new \SlotsLaunch\Client($apiKey, $apiSecret, $siteDomain, 'https://slotslaunch.com', $ttl);
+            return $client->iframeUrl($gameId, $ttl);
+        } catch (\Throwable) {
+            // fall through to token URL
+        }
+    }
+
     if (preg_match('/(?:[?&])token=/', $url) === 1) {
         return $url;
     }
@@ -47,8 +67,9 @@ function slot_list_iframe_url(mixed $value): string
         $url = substr($url, 0, $hashPosition);
     }
 
+    $token = $apiKey !== '' ? $apiKey : SLOT_IFRAME_TOKEN;
     $separator = str_contains($url, '?') ? '&' : '?';
-    return $url . $separator . 'token=' . rawurlencode(SLOT_IFRAME_TOKEN) . $fragment;
+    return $url . $separator . 'token=' . rawurlencode($token) . $fragment;
 }
 
 function slot_list_thumbnail_url(string $thumbnail): string
@@ -72,7 +93,7 @@ function slot_list_item(array $slot): array
         'name' => (string) ($slot['name'] ?? ''),
         'slug' => $slug,
         'gameUrl' => $slug !== '' ? '/game/' . rawurlencode($slug) . '/' : '',
-        'iframeUrl' => slot_list_iframe_url($slot['url'] ?? ''),
+        'iframeUrl' => slot_list_iframe_url($slot['url'] ?? '', (int) ($slot['api_id'] ?? 0)),
         'thumbnail' => slot_list_thumbnail_url((string) ($slot['thumb'] ?? '')),
         'shortDescription' => (string) ($slot['short_description'] ?? ''),
         'longDescription' => (string) ($slot['long_description'] ?? ''),

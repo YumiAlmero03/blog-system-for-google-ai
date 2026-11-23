@@ -157,7 +157,11 @@ function playnow_promo_record_click(string $code): ?array
     if (!playnow_promo_code_valid($code)) {
         return null;
     }
-    return playnow_promo_write(static function (array &$data) use ($code): array {
+    $ip = function_exists('blog_request_ip') ? blog_request_ip() : ($_SERVER['REMOTE_ADDR'] ?? '');
+    if ($ip !== '' && function_exists('blog_ip_is_ignored') && blog_ip_is_ignored($ip)) {
+        return playnow_promo_find($code);
+    }
+    return playnow_promo_write(static function (array &$data) use ($code, $ip): array {
         if (!isset($data['promos'][$code]) || !is_array($data['promos'][$code])) {
             return [];
         }
@@ -172,13 +176,20 @@ function playnow_promo_record_click(string $code): ?array
         $data['byButton'] ??= [];
         $data['byTarget'] ??= [];
         $data['recent'] ??= [];
+        $data['byLocation'] ??= [];
+        $data['byIp'] ??= [];
         $data['byPage']['/promo-code/' . $code] = (int) ($data['byPage']['/promo-code/' . $code] ?? 0) + 1;
         $data['byButton']['promo-link'] = (int) ($data['byButton']['promo-link'] ?? 0) + 1;
         $data['byTarget'][$targetUrl] = (int) ($data['byTarget'][$targetUrl] ?? 0) + 1;
+        $data['byLocation']['/promo-code/' . $code] = (int) ($data['byLocation']['/promo-code/' . $code] ?? 0) + 1;
+        $recordedIp = $ip !== '' ? $ip : ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+        if ($recordedIp !== 'unknown') {
+            $data['byIp'][$recordedIp] = (int) ($data['byIp'][$recordedIp] ?? 0) + 1;
+        }
         $data['recent'][] = [
             'time' => $time,
             'timestamp' => time(),
-            'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+            'ip' => $recordedIp,
             'pagePath' => '/promo-code/' . $code,
             'pageUrl' => '',
             'pageTitle' => $promo['ogTitle'] ?? '',
@@ -195,4 +206,107 @@ function playnow_promo_record_click(string $code): ?array
         }
         return $promo;
     });
+}
+
+function playnow_tracker_prune_data(array &$data): bool
+{
+    if (!function_exists('blog_ip_is_ignored')) {
+        return false;
+    }
+
+    $modified = false;
+
+    // 1. Identify all ignored IPs in byIp
+    $ignoredIpsInByIp = [];
+    $totalIgnoredClicksInByIp = 0;
+    if (isset($data['byIp']) && is_array($data['byIp'])) {
+        foreach ($data['byIp'] as $ip => $count) {
+            $ipStr = (string) $ip;
+            if ($ipStr !== '' && blog_ip_is_ignored($ipStr)) {
+                $ignoredIpsInByIp[$ipStr] = (int) $count;
+                $totalIgnoredClicksInByIp += (int) $count;
+            }
+        }
+    }
+
+    // 2. Identify ignored events in recent
+    $recent = isset($data['recent']) && is_array($data['recent']) ? $data['recent'] : [];
+    $newRecent = [];
+    $removedRecentCount = 0;
+
+    foreach ($recent as $event) {
+        $ip = (string) ($event['ip'] ?? '');
+        if ($ip !== '' && blog_ip_is_ignored($ip)) {
+            $modified = true;
+            $removedRecentCount++;
+
+            $loc = (string) ($event['location'] ?? '');
+            if ($loc !== '' && isset($data['byLocation'][$loc])) {
+                $data['byLocation'][$loc] = ((int) $data['byLocation'][$loc]) - 1;
+                if ($data['byLocation'][$loc] <= 0) {
+                    unset($data['byLocation'][$loc]);
+                }
+            }
+            $page = (string) ($event['pagePath'] ?? ($event['pageUrl'] ?? ''));
+            if ($page !== '' && isset($data['byPage'][$page])) {
+                $data['byPage'][$page] = ((int) $data['byPage'][$page]) - 1;
+                if ($data['byPage'][$page] <= 0) {
+                    unset($data['byPage'][$page]);
+                }
+            }
+            $btn = (string) ($event['buttonKey'] ?? ($event['buttonText'] ?? ''));
+            if ($btn !== '' && isset($data['byButton'][$btn])) {
+                $data['byButton'][$btn] = ((int) $data['byButton'][$btn]) - 1;
+                if ($data['byButton'][$btn] <= 0) {
+                    unset($data['byButton'][$btn]);
+                }
+            }
+            $tgt = (string) ($event['targetUrl'] ?? '');
+            if ($tgt !== '' && isset($data['byTarget'][$tgt])) {
+                $data['byTarget'][$tgt] = ((int) $data['byTarget'][$tgt]) - 1;
+                if ($data['byTarget'][$tgt] <= 0) {
+                    unset($data['byTarget'][$tgt]);
+                }
+            }
+            $promoCode = (string) ($event['promoCode'] ?? '');
+            if ($promoCode !== '' && isset($data['promos'][$promoCode]['clicks'])) {
+                $data['promos'][$promoCode]['clicks'] = max(0, ((int) $data['promos'][$promoCode]['clicks']) - 1);
+            }
+        } else {
+            $newRecent[] = $event;
+        }
+    }
+
+    if ($removedRecentCount > 0) {
+        $data['recent'] = $newRecent;
+    }
+
+    if (!empty($ignoredIpsInByIp)) {
+        $modified = true;
+        foreach ($ignoredIpsInByIp as $ip => $count) {
+            unset($data['byIp'][$ip]);
+        }
+        $data['totalClicks'] = max(0, (int) ($data['totalClicks'] ?? 0) - $totalIgnoredClicksInByIp);
+    } elseif ($removedRecentCount > 0) {
+        $data['totalClicks'] = max(0, (int) ($data['totalClicks'] ?? 0) - $removedRecentCount);
+    }
+
+    return $modified;
+}
+
+function playnow_tracker_sync_ignored(): bool
+{
+    $path = playnow_promo_path();
+    if (!is_file($path)) {
+        return false;
+    }
+    try {
+        $result = playnow_promo_write(static function (array &$data): array {
+            $changed = playnow_tracker_prune_data($data);
+            return ['changed' => $changed];
+        });
+        return !empty($result['changed']);
+    } catch (Throwable) {
+        return false;
+    }
 }
