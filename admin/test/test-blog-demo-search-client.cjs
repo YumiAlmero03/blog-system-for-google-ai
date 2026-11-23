@@ -4,6 +4,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const source = fs.readFileSync(path.join(__dirname, '../blog-publish.php'), 'utf8');
+const escapeStart = source.indexOf('      function escapeHtml(');
+const escapeEnd = source.indexOf('      function countWords(', escapeStart);
+assert(escapeStart > 0 && escapeEnd > escapeStart, 'Use the actual editor HTML escaping helper');
 const start = source.indexOf('      function cancelSlotDemoSearch(');
 const end = source.indexOf('      function pasteIntoFaqField(', start);
 assert(start > 0 && end > start, 'Use the actual editor search functions');
@@ -13,12 +16,11 @@ const context = {
   URL, AbortController, window: { location: { origin: 'https://example.test' } },
   setTimeout: (fn) => { timers.set(++timerId, fn); return timerId; },
   clearTimeout: (id) => timers.delete(id),
-  escapeHtml: (value) => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;'),
   parseJsonResponse: async (response) => response.payload,
   fetch: (url, options) => new Promise((resolve, reject) => requests.push({url, options, resolve, reject})),
 };
 vm.createContext(context);
-vm.runInContext('const slotDemoSearches = new WeakMap();\n' + source.slice(start, end), context);
+vm.runInContext(source.slice(escapeStart, escapeEnd) + 'const slotDemoSearches = new WeakMap();\n' + source.slice(start, end), context);
 const block = () => {
   const results = { innerHTML: '' };
   return { results, isConnected: true, querySelector: () => results };
@@ -26,14 +28,20 @@ const block = () => {
 const game = (name, id = 101) => ({ apiId: id, name, slug: 'sweet-bonanza', iframeUrl: 'https://slotslaunch.com/iframe/' + id, provider: { name: 'Pragmatic Play' } });
 const resolve = (request, slots) => request.resolve({ ok: true, payload: { ok: true, slots } });
 (async () => {
+  assert.equal(context.escapeHtml(101), '101', 'Numeric game IDs render as text');
+  assert.equal(context.escapeHtml(0), '0');
+  assert.equal(context.escapeHtml(null), '');
+  assert.equal(context.escapeHtml(undefined), '');
+  assert.equal(context.escapeHtml(`&<>"'`), '&amp;&lt;&gt;&quot;&#039;', 'HTML and attribute characters stay escaped');
   const first = block();
   let search = context.searchSlotDemoGames(first, 'Sweet Bonanza');
   let request = requests.shift();
   assert.equal(new URL(request.url).searchParams.get('search'), 'Sweet Bonanza');
-  resolve(request, [game('Sweet "Bonanza"')]);
+  resolve(request, [game('Sweet "Bonanza"'), game('Sweet Bonanza 1000', 102)]);
   await search;
   assert(first.results.innerHTML.includes('Sweet &quot;Bonanza&quot;'));
   assert(first.results.innerHTML.includes('data-demo-id="101"') && first.results.innerHTML.includes('data-demo-slug="sweet-bonanza"'), 'Selection retains game identity');
+  assert(first.results.innerHTML.includes('data-demo-id="102"') && first.results.innerHTML.includes('Sweet Bonanza 1000'), 'All matching games render with numeric IDs');
 
   search = context.searchSlotDemoGames(first, 'Sweet');
   requests.shift().resolve({ ok: false, payload: { ok: false, error: 'Access denied.' } });
