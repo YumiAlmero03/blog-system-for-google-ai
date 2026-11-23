@@ -3,4 +3,4 @@ Disallow: /admin/
 Disallow: /api/
 Disallow: /includes/
 
-Sitemap: https://gperya-apk.com/sitemap.xml
+Sitemap: https://website/sitemap.xml
