@@ -2,6 +2,8 @@
 
 Admin page: `/admin/index-checker/`. Opening it only reads saved data. Recheck buttons and selected-row actions queue work. **Settings → SEO Settings** (`/admin/settings/seo/`) also provides super-user-only controls to configure credentials and test connections. Admins and super users can access `/admin/index-checker/`; editors do not.
 
+For the actual browser-based GSC **Request indexing** workflow, see [the optional aaPanel browser worker](gsc-browser/README.md). It requires a separate Google browser login on the server, respects GSC's manual-request quota, and pauses for CAPTCHA/login/UI errors. The worker must pass a real server submission test before cron is enabled; it is not another Google API endpoint.
+
 ## Step-by-step setup guide
 
 ### 1. Google Cloud Console (`https://console.cloud.google.com/`)
@@ -45,7 +47,11 @@ Admin page: `/admin/index-checker/`. Opening it only reads saved data. Recheck b
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `GOOGLE_INDEXING_ENABLED` | `false` *(or UI checkbox)* | Fallback toggle (`true`/`false`) for Google Indexing API direct URL notifications when not explicitly set via **SEO Settings** in SQLite. |
+| `GOOGLE_INDEXING_AUTO_SUBMIT` | `true` *(or UI checkbox)* | Automatically queues and submits eligible `Not Indexed` and unsubmitted sitemap URLs (`blogs → pages → games`) from `index_checks` during cron runs. |
 | `GOOGLE_INDEXING_DAILY_LIMIT` | `200` | Rolling 24-hour request budget for Google Indexing API submissions. |
+| `GOOGLE_INDEXING_BATCH` | `50` | Maximum Google Indexing API URL notifications published per cron run (1–200). |
+| `GOOGLE_INDEXING_RESUBMIT_DAYS` | `7` | Minimum days before automatically re-submitting a URL that remains `Not Indexed` (1–90). |
+| `GSC_BROWSER_STATE_DIR` | *(empty)* | Optional absolute private path outside public webroot for read-only GSC browser worker ledger status in `/admin/index-checker/`. |
 | `GOOGLE_PRIVATE_DIR` | *(auto)* | Legacy directory searched once when migrating an existing `google-config.json` into SQLite. |
 | `GSC_SERVICE_ACCOUNT_FILE` | *(empty)* | Legacy path to a private service-account JSON file outside public web paths (or inside `admin/storage/`). |
 | `GSC_PROPERTY` | *(empty)* | Legacy Search Console property override. |
@@ -152,8 +158,12 @@ Super users configure **SEO Settings → Google API / Search Console & Indexing 
 4. Click **Test Google Indexing API** to verify access.
 
 ### Behavior & Quotas
-- **Automated Queue**: When blog posts or games are published, modified, or deleted, events are queued in `google_indexing_queue`. During the cron run, `indexing_google_process_queue()` publishes `URL_UPDATED` or `URL_DELETED` notifications to `https://indexing.googleapis.com/v3/urlNotifications:publish`.
-- **Manual Submission**: In `/admin/index-checker/`, select up to 50 URLs and click **Submit selected to Google Indexing API** (or click **Submit to Google** on any individual row).
+- **Automated Queue & Unindexed Backfill**:
+  - When blog posts or games are published, modified, or deleted, events are queued immediately in `google_indexing_queue`.
+  - During each cron run (`php admin/scripts/check-google-indexing.php`), when **Auto-submit Not Indexed & unsubmitted sitemap URLs in cron** is enabled (default `true` whenever Google Indexing API is enabled), `indexing_google_queue_unindexed()` also automatically queues eligible `Not Indexed` and unsubmitted (`Pending`) sitemap URLs from `index_checks` — prioritizing **blogs → static pages → games** — while excluding `Indexed` URLs, drafts, hidden/restricted games, and `robots_state = 'DISALLOWED'` / `noindex` pages.
+  - `Not Indexed` URLs that were already submitted are automatically eligible for re-submission after `GOOGLE_INDEXING_RESUBMIT_DAYS` (default `7` days), and failed submissions retry after 24 hours.
+  - `indexing_google_process_queue()` publishes up to `GOOGLE_INDEXING_BATCH` (default `50`) URLs per cron run (`URL_UPDATED` / `URL_DELETED`) to `https://indexing.googleapis.com/v3/urlNotifications:publish` and records timestamps/status in `index_checks` identically to manual submissions.
+- **Manual Submission / On-Demand Batch**: In `/admin/index-checker/`, click **Run Auto-Submit Batch Now** to immediately process the next priority batch, or select up to 50 URLs and click **Submit selected to Google Indexing API** (or click **Submit to Google** on any individual row).
 - **Quota Safeguard**: Google sets a default quota of 200 requests/day per Google Cloud project. The system records all attempts in `google_indexing_attempts` and clamps requests within a rolling 24-hour window using `GOOGLE_INDEXING_DAILY_LIMIT` (default: 200).
 - **Rate-limiting & Errors**: HTTP 429 (`RESOURCE_EXHAUSTED`) or 403 halts processing immediately and initiates a 24-hour cooldown in `indexing_jobs` to protect project quota.
 

@@ -163,7 +163,7 @@ function google_property(): string
     return google_state()['property'] ?? env_value('GSC_PROPERTY') ?: seo_settings()['website_url'];
 }
 
-function google_save_configuration(string $property, ?string $json, bool $remove = false, ?bool $indexingApiEnabled = null): void
+function google_save_configuration(string $property, ?string $json, bool $remove = false, ?bool $indexingApiEnabled = null, ?bool $autoSubmitUnindexed = null): void
 {
     if (!index_checker_in_property(seo_settings()['website_url'], $property)) throw new InvalidArgumentException('The Search Console property must cover the configured site.');
     $state = google_state(); $original = $state;
@@ -178,6 +178,11 @@ function google_save_configuration(string $property, ?string $json, bool $remove
             $state['indexing_api_enabled'] = $indexingApiEnabled;
         } elseif (array_key_exists('indexing_api_enabled', $original)) {
             $state['indexing_api_enabled'] = (bool) $original['indexing_api_enabled'];
+        }
+        if ($autoSubmitUnindexed !== null) {
+            $state['auto_submit_unindexed'] = $autoSubmitUnindexed;
+        } elseif (array_key_exists('auto_submit_unindexed', $original)) {
+            $state['auto_submit_unindexed'] = (bool) $original['auto_submit_unindexed'];
         }
         if ($credentials !== null) {
             $state['credentials'] = $credentials;
@@ -204,13 +209,33 @@ function google_indexing_enabled(): bool
     return false;
 }
 
+function google_indexing_auto_submit_preference(): bool
+{
+    $state = google_state();
+    if (array_key_exists('auto_submit_unindexed', $state)) {
+        return (bool) $state['auto_submit_unindexed'];
+    }
+    $env = env_value('GOOGLE_INDEXING_AUTO_SUBMIT');
+    if ($env !== null && $env !== '') {
+        return filter_var($env, FILTER_VALIDATE_BOOLEAN);
+    }
+    return true;
+}
+
+function google_indexing_auto_submit_enabled(): bool
+{
+    return google_indexing_enabled() && google_indexing_auto_submit_preference();
+}
+
 function google_safe_status(): array
 {
     $state=google_state();
     try { $key=google_credentials(); $configured=true; } catch (Throwable $e) { $key=[]; $configured=false; }
     return ['configured'=>$configured,'property'=>google_property(),'status'=>$state['status'] ?? 'Not Configured',
         'email'=>$key['client_email'] ?? '', 'last_authenticated'=>$state['last_authenticated'] ?? null,
-        'indexing_api_enabled'=>google_indexing_enabled()];
+        'indexing_api_enabled'=>google_indexing_enabled(),
+        'auto_submit_unindexed'=>google_indexing_auto_submit_enabled(),
+        'auto_submit_preference'=>google_indexing_auto_submit_preference()];
 }
 
 function google_access_token(array $config = [], ?callable $http = null, bool $write = false, ?string $scope = null): string

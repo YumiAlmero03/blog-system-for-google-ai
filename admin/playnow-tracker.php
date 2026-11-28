@@ -4,121 +4,50 @@ declare(strict_types=1);
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/blog-storage.php';
 require_once __DIR__ . '/includes/playnow-promos.php';
+require_once __DIR__ . '/includes/playnow-tracker-helpers.php';
 require_once __DIR__ . '/includes/admin-date.php';
 
 require_auth();
 
-playnow_tracker_sync_ignored();
+// Build memoized ignored-IP checker once, read storage once, and only write if pruning is needed.
+$isIgnored = playnow_tracker_ignored_matcher();
+$data = playnow_promo_data();
+playnow_tracker_sync_ignored($data, $isIgnored);
 
-function tracker_path(): string
-{
-    return blog_storage_dir() . '/playnow-clicks.json';
-}
+$periods = tracker_periods();
+$period = tracker_resolve_period($_GET['period'] ?? 'today');
+$dashboard = tracker_build_dashboard($data, $period, $isIgnored);
 
-function tracker_data(): array
-{
-    $path = tracker_path();
-    if (!is_file($path) || !is_readable($path)) {
-        return [];
-    }
+$totalClicks = $dashboard['totalClicks'];
+$updatedAt = $dashboard['updatedAt'];
+$byPage = $dashboard['byPage'];
+$byButton = $dashboard['byButton'];
+$byIp = $dashboard['byIp'];
+$byTarget = $dashboard['byTarget'];
+$recent = $dashboard['recent'];
+$chart = $dashboard['chart'];
 
-    $raw = file_get_contents($path);
-    $data = json_decode($raw !== false ? $raw : '', true);
-    return is_array($data) ? $data : [];
-}
-
-function tracker_top(array $items): array
-{
-    arsort($items);
-    return $items;
-}
-
-function tracker_recent(array $data): array
-{
-    $recent = isset($data['recent']) && is_array($data['recent']) ? $data['recent'] : [];
-    return array_reverse($recent);
-}
-
-function tracker_period(string $period): array
-{
-    $tz = admin_display_timezone();
-    $now = new DateTimeImmutable('now', $tz);
-    return match ($period) {
-        'today' => [$now->setTime(0, 0), $now->modify('+1 day')->setTime(0, 0)],
-        'yesterday' => [$now->modify('-1 day')->setTime(0, 0), $now->setTime(0, 0)],
-        'this-week' => [$now->modify('monday this week')->setTime(0, 0), $now->modify('+1 week')->modify('monday this week')->setTime(0, 0)],
-        'this-month' => [$now->modify('first day of this month')->setTime(0, 0), $now->modify('first day of next month')->setTime(0, 0)],
-        'last-month' => [$now->modify('first day of last month')->setTime(0, 0), $now->modify('first day of this month')->setTime(0, 0)],
-        default => [null, null],
-    };
-}
-
-function tracker_event_date(array $event): ?DateTimeImmutable
-{
-    try {
-        $value = $event['time'] ?? $event['timestamp'] ?? null;
-        if ($value === null || $value === '') return null;
-        return is_numeric($value) ? (new DateTimeImmutable('@' . $value))->setTimezone(admin_display_timezone()) : (new DateTimeImmutable((string) $value, new DateTimeZone('UTC')))->setTimezone(admin_display_timezone());
-    } catch (Exception) { return null; }
-}
-
-function tracker_filtered(array $data, string $period): array
-{
-    [$from, $to] = tracker_period($period);
-    $events = [];
-    foreach (tracker_recent($data) as $event) {
-        $ip = (string) ($event['ip'] ?? '');
-        if ($ip !== '' && function_exists('blog_ip_is_ignored') && blog_ip_is_ignored($ip)) {
-            continue;
-        }
-        if ($period !== 'all') {
-            $date = tracker_event_date($event);
-            if ($date === null || $from === null || $date < $from || $date >= $to) {
-                continue;
-            }
-        }
-        $events[] = $event;
-    }
-    return $events;
-}
-
-function tracker_aggregate(array $events): array
-{
-    $result = ['byPage' => [], 'byButton' => [], 'byIp' => [], 'byTarget' => []];
-    foreach ($events as $event) {
-        $ip = (string) ($event['ip'] ?? '');
-        if ($ip !== '' && function_exists('blog_ip_is_ignored') && blog_ip_is_ignored($ip)) {
-            continue;
-        }
-        foreach (['byPage' => ($event['pagePath'] ?? ($event['pageUrl'] ?? '')), 'byButton' => ($event['buttonKey'] ?? ($event['buttonText'] ?? '')), 'byIp' => $ip, 'byTarget' => ($event['targetUrl'] ?? '')] as $bucket => $value) {
-            $result[$bucket][$value] = (int) ($result[$bucket][$value] ?? 0) + 1;
-        }
-    }
-    return $result;
-}
-
-$data = tracker_data();
-$period = (string) ($_GET['period'] ?? 'all');
-$periods = ['today' => 'Today', 'yesterday' => 'Yesterday', 'this-week' => 'This week', 'this-month' => 'This month', 'last-month' => 'Last month', 'all' => 'All'];
-if (!isset($periods[$period])) $period = 'all';
-$filteredEvents = tracker_filtered($data, $period);
-$filtered = tracker_aggregate($filteredEvents);
-$totalClicks = $period === 'all' ? (int) ($data['totalClicks'] ?? 0) : count($filteredEvents);
-$updatedAt = (string) ($data['updatedAt'] ?? '');
-$byPage = $period === 'all' && is_array($data['byPage'] ?? null) ? $data['byPage'] : $filtered['byPage'];
-$byButton = $period === 'all' && is_array($data['byButton'] ?? null) ? $data['byButton'] : $filtered['byButton'];
-$byIp = $period === 'all' && is_array($data['byIp'] ?? null) ? $data['byIp'] : $filtered['byIp'];
-$byTarget = $period === 'all' && is_array($data['byTarget'] ?? null) ? $data['byTarget'] : $filtered['byTarget'];
-if (is_array($byIp)) {
-    foreach (array_keys($byIp) as $ipKey) {
-        if (function_exists('blog_ip_is_ignored') && blog_ip_is_ignored((string) $ipKey)) {
-            unset($byIp[$ipKey]);
-        }
-    }
-}
-$recent = $filteredEvents;
 $notice = (string) ($_SESSION['tracker_notice'] ?? '');
 unset($_SESSION['tracker_notice']);
+
+// Precompute SVG bar chart geometry server-side for instant first paint (zero external chart libs).
+$chartBuckets = $chart['buckets'];
+$chartCount = count($chartBuckets);
+$chartMax = (int) $chart['maxCount'];
+$yTicks = tracker_chart_y_ticks($chartMax);
+$yMax = max(1, (int) ($yTicks[0] ?? 4));
+$svgW = 920;
+$svgH = 232;
+$padL = 46;
+$padR = 16;
+$padT = 20;
+$padB = 34;
+$plotW = $svgW - $padL - $padR;
+$plotH = $svgH - $padT - $padB;
+$slotW = $chartCount > 0 ? ($plotW / $chartCount) : $plotW;
+$barW = max(4.0, min(34.0, $slotW * 0.62));
+$labelStep = $chartCount <= 12 ? 1 : ($chartCount <= 24 ? 3 : ($chartCount <= 35 ? 5 : (int) ceil($chartCount / 8)));
+$displayTz = admin_display_timezone();
 ?>
 <!DOCTYPE html>
 <html lang="en-PH">
@@ -173,6 +102,132 @@ unset($_SESSION['tracker_notice']);
       font-size: 0.82rem;
       margin-top: 4px;
     }
+    .chart-card {
+      margin-bottom: 18px;
+    }
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .chart-meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8rem;
+    }
+    .chart-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: #fff;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+    .chart-pill strong {
+      color: var(--brand-dark);
+    }
+    .chart-pill--accent {
+      background: #fff8ea;
+      border-color: #f3d7a3;
+      color: var(--brand-dark);
+    }
+    .chart-wrap {
+      position: relative;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 10px 6px;
+    }
+    .chart-svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      overflow: visible;
+    }
+    .chart-grid-line {
+      stroke: #eaecf0;
+      stroke-width: 1;
+      stroke-dasharray: 3 3;
+    }
+    .chart-axis-line {
+      stroke: #d0d5dd;
+      stroke-width: 1;
+    }
+    .chart-axis-label {
+      fill: #667085;
+      font-size: 11px;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+    .chart-bar-value {
+      fill: #741f2b;
+      font-size: 10px;
+      font-weight: 700;
+      font-family: Arial, Helvetica, sans-serif;
+      pointer-events: none;
+    }
+    .chart-col {
+      cursor: pointer;
+      outline: none;
+    }
+    .chart-col .chart-hit {
+      fill: transparent;
+      transition: fill 0.12s ease;
+    }
+    .chart-col:hover .chart-hit,
+    .chart-col:focus .chart-hit {
+      fill: rgba(166, 47, 61, 0.06);
+    }
+    .chart-col .chart-bar {
+      fill: var(--brand);
+      transition: fill 0.12s ease;
+    }
+    .chart-col .chart-bar--peak {
+      fill: var(--brand-dark);
+    }
+    .chart-col .chart-bar--empty {
+      fill: #e4e7ec;
+    }
+    .chart-col:hover .chart-bar,
+    .chart-col:focus .chart-bar {
+      fill: var(--brand-dark);
+    }
+    .chart-tooltip {
+      position: absolute;
+      z-index: 10;
+      pointer-events: none;
+      background: #101828;
+      color: #ffffff;
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      line-height: 1.35;
+      box-shadow: 0 8px 20px rgba(16, 24, 40, 0.22);
+      white-space: nowrap;
+      opacity: 0;
+      transform: translate(-50%, -100%);
+      transition: opacity 0.1s ease;
+    }
+    .chart-tooltip.is-visible {
+      opacity: 1;
+    }
+    .chart-tooltip strong {
+      display: block;
+      font-size: 0.82rem;
+    }
+    .chart-empty-note {
+      text-align: center;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin: 6px 0 4px;
+    }
     .tracker-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -205,19 +260,6 @@ unset($_SESSION['tracker_notice']);
     .recent-card {
       grid-column: 1 / -1;
     }
-    .promo-form input,
-    .promo-form textarea {
-      width: 100%;
-      box-sizing: border-box;
-      padding: 9px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      font: inherit;
-    }
-    .promo-form textarea { min-height: 72px; resize: vertical; }
-    .promo-form label { display: block; margin-top: 10px; font-size: .82rem; font-weight: 800; }
-    .promo-form button { margin-top: 12px; }
-    .promo-image-preview { display:block; max-width:180px; max-height:100px; margin-top:8px; border:1px solid var(--border); border-radius:6px; object-fit:cover; }
     @media (max-width: 860px) {
       .admin-header,
       .tracker-grid {
@@ -267,6 +309,77 @@ unset($_SESSION['tracker_notice']);
             <span>User IPs</span>
           </div>
         </div>
+
+        <section class="tracker-card chart-card" aria-label="<?= h($chart['title']) ?>">
+          <div class="chart-header">
+            <div>
+              <h2 style="font-size:1.05rem; color:var(--brand-dark); margin:0 0 2px;"><?= h($chart['title']) ?></h2>
+              <p style="font-size:0.8rem; color:var(--text-muted); margin:0;"><?= h($chart['subtitle']) ?></p>
+            </div>
+            <div class="chart-meta">
+              <span class="chart-pill chart-pill--accent"><?= h($chart['granularityLabel']) ?></span>
+              <?php if ($chart['peakCount'] > 0): ?>
+                <span class="chart-pill">Peak: <strong><?= h($chart['peakLabel']) ?></strong> (<?= h(number_format($chart['peakCount'])) ?>)</span>
+              <?php else: ?>
+                <span class="chart-pill">No clicks in this period</span>
+              <?php endif; ?>
+            </div>
+          </div>
+
+          <div class="chart-wrap" id="tracker-chart-wrap">
+            <svg
+              class="chart-svg"
+              id="tracker-chart-svg"
+              viewBox="0 0 <?= $svgW ?> <?= $svgH ?>"
+              role="img"
+              aria-label="<?= h($chart['title'] . ' — ' . $chart['subtitle'] . ': ' . number_format($chart['totalClicks']) . ' clicks') ?>"
+            >
+              <?php foreach ($yTicks as $tick):
+                  $y = $padT + $plotH - (($tick / $yMax) * $plotH);
+              ?>
+                <line class="<?= $tick === 0 ? 'chart-axis-line' : 'chart-grid-line' ?>" x1="<?= $padL ?>" y1="<?= number_format($y, 1, '.', '') ?>" x2="<?= $svgW - $padR ?>" y2="<?= number_format($y, 1, '.', '') ?>" />
+                <text class="chart-axis-label" x="<?= $padL - 8 ?>" y="<?= number_format($y + 4, 1, '.', '') ?>" text-anchor="end"><?= h(number_format($tick)) ?></text>
+              <?php endforeach; ?>
+
+              <?php foreach ($chartBuckets as $idx => $bucket):
+                  $count = (int) $bucket['count'];
+                  $slotX = $padL + ($idx * $slotW);
+                  $centerX = $slotX + ($slotW / 2);
+                  $barX = $centerX - ($barW / 2);
+                  $barH = $count > 0 ? max(4.0, ($count / $yMax) * $plotH) : 2.0;
+                  $barY = $padT + $plotH - $barH;
+                  $share = $chart['totalClicks'] > 0 ? round(($count / $chart['totalClicks']) * 100, 1) : 0.0;
+                  $isPeak = $chartMax > 0 && $count === $chartMax;
+                  $barClass = $count === 0 ? 'chart-bar chart-bar--empty' : ($isPeak ? 'chart-bar chart-bar--peak' : 'chart-bar');
+                  $showXLabel = ($idx === 0) || ($idx === $chartCount - 1) || ($idx % $labelStep === 0 && ($chartCount - 1 - $idx) >= max(1, (int) floor($labelStep / 2)));
+              ?>
+                <g
+                  class="chart-col"
+                  tabindex="0"
+                  data-label="<?= h($bucket['fullLabel']) ?>"
+                  data-count="<?= $count ?>"
+                  data-share="<?= h(number_format($share, 1)) ?>"
+                  data-cx="<?= number_format($centerX, 1, '.', '') ?>"
+                  data-top="<?= number_format($barY, 1, '.', '') ?>"
+                >
+                  <title><?= h($bucket['fullLabel'] . ': ' . number_format($count) . ' click' . ($count === 1 ? '' : 's') . ($chart['totalClicks'] > 0 ? ' (' . number_format($share, 1) . '%)' : '')) ?></title>
+                  <rect class="chart-hit" x="<?= number_format($slotX, 1, '.', '') ?>" y="<?= $padT ?>" width="<?= number_format($slotW, 1, '.', '') ?>" height="<?= $plotH ?>" rx="3" />
+                  <rect class="<?= $barClass ?>" x="<?= number_format($barX, 1, '.', '') ?>" y="<?= number_format($barY, 1, '.', '') ?>" width="<?= number_format($barW, 1, '.', '') ?>" height="<?= number_format($barH, 1, '.', '') ?>" rx="<?= $count > 0 ? 3 : 1 ?>" />
+                  <?php if ($count > 0 && ($chartCount <= 14 || $isPeak)): ?>
+                    <text class="chart-bar-value" x="<?= number_format($centerX, 1, '.', '') ?>" y="<?= number_format(max(12.0, $barY - 5), 1, '.', '') ?>" text-anchor="middle"><?= h(number_format($count)) ?></text>
+                  <?php endif; ?>
+                </g>
+                <?php if ($showXLabel): ?>
+                  <text class="chart-axis-label" x="<?= number_format($centerX, 1, '.', '') ?>" y="<?= $svgH - 10 ?>" text-anchor="middle"><?= h($bucket['label']) ?></text>
+                <?php endif; ?>
+              <?php endforeach; ?>
+            </svg>
+            <div class="chart-tooltip" id="tracker-chart-tooltip" role="tooltip" aria-hidden="true"></div>
+            <?php if ($chart['totalClicks'] === 0): ?>
+              <p class="chart-empty-note">No tracked clicks recorded for <?= h($periods[$period]) ?> yet.</p>
+            <?php endif; ?>
+          </div>
+        </section>
 
         <div class="tracker-grid">
           <section class="tracker-card">
@@ -332,9 +445,14 @@ unset($_SESSION['tracker_notice']);
                 </tr>
               </thead>
               <tbody>
-                <?php foreach ($recent as $event): ?>
+                <?php foreach ($recent as $event):
+                    $eventTs = tracker_event_timestamp($event);
+                    $formattedTime = $eventTs !== null
+                        ? (new DateTimeImmutable('@' . $eventTs))->setTimezone($displayTz)->format('M j, Y, g:i A')
+                        : (admin_format_date($event['time'] ?? '') ?: (string) ($event['time'] ?? ''));
+                ?>
                   <tr>
-                    <td><time datetime="<?= h($event['time'] ?? '') ?>"><?= h(admin_format_date($event['time'] ?? '') ?: ($event['time'] ?? '')) ?></time></td>
+                    <td><time datetime="<?= h($event['time'] ?? '') ?>"><?= h($formattedTime) ?></time></td>
                     <td class="value-cell"><?= h($event['pagePath'] ?? ($event['pageUrl'] ?? '')) ?></td>
                     <td class="value-cell"><?= h($event['buttonText'] ?? '') ?></td>
                     <td class="value-cell"><?= h($event['section'] ?? ($event['location'] ?? '')) ?></td>
@@ -350,37 +468,55 @@ unset($_SESSION['tracker_notice']);
     </main>
   </div>
   <script>
-    document.querySelectorAll('.promo-image-upload').forEach((input) => {
-      input.addEventListener('change', async () => {
-        const file = input.files && input.files[0];
-        const form = input.closest('form');
-        const status = form?.querySelector('.promo-image-status');
-        const preview = form?.querySelector('.promo-image-preview');
-        const hidden = form?.querySelector('input[name="og_image"]');
-        const csrf = form?.querySelector('input[name="csrf_token"]');
-        if (!file || !form || !status || !preview || !hidden || !csrf) return;
-        status.textContent = 'Uploading image...';
-        const data = new FormData();
-        data.append('image', file);
-        data.append('csrf_token', csrf.value);
-        try {
-          const response = await fetch('/admin/upload-image.php', { method: 'POST', body: data, credentials: 'same-origin' });
-          const result = await response.json();
-          if (!response.ok || !result.ok || !result.path) throw new Error(result.error || 'Image upload failed.');
-          hidden.value = result.path;
-          preview.src = result.path;
-          preview.hidden = false;
-          status.textContent = 'Image uploaded.';
-          if (result.csrfToken) {
-            document.querySelectorAll('input[name="csrf_token"]').forEach((field) => { field.value = result.csrfToken; });
-          }
-        } catch (error) {
-          status.textContent = error.message || 'Image upload failed.';
-        } finally {
-          input.value = '';
-        }
+    (() => {
+      const svg = document.getElementById('tracker-chart-svg');
+      const wrap = document.getElementById('tracker-chart-wrap');
+      const tip = document.getElementById('tracker-chart-tooltip');
+      if (!svg || !wrap || !tip) return;
+
+      const showTip = (col) => {
+        const label = col.getAttribute('data-label') || '';
+        const count = Number(col.getAttribute('data-count') || '0');
+        const share = col.getAttribute('data-share') || '0.0';
+        const cx = Number(col.getAttribute('data-cx') || '0');
+        const top = Number(col.getAttribute('data-top') || '0');
+        const wrapRect = wrap.getBoundingClientRect();
+        const svgRect = svg.getBoundingClientRect();
+        const scaleX = svgRect.width / <?= $svgW ?>;
+        const scaleY = svgRect.height / <?= $svgH ?>;
+        const left = (svgRect.left - wrapRect.left) + (cx * scaleX);
+        const posTop = (svgRect.top - wrapRect.top) + (top * scaleY) - 8;
+
+        tip.textContent = '';
+        const strong = document.createElement('strong');
+        strong.textContent = label;
+        const line = document.createElement('span');
+        line.textContent = count.toLocaleString() + (count === 1 ? ' click' : ' clicks') + (count > 0 ? ' (' + share + '%)' : '');
+        tip.append(strong, line);
+
+        const clampedLeft = Math.max(78, Math.min(wrapRect.width - 78, left));
+        tip.style.left = clampedLeft + 'px';
+        tip.style.top = Math.max(38, posTop) + 'px';
+        tip.classList.add('is-visible');
+        tip.setAttribute('aria-hidden', 'false');
+      };
+
+      const hideTip = () => {
+        tip.classList.remove('is-visible');
+        tip.setAttribute('aria-hidden', 'true');
+      };
+
+      svg.addEventListener('mouseover', (event) => {
+        const col = event.target.closest('.chart-col');
+        if (col) showTip(col);
       });
-    });
+      svg.addEventListener('mouseleave', hideTip);
+      svg.addEventListener('focusin', (event) => {
+        const col = event.target.closest('.chart-col');
+        if (col) showTip(col);
+      });
+      svg.addEventListener('focusout', hideTip);
+    })();
   </script>
 </body>
 </html>

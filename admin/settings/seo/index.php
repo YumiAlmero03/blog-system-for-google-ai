@@ -41,7 +41,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['indexnow_action'])) 
                 $json = file_get_contents($file['tmp_name']);
             }
             $indexingEnabled = isset($_POST['google_indexing_enabled']);
-            google_save_configuration(trim((string)($_POST['google_property'] ?? '')), $json, $action === 'remove', $indexingEnabled);
+            $autoSubmitUnindexed = isset($_POST['google_indexing_auto_submit']);
+            google_save_configuration(trim((string)($_POST['google_property'] ?? '')), $json, $action === 'remove', $indexingEnabled, $autoSubmitUnindexed);
             $googleMessage = $action === 'remove' ? 'Google credentials removed.' : 'Google configuration saved. Sitemap submission is queued for cron.';
         } elseif ($action === 'queue') {
             $state = google_state(); $original = $state; $state['submission_pending'] = true; google_write_state($state,$original);
@@ -79,7 +80,7 @@ $fields = ['website_name'=>'Website Name','website_url'=>'Website URL','google_a
 <section class="user-form">
 <h2>Google API / Search Console &amp; Indexing API</h2>
 <p>Connection Status (last test): <strong><?= h($googleStatus['status']) ?></strong></p>
-<p>Google Indexing API (URL Submit): <strong><?= !empty($googleStatus['indexing_api_enabled']) ? 'Enabled' : 'Disabled' ?></strong></p>
+<p>Google Indexing API (URL Submit): <strong><?= !empty($googleStatus['indexing_api_enabled']) ? 'Enabled' : 'Disabled' ?></strong><?php if (!empty($googleStatus['indexing_api_enabled'])): ?> · Auto-submit unindexed URLs: <strong><?= !empty($googleStatus['auto_submit_unindexed']) ? 'Enabled' : 'Disabled' ?></strong><?php endif; ?></p>
 <?php if ($googleStatus['email']): ?><p>Service account: <?= h($googleStatus['email']) ?></p><?php endif; ?>
 <?php if ($googleMessage): ?><p role="status"><?= h($googleMessage) ?></p><?php endif; ?>
 <?php if (($_SESSION['user']['role'] ?? '') === 'super_user'): ?>
@@ -87,6 +88,7 @@ $fields = ['website_name'=>'Website Name','website_url'=>'Website URL','google_a
 <?= csrf_input() ?>
 <p><label>Search Console Property<br><input name="google_property" value="<?= h($googleStatus['property'] ?: (seo_settings()['website_url'] ?? '')) ?>" placeholder="https://bygame.ph/ or sc-domain:bygame.ph" maxlength="2048" style="width:100%;max-width:720px"></label><br><small style="color:var(--text-muted);">Enter the exact property name from Google Search Console (e.g. <code>https://bygame.ph/</code> with trailing slash, or <code>sc-domain:bygame.ph</code> for Domain property).</small></p>
 <p><label><input type="checkbox" name="google_indexing_enabled" value="1" <?= !empty($googleStatus['indexing_api_enabled']) ? 'checked' : '' ?>> Enable Google Indexing API (Direct URL Submit)</label><br><small style="color:var(--text-muted);">Directly submits published/updated/deleted URLs to Google Indexing API. Daily quota limit is 200 requests/day per Google Cloud project.</small></p>
+<p><label><input type="checkbox" name="google_indexing_auto_submit" value="1" <?= !array_key_exists('auto_submit_preference', $googleStatus) || !empty($googleStatus['auto_submit_preference']) ? 'checked' : '' ?>> Auto-submit Not Indexed &amp; unsubmitted sitemap URLs in cron</label><br><small style="color:var(--text-muted);">Automatically submits eligible Not Indexed and unsubmitted sitemap URLs (blogs → pages → games) during scheduled cron runs without manual clicks, within your daily quota and resubmit interval (default 7 days).</small></p>
 <p><label>Service Account JSON<br><input type="file" name="service_account" accept=".json,application/json"></label></p>
 <p><small>Add the displayed service-account email to this property's Search Console permissions (Settings → Users and permissions). Uploaded keys are stored privately and never displayed.</small></p>
 <button class="btn btn-primary btn-sm" name="google_action" value="save">Save / Replace Credentials</button>

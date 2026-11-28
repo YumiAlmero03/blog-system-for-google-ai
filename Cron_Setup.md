@@ -59,7 +59,7 @@ Before configuring your cron jobs, replace the placeholders with your server's a
 ---
 
 ### Task 2: Search Engine Indexing & IndexNow
-* **Purpose**: Sends URL notifications to the Google Indexing API, pings IndexNow (Bing/Yandex), and submits sitemaps to Google Search Console.
+* **Purpose**: Reconciles published blogs & games, submits sitemaps to Google Search Console, inspects due URLs via Search Console URL Inspection, **automatically queues and submits eligible `Not Indexed` & unsubmitted sitemap URLs (blogs → pages → games) to the Google Indexing API** within the 200/day rolling quota (50/run by default, re-submitting still-`Not Indexed` URLs every 7 days), and pings IndexNow (Bing/Yandex).
 * **Type of Task**: `Shell Script`
 * **Name of Task**: `[Site] Search Engine Indexing`
 * **Execution cycle**: `N Minute` → `30` (Every 30 minutes)
@@ -68,6 +68,7 @@ Before configuring your cron jobs, replace the placeholders with your server's a
   cd /www/wwwroot/YOUR_SITE || exit 1
   php admin/scripts/check-google-indexing.php
   ```
+* **Optional Separate Browser Worker**: If you later decide to also automate Google Search Console's browser **Request indexing** button (not required for API + IndexNow cron above), see `admin/scripts/gsc-browser/README.md` for its separate non-root cron setup.
 
 ---
 
