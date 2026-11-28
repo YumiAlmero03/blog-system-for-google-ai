@@ -9,6 +9,15 @@ require_once __DIR__ . '/includes/default-image.php';
 require_auth();
 
 require_once __DIR__ . '/includes/settings-replace.php';
+require_once __DIR__ . '/includes/repo-update.php';
+
+if (isset($_GET['action']) && $_GET['action'] === 'check_repo_status') {
+    header('Content-Type: application/json; charset=UTF-8');
+    header('Cache-Control: no-store, max-age=0');
+    $force = isset($_GET['force']) && ($_GET['force'] === '1' || $_GET['force'] === 'true');
+    echo json_encode(repo_current_status($force));
+    exit;
+}
 
 function settings_post_value(string $key, int $maxLength): string
 {
@@ -26,9 +35,11 @@ $database = 'blogs';
 $result = null;
 $notice = '';
 $noticeType = '';
+$updateOutput = '';
 $websiteTitle = blog_website_title();
 $chatAiName = chat_ai_name();
 $ignoredEngagementIps = blog_ignored_engagement_ips();
+$repoStatus = repo_current_status(false);
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     require_valid_csrf();
@@ -99,6 +110,51 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         } catch (Throwable $exception) {
             error_log('Settings ignored IP error: ' . $exception->getMessage());
             $notice = 'Ignored IP addresses could not be saved.';
+            $noticeType = 'error';
+        }
+    } elseif ($action === 'pull_repo_update') {
+        require_admin();
+        try {
+            $updateResult = repo_run_update();
+            if ($updateResult['ok']) {
+                $notice = 'Update complete! ' . ($updateResult['message'] ?? 'Pulled latest updates.');
+                if (!empty($updateResult['backup'])) {
+                    $notice .= ' Backup created at: ' . $updateResult['backup'];
+                }
+                $noticeType = 'ok';
+            } else {
+                $notice = 'Update failed: ' . ($updateResult['error'] ?? 'Unknown error.');
+                if (!empty($updateResult['backup'])) {
+                    $notice .= ' (Backup preserved at: ' . $updateResult['backup'] . ')';
+                }
+                $noticeType = 'error';
+            }
+            $updateOutput = $updateResult['output'] ?? '';
+            $repoStatus = repo_current_status(true);
+            csrf_rotate();
+        } catch (Throwable $exception) {
+            error_log('Settings repo update error: ' . $exception->getMessage());
+            $notice = 'Update failed: ' . $exception->getMessage();
+            $noticeType = 'error';
+        }
+    } elseif ($action === 'check_repo_update') {
+        require_admin();
+        try {
+            $repoStatus = repo_current_status(true);
+            if (!empty($repoStatus['error'])) {
+                $notice = 'Update check: ' . $repoStatus['error'];
+                $noticeType = 'error';
+            } elseif (!empty($repoStatus['has_update'])) {
+                $notice = 'New update available! ' . (int) $repoStatus['behind_count'] . ' new commit(s) ready on ' . ($repoStatus['remote_branch'] ?? 'v2') . '.';
+                $noticeType = 'ok';
+            } else {
+                $notice = 'System is up to date with ' . ($repoStatus['remote_branch'] ?? 'v2') . '.';
+                $noticeType = 'ok';
+            }
+            csrf_rotate();
+        } catch (Throwable $exception) {
+            error_log('Settings repo check error: ' . $exception->getMessage());
+            $notice = 'Update check failed: ' . $exception->getMessage();
             $noticeType = 'error';
         }
     } elseif ($action === 'preview' || $action === 'replace') {
@@ -203,6 +259,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
       gap: 10px;
       align-items: center;
       justify-content: flex-end;
+    }
+    @keyframes updatePulse {
+      0% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.4); }
+      70% { box-shadow: 0 0 0 8px rgba(217, 119, 6, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0); }
+    }
+    .pulse-button {
+      animation: updatePulse 2s infinite;
     }
     .notice {
       display: none;
@@ -330,6 +394,84 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             </div>
           </form>
 
+          <form method="post" class="settings-card" id="repo-update-card">
+            <?= csrf_input() ?>
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; margin-bottom:12px;">
+              <div>
+                <h2 style="font-size:1.15rem; color:var(--brand-dark); margin:0 0 4px;">System Update</h2>
+                <p style="font-size:0.85rem; color:var(--text-muted); margin:0;">Check for updates from the Git repository and pull the latest release.</p>
+              </div>
+              <div id="repo-badge-container">
+                <?php if (empty($repoStatus['is_git'])): ?>
+                  <span class="badge" style="display:inline-block; padding:4px 10px; border-radius:4px; font-size:0.8rem; font-weight:700; background:#f0f2f5; color:#5e6c84;">Git Not Detected</span>
+                <?php elseif (!empty($repoStatus['has_update'])): ?>
+                  <span class="badge" style="display:inline-block; padding:4px 10px; border-radius:4px; font-size:0.8rem; font-weight:700; background:#fff4e5; color:#b76e00; border:1px solid #ffcc80;">Update Available (<?= (int) $repoStatus['behind_count'] ?>)</span>
+                <?php else: ?>
+                  <span class="badge" style="display:inline-block; padding:4px 10px; border-radius:4px; font-size:0.8rem; font-weight:700; background:#e9f8ef; color:#0d6630; border:1px solid #9bd5af;">Up to Date</span>
+                <?php endif; ?>
+              </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin:14px 0; padding:12px; background:#fff; border:1px solid var(--border); border-radius:6px; font-size:0.85rem;">
+              <div>
+                <strong style="display:block; color:var(--text-muted); font-size:0.75rem; text-transform:uppercase; margin-bottom:2px;">Current Branch</strong>
+                <span id="repo-branch" style="font-weight:700; color:var(--brand-dark);"><?= h($repoStatus['branch'] ?? 'v2') ?></span>
+              </div>
+              <div>
+                <strong style="display:block; color:var(--text-muted); font-size:0.75rem; text-transform:uppercase; margin-bottom:2px;">Current Commit</strong>
+                <span id="repo-commit" style="font-family:monospace; font-weight:700; color:var(--brand-dark);"><?= h($repoStatus['head']['short'] ?? 'Unknown') ?></span>
+                <span id="repo-commit-msg" style="display:block; font-size:0.78rem; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:240px;"><?= h($repoStatus['head']['message'] ?? '') ?></span>
+              </div>
+              <div>
+                <strong style="display:block; color:var(--text-muted); font-size:0.75rem; text-transform:uppercase; margin-bottom:2px;">Remote Tracking</strong>
+                <span id="repo-upstream" style="font-weight:700; color:var(--brand-dark);"><?= h($repoStatus['upstream'] ?? 'origin/v2') ?></span>
+              </div>
+              <div>
+                <strong style="display:block; color:var(--text-muted); font-size:0.75rem; text-transform:uppercase; margin-bottom:2px;">Status / Last Checked</strong>
+                <span id="repo-status-text" style="font-weight:700; color:var(--brand-dark);"><?= h($repoStatus['checked_at'] ?? 'Checking...') ?></span>
+              </div>
+            </div>
+
+            <div id="repo-message-area">
+              <?php if (!empty($repoStatus['has_uncommitted'])): ?>
+                <div style="padding:10px 14px; background:#fff8e6; border:1px solid #ffd591; border-radius:6px; font-size:0.85rem; color:#873800; margin-bottom:12px;">
+                  <strong>Notice:</strong> Uncommitted local code changes detected (<?= count($repoStatus['uncommitted_files'] ?? []) ?> files). Updating requires a clean working tree.
+                </div>
+              <?php elseif (!empty($repoStatus['has_update'])): ?>
+                <div style="padding:10px 14px; background:#e6f7ff; border:1px solid #91d5ff; border-radius:6px; font-size:0.85rem; color:#0050b3; margin-bottom:12px;">
+                  <strong>New version available:</strong> There are <?= (int) $repoStatus['behind_count'] ?> new commit(s) ready to pull from <?= h($repoStatus['remote_branch'] ?? 'v2') ?>.
+                </div>
+              <?php endif; ?>
+            </div>
+
+            <div id="repo-commits-container" style="<?= empty($repoStatus['new_commits']) ? 'display:none;' : '' ?> margin:14px 0;">
+              <strong style="display:block; font-size:0.85rem; margin-bottom:6px; color:var(--brand-dark);">New Commits in Update:</strong>
+              <ul id="repo-commits-list" style="margin:0; padding:0; list-style:none; display:grid; gap:6px;">
+                <?php foreach ($repoStatus['new_commits'] ?? [] as $commit): ?>
+                  <li style="padding:8px 10px; background:#fff; border:1px solid var(--border); border-radius:4px; font-size:0.82rem; display:flex; justify-content:space-between; gap:8px;">
+                    <div>
+                      <code style="font-weight:700; color:var(--brand);"><?= h($commit['short']) ?></code>
+                      <span><?= h($commit['message']) ?></span>
+                    </div>
+                    <span style="color:var(--text-muted); font-size:0.78rem; white-space:nowrap;"><?= h($commit['time'] ?: $commit['author']) ?></span>
+                  </li>
+                <?php endforeach; ?>
+              </ul>
+            </div>
+
+            <?php if ($updateOutput !== ''): ?>
+              <div style="margin:14px 0;">
+                <label style="font-weight:700; font-size:0.84rem; color:var(--brand-dark);">Update Log:</label>
+                <pre style="background:#1e1e1e; color:#d4d4d4; padding:12px; border-radius:6px; font-size:0.82rem; overflow-x:auto; margin-top:4px; max-height:200px;"><?= h($updateOutput) ?></pre>
+              </div>
+            <?php endif; ?>
+
+            <div class="actions" style="margin-top:14px;">
+              <button type="button" id="btn-check-updates" class="btn btn-secondary btn-sm">Check for Updates</button>
+              <button type="submit" name="action" value="pull_repo_update" id="btn-pull-update" class="btn btn-primary btn-sm <?= !empty($repoStatus['has_update']) ? 'pulse-button' : '' ?>" <?= empty($repoStatus['is_git']) ? 'disabled' : '' ?>>Pull Latest Update</button>
+            </div>
+          </form>
+
           <form method="post" class="settings-card">
             <?= csrf_input() ?>
             <div class="form-row">
@@ -403,5 +545,142 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
       </div>
     </main>
   </div>
+  <script>
+  (function() {
+    const card = document.getElementById('repo-update-card');
+    if (!card) return;
+
+    const btnCheck = document.getElementById('btn-check-updates');
+    const btnPull = document.getElementById('btn-pull-update');
+    const badgeContainer = document.getElementById('repo-badge-container');
+    const branchEl = document.getElementById('repo-branch');
+    const commitEl = document.getElementById('repo-commit');
+    const commitMsgEl = document.getElementById('repo-commit-msg');
+    const upstreamEl = document.getElementById('repo-upstream');
+    const statusTextEl = document.getElementById('repo-status-text');
+    const msgArea = document.getElementById('repo-message-area');
+    const commitsContainer = document.getElementById('repo-commits-container');
+    const commitsList = document.getElementById('repo-commits-list');
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/[&<>"']/g, function(m) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+      });
+    }
+
+    function renderStatus(data) {
+      if (!data || !data.ok) {
+        if (statusTextEl) statusTextEl.textContent = 'Check failed';
+        return;
+      }
+
+      if (!data.is_git) {
+        badgeContainer.innerHTML = '<span class="badge" style="display:inline-block; padding:4px 10px; border-radius:4px; font-size:0.8rem; font-weight:700; background:#f0f2f5; color:#5e6c84;">Git Not Detected</span>';
+        if (btnPull) btnPull.disabled = true;
+        msgArea.innerHTML = '<div style="padding:10px 14px; background:#fff1f1; border:1px solid #ffa39e; border-radius:6px; font-size:0.85rem; color:#cf1322;">Git repository not detected (.git directory is missing). Standard update package installation applies.</div>';
+        return;
+      }
+
+      if (branchEl) branchEl.textContent = data.branch || 'v2';
+      if (commitEl) commitEl.textContent = data.head?.short || 'Unknown';
+      if (commitMsgEl) commitMsgEl.textContent = data.head?.message || '';
+      if (upstreamEl) upstreamEl.textContent = data.upstream || 'origin/v2';
+      if (statusTextEl) statusTextEl.textContent = data.checked_at ? data.checked_at : 'Just now';
+
+      if (data.has_uncommitted) {
+        badgeContainer.innerHTML = '<span class="badge" style="display:inline-block; padding:4px 10px; border-radius:4px; font-size:0.8rem; font-weight:700; background:#fff2e8; color:#d4380d; border:1px solid #ffbb96;">Uncommitted Changes</span>';
+        msgArea.innerHTML = '<div style="padding:10px 14px; background:#fff8e6; border:1px solid #ffd591; border-radius:6px; font-size:0.85rem; color:#873800; margin-bottom:12px;"><strong>Notice:</strong> Uncommitted local code changes detected (' + (data.uncommitted_files ? data.uncommitted_files.length : 0) + ' files). Commit or discard them first to update.</div>';
+        if (btnPull) btnPull.disabled = true;
+        commitsContainer.style.display = 'none';
+      } else if (data.has_update) {
+        badgeContainer.innerHTML = '<span class="badge" style="display:inline-block; padding:4px 10px; border-radius:4px; font-size:0.8rem; font-weight:700; background:#fff4e5; color:#b76e00; border:1px solid #ffcc80;">Update Available (' + data.behind_count + ')</span>';
+        msgArea.innerHTML = '<div style="padding:10px 14px; background:#e6f7ff; border:1px solid #91d5ff; border-radius:6px; font-size:0.85rem; color:#0050b3; margin-bottom:12px;"><strong>New version available:</strong> There ' + (data.behind_count === 1 ? 'is 1 new commit' : 'are ' + data.behind_count + ' new commits') + ' ready to pull from ' + escapeHtml(data.remote_branch || 'v2') + '.</div>';
+        if (btnPull) {
+          btnPull.disabled = false;
+          btnPull.classList.add('pulse-button');
+        }
+
+        if (data.new_commits && data.new_commits.length > 0) {
+          commitsContainer.style.display = 'block';
+          commitsList.innerHTML = data.new_commits.map(function(c) {
+            return '<li style="padding:8px 10px; background:#fff; border:1px solid var(--border); border-radius:4px; font-size:0.82rem; display:flex; justify-content:space-between; gap:8px;">' +
+              '<div><code style="font-weight:700; color:var(--brand);">' + escapeHtml(c.short) + '</code> <span>' + escapeHtml(c.message) + '</span></div>' +
+              '<span style="color:var(--text-muted); font-size:0.78rem; white-space:nowrap;">' + escapeHtml(c.time || c.author) + '</span>' +
+            '</li>';
+          }).join('');
+        } else {
+          commitsContainer.style.display = 'none';
+        }
+      } else {
+        badgeContainer.innerHTML = '<span class="badge" style="display:inline-block; padding:4px 10px; border-radius:4px; font-size:0.8rem; font-weight:700; background:#e9f8ef; color:#0d6630; border:1px solid #9bd5af;">Up to Date</span>';
+        let msg = 'You are running the latest version from ' + escapeHtml(data.remote_branch || 'v2') + '.';
+        if (data.ahead_count > 0) {
+          msg += ' (Local branch is ahead by ' + data.ahead_count + ' commit' + (data.ahead_count === 1 ? '' : 's') + '.)';
+        }
+        msgArea.innerHTML = '<div style="padding:10px 14px; background:#f6ffed; border:1px solid #b7eb8f; border-radius:6px; font-size:0.85rem; color:#389e0d; margin-bottom:12px;">' + escapeHtml(msg) + '</div>';
+        if (btnPull) {
+          btnPull.disabled = false;
+          btnPull.classList.remove('pulse-button');
+        }
+        commitsContainer.style.display = 'none';
+      }
+    }
+
+    async function checkUpdates(force) {
+      if (btnCheck) {
+        btnCheck.disabled = true;
+        btnCheck.textContent = 'Checking...';
+      }
+      if (statusTextEl) statusTextEl.textContent = 'Checking repository...';
+      try {
+        const res = await fetch('/admin/settings.php?action=check_repo_status' + (force ? '&force=1' : ''), {
+          headers: { 'Accept': 'application/json' },
+          cache: 'no-store'
+        });
+        if (res.ok) {
+          const data = await res.json();
+          renderStatus(data);
+        } else {
+          if (statusTextEl) statusTextEl.textContent = 'Check failed (HTTP ' + res.status + ')';
+        }
+      } catch (err) {
+        if (statusTextEl) statusTextEl.textContent = 'Network error while checking';
+      } finally {
+        if (btnCheck) {
+          btnCheck.disabled = false;
+          btnCheck.textContent = 'Check for Updates';
+        }
+      }
+    }
+
+    if (btnCheck) {
+      btnCheck.addEventListener('click', function() { checkUpdates(true); });
+    }
+
+    card.addEventListener('submit', function(e) {
+      const clicked = document.activeElement;
+      if (clicked && clicked.name === 'action' && clicked.value === 'pull_repo_update') {
+        const confirmed = confirm("Are you sure you want to pull the latest update from the repository?\n\nA full backup of your databases, uploads, and files will be automatically created before updating.");
+        if (!confirmed) {
+          e.preventDefault();
+          return;
+        }
+        btnPull.disabled = true;
+        btnPull.textContent = 'Updating & creating backup...';
+      }
+    });
+
+    // Always check when opening Settings page
+    checkUpdates(true);
+
+    // Periodic re-check every 3 minutes if tab is visible
+    setInterval(function() {
+      if (document.visibilityState === 'visible') {
+        checkUpdates(true);
+      }
+    }, 180000);
+  })();
+  </script>
 </body>
 </html>

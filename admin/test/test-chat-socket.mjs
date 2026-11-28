@@ -28,9 +28,13 @@ let aiRequests = 0, lastPrompt;
 const mock = http.createServer(async (req, res) => {
   let raw = ''; for await (const chunk of req) raw += chunk;
   const body = JSON.parse(raw); lastPrompt = body;
-  assert.equal(req.url, '/api/chat'); assert.equal(body.stream, false); assert.equal(body.model, 'test-model');
+  assert.equal(req.url, '/api/v1/chat/completions');
+  assert.equal(req.headers.authorization, 'Bearer test-key');
+  assert.equal(body.stream, false);
+  assert.equal(body.model, 'nvidia/nemotron-3.5-super-vl:free');
+  assert.deepEqual(body.reasoning, { effort: 'low', exclude: true });
   aiRequests++; res.setHeader('Content-Type', 'application/json');
-  res.end(JSON.stringify({ message: { role: 'assistant', content: 'How can I help?' } }));
+  res.end(JSON.stringify({ choices: [{ message: { role: 'assistant', content: 'How can I help?' } }] }));
 });
 const freePort = async () => {
   const server = http.createServer(); server.listen(0, '127.0.0.1'); await once(server, 'listening');
@@ -47,8 +51,8 @@ try {
   const phpPort = await freePort(), wsPort = await freePort();
   const origin = `http://127.0.0.1:${phpPort}`, api = `${origin}/api/chat-session.php`;
   const env = { ...process.env, APP_STORAGE_DIR: `${dir}/storage`, CHAT_STORAGE_DIR: `${dir}/chats`,
-    CHAT_AI_ENABLED: '1', CHAT_AI_MODEL: 'test-model', OLLAMA_API_KEY: 'test-key',
-    OLLAMA_CHAT_URL: `http://127.0.0.1:${mock.address().port}/api/chat`, SITE_BASE_URL: origin,
+    CHAT_AI_ENABLED: '1', OPENROUTER_API_KEY: 'test-key',
+    OPENROUTER_API_URL: `http://127.0.0.1:${mock.address().port}/api/v1/chat/completions`, SITE_BASE_URL: origin,
     CHAT_BACKEND_URL: api, CHAT_ALLOWED_ORIGINS: origin, CHAT_WS_PORT: String(wsPort),
     ADMIN_USERNAME: 'chat-test-admin', ADMIN_JWT_SECRET: 'chat-test-secret-'.repeat(4) };
   env.ADMIN_PASSWORD_HASH = await run('php', ['-r', "echo password_hash('Chat test password!',PASSWORD_DEFAULT);"], env);

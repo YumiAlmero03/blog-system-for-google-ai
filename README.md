@@ -15,7 +15,7 @@ This index lives at `admin/README.md`. Start here when looking for project docum
 
 ## Development
 
-- [AI llms.txt generator](/admin/scripts/README.md#generate-llmsphp) — Generate or update public `llms.txt` from sitemaps with Ollama.
+- [AI llms.txt generator](/admin/scripts/README.md#generate-llmsphp) — Generate or update public `llms.txt` from sitemaps with OpenRouter (`nvidia/nemotron-3.5-super-vl:free`).
 - [Scripts guide](/admin/scripts/README.md) — Utility script requirements, commands, and maintenance precautions.
 - [Cron guide](/Cron_Setup.md) — Utility script requirements, commands, and maintenance precautions.
 - [System Implementation Prompt](/SYSTEM_IMPLEMENTATION_PROMPT.md) — Copy-paste AI agent prompt to replicate this system's features, integrations, fixes, cron jobs, and tests in a newly created site.

@@ -29,7 +29,7 @@ Before configuring your cron jobs, replace the placeholders with your server's a
 | Task | Frequency | aaPanel Cycle | Script Path |
 | :--- | :--- | :--- | :--- |
 | **1. Blog Scheduler** *(Critical)* | Every 1 minute | **N Minute** (`1 Minute`) | `admin/scripts/publish-scheduled-blogs.php` |
-| **2. Google Indexing & IndexNow** | Every 30 minutes | **N Minute** (`30 Minute`) | `admin/scripts/check-google-indexing.php` |
+| **2. Search Console & IndexNow** | Every 30 minutes | **N Minute** (`30 Minute`) | `admin/scripts/check-google-indexing.php` |
 | **3. Sports Logo Enrichment** | Daily at 03:00 AM | **Daily** (`03:00`) | `admin/plugin/odds-api/scripts/daily-sports-images.php` |
 | **4. Game Sitemaps Generation** | Daily at 04:00 AM | **Daily** (`04:00`) | `admin/plugin/games/scripts/generate-game-sitemaps.php` |
 | **5. AI Game Descriptions** *(Optional)* | Daily at 02:00 AM | **Daily** (`02:00`) | `admin/plugin/games/scripts/enrich-games-daily.py` |
@@ -46,7 +46,7 @@ Before configuring your cron jobs, replace the placeholders with your server's a
 ---
 
 ### Task 1: Blog Scheduler *(Auto-Publish Scheduled Posts)*
-* **Purpose**: Checks for scheduled blog posts whose publish time has arrived, changes status to published, clears the API cache, and queues Google Indexing pings.
+* **Purpose**: Checks for scheduled blog posts whose publish time has arrived, changes status to published, clears the API cache, and queues indexing records for Search Console inspection and IndexNow processing.
 * **Type of Task**: `Shell Script`
 * **Name of Task**: `[Site] Blog Scheduler`
 * **Execution cycle**: `N Minute` → `1` (Every 1 minute)
@@ -57,8 +57,8 @@ Before configuring your cron jobs, replace the placeholders with your server's a
 
 ---
 
-### Task 2: Search Engine Indexing & IndexNow
-* **Purpose**: Sends URL notifications to the Google Indexing API, pings IndexNow (Bing/Yandex), and submits sitemaps to Google Search Console.
+### Task 2: Search Console & IndexNow
+* **Purpose**: Reconciles published blogs & games, submits sitemap updates to Google Search Console, inspects due URLs via Search Console URL Inspection, and pings IndexNow (Bing/Yandex). This scheduled worker does not send per-URL notifications to Google's Indexing API; manual URL submissions remain available in the Index Checker.
 * **Type of Task**: `Shell Script`
 * **Name of Task**: `[Site] Search Engine Indexing`
 * **Execution cycle**: `N Minute` → `30` (Every 30 minutes)
@@ -66,6 +66,7 @@ Before configuring your cron jobs, replace the placeholders with your server's a
   ```bash
   /www/server/php/82/bin/php '/www/wwwroot/YOUR_SITE/admin/scripts/check-google-indexing.php'
   ```
+* **Optional Separate Browser Worker**: If you later decide to automate Google Search Console's browser **Request indexing** button, see `admin/scripts/gsc-browser/README.md` for its separate non-root cron setup.
 
 ---
 
@@ -95,7 +96,7 @@ Before configuring your cron jobs, replace the placeholders with your server's a
 ---
 
 ### Task 5: AI Game Descriptions *(Optional)*
-* **Purpose**: Uses Ollama (configured in `admin/.env`) to write AI descriptions for newly imported games so they qualify for `done_processing=1` public listing.
+* **Purpose**: Uses OpenRouter (`OPENROUTER_API_KEY` in `admin/.env`, default model `nvidia/nemotron-3.5-super-vl:free`) to write AI descriptions for newly imported games so they qualify for `done_processing=1` public listing.
 * **Type of Task**: `Shell Script`
 * **Name of Task**: `[Site] AI Game Descriptions`
 * **Execution cycle**: `Daily` → `02:00`
@@ -133,7 +134,7 @@ Paste the following entries (remember to update `/www/server/php/82/bin/php` and
 # 1. Blog Scheduler - runs every minute
 * * * * * /www/server/php/82/bin/php '/www/wwwroot/YOUR_SITE/admin/scripts/publish-scheduled-blogs.php' >> /www/wwwroot/YOUR_SITE/admin/storage/blog-scheduler.log 2>&1
 
-# 2. Google Indexing & IndexNow - runs every 30 minutes
+# 2. Search Console & IndexNow - runs every 30 minutes
 */30 * * * * /www/server/php/82/bin/php '/www/wwwroot/YOUR_SITE/admin/scripts/check-google-indexing.php' >> /www/wwwroot/YOUR_SITE/admin/storage/indexing.log 2>&1
 
 # 3. Sports Logo Enrichment - runs daily at 03:00 AM

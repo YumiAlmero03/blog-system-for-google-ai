@@ -8,9 +8,9 @@ Customer chat uses the existing `/api/chat-session.php`, with token-authenticate
 - Otherwise AI first answers after the oldest unanswered user message has waited 180 seconds, regardless of agent availability. Additional player messages do not restart the three-minute wait. After a successful AI reply, follow-ups have no added wait until a human replies. Generation, worker queue time, and error backoff still apply.
 - The player must be online: at least one browser connection must have sent a heartbeat within 75 seconds. The supplied client marks hidden tabs offline. Agent availability has the same 75-second expiry and is controlled by the **Available for live support** checkbox on `/admin/live-chat.php`; a visible checked tab sends heartbeats every 25 seconds.
 - A human reply clears the waiting state and ends the active AI conversation. A human reply, new player message, or disconnect during generation causes an obsolete AI answer to be discarded. Worker leases prevent duplicate generation across concurrent workers.
-- The AI uses Ollama chat directly, with no web-search requests. Enabled automatic-response rules provide support knowledge (up to 20 KB) alongside the last 20 messages. Its display name is configured in **Settings → AI Chat Name** (default `Alex`, stored as `chat_ai_name` in `app_settings`). It does not announce an AI handoff or volunteer an AI introduction, but answers honestly if asked. It is instructed not to invent site policies, bonus offers, account information, or completed transactions.
+- The AI uses OpenRouter Chat Completions directly (`https://openrouter.ai/api/v1/chat/completions`), with no web-search requests. Enabled automatic-response rules provide support knowledge (up to 20 KB) alongside the last 20 messages. Its display name is configured in **Settings → AI Chat Name** (default `Alex`, stored as `chat_ai_name` in `app_settings`). It does not announce an AI handoff or volunteer an AI introduction, but answers honestly if asked. It is instructed not to invent site policies, bonus offers, account information, or completed transactions.
 - Complete messages are delivered; this does not stream individual model tokens. Delivery normally takes up to two seconds after a reply is saved, plus model generation/worker queue time. The relay polls the shared PHP API internally; browsers receive WebSocket snapshots. A worker processes one AI request at a time.
-- If Ollama fails, the conversation stays waiting and retries use increasing delays from 60 seconds up to 15 minutes. No fabricated success reply is saved.
+- If OpenRouter fails, the conversation stays waiting and retries use increasing delays from 60 seconds up to 15 minutes. No fabricated success reply is saved.
 
 ## Maintain support answers
 
@@ -47,10 +47,10 @@ The worker loads existing `admin/.env` settings. Optional configuration:
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `CHAT_AI_ENABLED` | `1` | Set `0` to disable AI fallback. |
-| `CHAT_AI_MODEL` | `gemma4:31b-cloud` | Chat model override, independent of the enrichment model. |
-| `OLLAMA_HOST` | `http://127.0.0.1:11434` | Existing Ollama server. |
-| `OLLAMA_CHAT_URL` | `<OLLAMA_HOST>/api/chat` | Explicit chat endpoint; e.g. `https://ollama.com/api/chat` for direct cloud access. |
-| `OLLAMA_API_KEY` | Existing configured key | Sent only from the server to Ollama; never send to the frontend. |
+| `CHAT_AI_MODEL` | `nvidia/nemotron-3.5-super-vl:free` | Optional chat model override (falls back to `OPENROUTER_MODEL`). |
+| `OPENROUTER_MODEL` | `nvidia/nemotron-3.5-super-vl:free` | Default OpenRouter model across AI scripts. |
+| `OPENROUTER_API_URL` | `https://openrouter.ai/api/v1/chat/completions` | OpenRouter Chat Completions endpoint. |
+| `OPENROUTER_API_KEY` | Required | Server-side OpenRouter API key; never send to the frontend. |
 | `CHAT_STORAGE_DIR` | `admin/chats` | Shared private session/presence directory; PHP site and worker must use the same directory. |
 | `CHAT_BACKEND_URL` | `http://127.0.0.1:8083/api/chat-session.php` | PHP endpoint used by the Node relay. |
 | `CHAT_ALLOWED_ORIGINS` | Required | Comma-separated allowed browser origins; no wildcard. |
@@ -185,7 +185,7 @@ php admin/test/test-admin-support.php
 node admin/test/test-chat-socket.mjs
 ```
 
-Tests use temporary databases/chat files and a local mock Ollama server. They cover session access, legacy-write rejection, origin checks, message retries, AI eligibility and races, retry delays, WebSocket AI/human delivery, and presence expiry. The HTTP/WebSocket test requires permission to bind localhost ports.
+Tests use temporary databases/chat files and a local mock OpenRouter server. They cover session access, legacy-write rejection, origin checks, message retries, AI eligibility and races, retry delays, WebSocket AI/human delivery, and presence expiry. The HTTP/WebSocket test requires permission to bind localhost ports.
 
 AI failures are silent to players: no error message is added to the transcript or returned by the chat API/WebSocket. Retry timestamps and failure counts remain internal. The worker appends timestamped, sanitized diagnostics (HTTP/cURL codes and a hashed session reference) to `CHAT_STORAGE_DIR/ai-errors.php` (default `admin/chats/ai-errors.php`). This is a log file with a PHP guard returning an empty 404 on HTTP access; it has owner-only permissions. Read it from the server filesystem and include it in server log rotation. Credentials, upstream response bodies and conversation text are never logged. Existing retry backoff continues. Restart the worker after deploying this change.
 

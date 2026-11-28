@@ -208,12 +208,85 @@ function playnow_promo_record_click(string $code): ?array
     });
 }
 
-function playnow_tracker_prune_data(array &$data): bool
+/**
+ * Builds a fast in-memory ignored-IP checker that queries SQLite only once
+ * and memoizes results per IP address.
+ */
+function playnow_tracker_ignored_matcher(): callable
 {
-    if (!function_exists('blog_ip_is_ignored')) {
-        return false;
+    if (!function_exists('blog_ignored_engagement_ips')) {
+        return static fn(string $ip): bool => false;
     }
 
+    $raw = trim(blog_ignored_engagement_ips());
+    if ($raw === '') {
+        return static fn(string $ip): bool => false;
+    }
+
+    $exact = [];
+    $cidrs = [];
+    $entries = preg_split('/[\s,]+/', $raw) ?: [];
+    foreach ($entries as $entry) {
+        $entry = trim($entry);
+        if ($entry === '') {
+            continue;
+        }
+        if (str_contains($entry, '/')) {
+            $cidrs[] = $entry;
+        } else {
+            $exact[$entry] = true;
+        }
+    }
+
+    if (!$exact && !$cidrs) {
+        return static fn(string $ip): bool => false;
+    }
+
+    $memo = [];
+    return static function (string $ip) use ($exact, $cidrs, &$memo): bool {
+        if ($ip === '') {
+            return false;
+        }
+        if (isset($memo[$ip])) {
+            return $memo[$ip];
+        }
+        if (isset($exact[$ip])) {
+            return $memo[$ip] = true;
+        }
+        if ($cidrs && function_exists('blog_ip_matches_cidr')) {
+            foreach ($cidrs as $cidr) {
+                if (blog_ip_matches_cidr($ip, $cidr)) {
+                    return $memo[$ip] = true;
+                }
+            }
+        }
+        return $memo[$ip] = false;
+    };
+}
+
+function playnow_tracker_has_ignored(array $data, ?callable $isIgnored = null): bool
+{
+    $isIgnored ??= playnow_tracker_ignored_matcher();
+    if (isset($data['byIp']) && is_array($data['byIp'])) {
+        foreach ($data['byIp'] as $ip => $_count) {
+            if ($isIgnored((string) $ip)) {
+                return true;
+            }
+        }
+    }
+    if (isset($data['recent']) && is_array($data['recent'])) {
+        foreach ($data['recent'] as $event) {
+            if (is_array($event) && $isIgnored((string) ($event['ip'] ?? ''))) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+function playnow_tracker_prune_data(array &$data, ?callable $isIgnored = null): bool
+{
+    $isIgnored ??= playnow_tracker_ignored_matcher();
     $modified = false;
 
     // 1. Identify all ignored IPs in byIp
@@ -222,7 +295,7 @@ function playnow_tracker_prune_data(array &$data): bool
     if (isset($data['byIp']) && is_array($data['byIp'])) {
         foreach ($data['byIp'] as $ip => $count) {
             $ipStr = (string) $ip;
-            if ($ipStr !== '' && blog_ip_is_ignored($ipStr)) {
+            if ($ipStr !== '' && $isIgnored($ipStr)) {
                 $ignoredIpsInByIp[$ipStr] = (int) $count;
                 $totalIgnoredClicksInByIp += (int) $count;
             }
@@ -235,8 +308,8 @@ function playnow_tracker_prune_data(array &$data): bool
     $removedRecentCount = 0;
 
     foreach ($recent as $event) {
-        $ip = (string) ($event['ip'] ?? '');
-        if ($ip !== '' && blog_ip_is_ignored($ip)) {
+        $ip = is_array($event) ? (string) ($event['ip'] ?? '') : '';
+        if ($ip !== '' && $isIgnored($ip)) {
             $modified = true;
             $removedRecentCount++;
 
@@ -294,17 +367,32 @@ function playnow_tracker_prune_data(array &$data): bool
     return $modified;
 }
 
-function playnow_tracker_sync_ignored(): bool
+function playnow_tracker_sync_ignored(?array &$loadedData = null, ?callable $isIgnored = null): bool
 {
     $path = playnow_promo_path();
     if (!is_file($path)) {
         return false;
     }
+    $isIgnored ??= playnow_tracker_ignored_matcher();
+
+    // Fast path: check without taking an exclusive write lock or rewriting disk when clean.
+    if ($loadedData === null) {
+        $loadedData = playnow_promo_data();
+    }
+    if (!playnow_tracker_has_ignored($loadedData, $isIgnored)) {
+        return false;
+    }
+
     try {
-        $result = playnow_promo_write(static function (array &$data): array {
-            $changed = playnow_tracker_prune_data($data);
+        $updatedData = null;
+        $result = playnow_promo_write(static function (array &$data) use ($isIgnored, &$updatedData): array {
+            $changed = playnow_tracker_prune_data($data, $isIgnored);
+            $updatedData = $data;
             return ['changed' => $changed];
         });
+        if (is_array($updatedData)) {
+            $loadedData = $updatedData;
+        }
         return !empty($result['changed']);
     } catch (Throwable) {
         return false;

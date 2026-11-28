@@ -54,7 +54,13 @@ function games_storage_attach(PDO $pdo): void
         $games->exec('PRAGMA foreign_keys=ON');
         games_schema($games);
         if ($games->query('PRAGMA foreign_key_check')->fetch()) throw new RuntimeException('Game catalogue foreign key check failed.');
-    } finally { flock($lock,LOCK_UN); fclose($lock); }
+    } finally {
+        flock($lock,LOCK_UN);
+        fclose($lock);
+        if (function_exists('blog_storage_sync_ownership')) {
+            blog_storage_sync_ownership();
+        }
+    }
 }
 
 function games_enabled(): bool

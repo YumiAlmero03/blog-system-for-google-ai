@@ -34,26 +34,26 @@ Use `--dry-run` when available before running data imports or enrichment on prod
 
 ### `generate-llms.php`
 
-Create or replace the public site-root `llms.txt` using the existing Ollama configuration. The script reads `sitemap.xml`; if no local file exists it uses local `sitemap-index.xml`, otherwise the configured site's `/sitemap.xml`. `--sitemap` explicitly selects a local XML file or an HTTP(S) sitemap URL. Sitemap indexes are followed recursively, duplicate URLs are removed, and only URLs on the configured site's origin are accepted. All sitemap URLs must be real absolute URLs: replace `https://bygame.ph` and example/test hosts before a production run.
+Create or replace the public site-root `llms.txt` using OpenRouter (`OPENROUTER_API_KEY`, default model `nvidia/nemotron-3.5-super-vl:free`). The script reads `sitemap.xml`; if no local file exists it uses local `sitemap-index.xml`, otherwise the configured site's `/sitemap.xml`. `--sitemap` explicitly selects a local XML file or an HTTP(S) sitemap URL. Sitemap indexes are followed recursively, duplicate URLs are removed, and only URLs on the configured site's origin are accepted. All sitemap URLs must be real absolute URLs: replace `https://bygame.ph` and example/test hosts before a production run.
 
 ```sh
 # Preview generated text without writing (still calls AI).
 php admin/scripts/generate-llms.php --base-url=https://your-domain.com --dry-run
 
-# Create/update www/llms.txt using the configured site and Ollama service.
+# Create/update www/llms.txt using the configured site and OpenRouter service.
 php admin/scripts/generate-llms.php
 
 # Explicit remote sitemap and optional model/output overrides.
-php admin/scripts/generate-llms.php --sitemap=https://your-domain.com/sitemap.xml --base-url=https://your-domain.com --model=gemma4:31b-cloud --max-pages=40 --output=/path/to/www/llms.txt
+php admin/scripts/generate-llms.php --sitemap=https://your-domain.com/sitemap.xml --base-url=https://your-domain.com --model=nvidia/nemotron-3.5-super-vl:free --max-pages=40 --output=/path/to/www/llms.txt
 ```
 
 Options: `--sitemap=PATH_OR_URL`, `--base-url=URL`, `--output=PATH.txt`, `--model=NAME`, `--max-pages=N` (1–100, default 40), `--dry-run`, `--help`. Relative paths resolve from the current working directory. Requires PHP CLI with cURL, DOM/libxml and mbstring. No Games or Odds API plugin is required.
 
-Environment: `SITE_BASE_URL` (or stored SEO site URL), `OLLAMA_GENERATE_URL` (preferred over `OLLAMA_HOST` plus `/api/generate`), optional `OLLAMA_API_KEY`, and model priority `--model`, `LLMS_AI_MODEL`, `OLLAMA_MODEL`, then `gemma4:31b-cloud`. The normal `admin/.env` loader is reused. Local Ollama defaults to `http://127.0.0.1:11434`. The AI key is sent only to the configured AI endpoint, never to sitemap/page requests.
+Environment: `SITE_BASE_URL` (or stored SEO site URL), `OPENROUTER_API_KEY` (required), optional `OPENROUTER_API_URL` (default `https://openrouter.ai/api/v1/chat/completions`), and model priority `--model`, `LLMS_AI_MODEL`, `OPENROUTER_MODEL`, then `nvidia/nemotron-3.5-super-vl:free`. The normal `admin/.env` loader is reused. The API key is sent only to the configured OpenRouter endpoint, never to sitemap/page requests.
 
 The generator scans up to 100 sitemap documents and 50,000 unique URLs, then fetches up to `--max-pages` pages, prioritizing short, shallow paths. This is a curated overview, not a copy of every sitemap entry. It excludes admin/API/login routes, query/fragment URLs, and pages with HTML noindex directives. Public titles, descriptions and short body excerpts are sent to the configured AI service. Navigation, scripts and forms are stripped. Model-generated page IDs are validated against the supplied pages; URLs are assembled by the script. No page or sitemap PHP is executed locally: dynamic sitemaps are fetched over HTTP. Remote redirects are not followed; use canonical URLs returning HTTP 200.
 
-The generated Markdown uses the [llms.txt format](https://llmstxt.org/), with a site heading, summary and grouped links; AI generation uses the [Ollama generate API](https://docs.ollama.com/api/generate). Output replaces the file atomically only after successful fetching, generation and validation. Errors exit 1 and preserve any existing file; an empty/invalid sitemap does not erase it. An adjacent `.lock` file prevents overlapping write runs. `admin/llms.txt`, the existing legacy file, is not modified; the default output is `/llms.txt` at the public site root. No database writes occur.
+The generated Markdown uses the [llms.txt format](https://llmstxt.org/), with a site heading, summary and grouped links; AI generation uses the [OpenRouter Chat Completions API](https://openrouter.ai/docs/api-reference/chat-completion). Output replaces the file atomically only after successful fetching, generation and validation. Errors exit 1 and preserve any existing file; an empty/invalid sitemap does not erase it. An adjacent `.lock` file prevents overlapping write runs. `admin/llms.txt`, the existing legacy file, is not modified; the default output is `/llms.txt` at the public site root. No database writes occur.
 
 Optional daily cron (adjust PHP, paths and server timezone; scheduling is not installed automatically):
 
@@ -84,7 +84,7 @@ In another terminal (local example):
 CHAT_ALLOWED_ORIGINS=http://localhost:8083 CHAT_BACKEND_URL=http://127.0.0.1:8083/api/chat-session.php node admin/scripts/chat-socket/server.mjs
 ```
 
-The PHP worker uses the existing Ollama host/key and defaults specifically to `gemma4:31b-cloud`, with `CHAT_AI_MODEL` as an optional override independent of `OLLAMA_MODEL`. `CHAT_AI_ENABLED=0` disables AI. Optional `--once` scans once; normal mode scans continuously every two seconds. The worker sends recent message text to the configured Ollama service and saves replies in existing private chat files. No web search is used. Node 22+ and the `ws` dependency are required for the relay; Node receives its configuration through process environment variables. Run both as supervised services in production and proxy `/chat-ws` over WSS.
+The PHP worker uses `OPENROUTER_API_KEY` and defaults to `OPENROUTER_MODEL` (`nvidia/nemotron-3.5-super-vl:free`), with `CHAT_AI_MODEL` as an optional chat-specific override. `CHAT_AI_ENABLED=0` disables AI. Optional `--once` scans once; normal mode scans continuously every two seconds. The worker sends recent message text to OpenRouter and saves replies in existing private chat files. No web search is used. Node 22+ and the `ws` dependency are required for the relay; Node receives its configuration through process environment variables. Run both as supervised services in production and proxy `/chat-ws` over WSS.
 
 Tests use temporary storage: `php admin/test/test-chat-realtime.php` and `node admin/test/test-chat-socket.mjs` (local mock AI; requires localhost listeners).
 
@@ -242,7 +242,7 @@ Environment variables:
 
 ### `enrich-game-descriptions.php`
 
-Generate or fill missing game RTP, volatility, short descriptions, and long descriptions using Ollama. Falls back to local generated copy if Ollama fails.
+Generate or fill missing game RTP, volatility, short descriptions, and long descriptions using OpenRouter (`nvidia/nemotron-3.5-super-vl:free`). Falls back to local generated copy if OpenRouter fails.
 
 ```sh
 php admin/scripts/enrich-game-descriptions.php --dry-run --limit=10
@@ -255,25 +255,25 @@ Options:
 
 - `--limit=N`: number of games to process, from 1 to 500. Default: 25.
 - `--offset=N`: database offset. Default: 0.
-- `--timeout=N`: Ollama request timeout in seconds, from 30 to 3600. Default: 420.
-- `--retries=N`: Ollama retry count, from 0 to 5. Default: 1.
-- `--model=NAME`: Ollama model name.
-- `--ollama-url=URL`: direct Ollama generate endpoint.
+- `--timeout=N`: OpenRouter request timeout in seconds, from 30 to 3600. Default: 420.
+- `--retries=N`: OpenRouter retry count, from 0 to 5. Default: 1.
+- `--model=NAME`: OpenRouter model name (default: `nvidia/nemotron-3.5-super-vl:free`).
+- `--api-url=URL`: direct OpenRouter Chat Completions endpoint.
 - `--slug=SLUG`: process one game slug.
 - `--overwrite`: replace existing enrichment values.
 - `--dry-run`: show what would happen without updating rows.
-- `--skip-errors`: accepted by the script output/config, but current PHP flow falls back on generation failures.
-- `--fallback-only`: skip Ollama and use local fallback copy.
+- `--skip-errors`: accepted by the script output/config, while PHP flow falls back on generation failures.
+- `--fallback-only`: skip OpenRouter and use local fallback copy.
 
 Environment variables:
 
-- `OLLAMA_HOST`
-- `OLLAMA_GENERATE_URL`
-- `OLLAMA_MODEL`
+- `OPENROUTER_API_KEY`
+- `OPENROUTER_MODEL`
+- `OPENROUTER_API_URL`
 
 ### `enrich-game-descriptions.py`
 
-Python version of the game enrichment workflow.
+Python version of the game enrichment workflow using OpenRouter (`nvidia/nemotron-3.5-super-vl:free`).
 
 Game selection (including `--all-games` and failed retries) uses the public slot API's exact SQL predicates, exported by `game-eligibility-sql.php` through PHP CLI. Only published, processed, viewable games from approved providers without PH restrictions are eligible. Skipped descriptions and rewrite statuses are preserved; batch summaries count eligible candidates and overlapping skip reasons before pagination. Use the current application database schema; failure to load the shared rules stops enrichment.
 
@@ -283,9 +283,9 @@ python3 admin/scripts/enrich-game-descriptions.py --slug game-slug --overwrite
 python3 admin/scripts/enrich-game-descriptions.py --fallback-only --once
 ```
 
-Options include `--limit`, `--offset`, `--timeout`, `--retries`, `--model`, `--ollama-url`, `--slug`, `--overwrite`, `--dry-run`, `--skip-errors`, `--fallback-only`, `--once`, and `--verbose`.
+Options include `--limit`, `--offset`, `--timeout`, `--retries`, `--model`, `--api-url`, `--slug`, `--overwrite`, `--dry-run`, `--skip-errors`, `--fallback-only`, `--once`, and `--verbose`.
 
-Ollama web search HTTP 429 immediately stops the entire Python enrichment run with exit status 1, without retrying, sleeping, generating content or advancing to another game/batch. This also applies with `--skip-errors` and `--all-games`. The current game is marked `failed` unless `--dry-run` is active; previously saved games are retained. Other search errors keep their existing retry behavior.
+OpenRouter HTTP 429 immediately stops the entire Python enrichment run with exit status 1, without retrying, sleeping, generating content or advancing to another game/batch. This also applies with `--skip-errors` and `--all-games`. The current game is marked `failed` unless `--dry-run` is active; previously saved games are retained. Optional `OPENROUTER_WEB_SEARCH="true"` enables OpenRouter's paid web search plugin (disabled by default for free-tier models).
 
 ## Generated Files
 

@@ -9,6 +9,9 @@ if (PHP_SAPI !== 'cli') {
 
 require_once __DIR__ . '/../../../includes/blog-storage.php';
 
+const ENRICH_DEFAULT_OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const ENRICH_DEFAULT_OPENROUTER_MODEL = 'nvidia/nemotron-3.5-super-vl:free';
+
 function cli_option(string $name): ?string
 {
     global $argv;
@@ -36,80 +39,20 @@ function cli_int_option(string $name, int $default, int $min, int $max): int
     return max($min, min($max, (int) $value));
 }
 
-function ollama_generate_url(): string
+function openrouter_api_url(): string
 {
-    $explicitUrl = env_value('OLLAMA_GENERATE_URL') ?: cli_option('--ollama-url');
+    $explicitUrl = cli_option('--api-url') ?: env_value('OPENROUTER_API_URL');
     if (is_string($explicitUrl) && trim($explicitUrl) !== '') {
         return trim($explicitUrl);
     }
 
-    return ollama_base_url() . '/api/generate';
+    return ENRICH_DEFAULT_OPENROUTER_URL;
 }
 
-function ollama_model(): string
+function openrouter_model(): string
 {
-    $model = cli_option('--model') ?: env_value('OLLAMA_MODEL') ?: ollama_default_model();
+    $model = cli_option('--model') ?: env_value('OPENROUTER_MODEL') ?: ENRICH_DEFAULT_OPENROUTER_MODEL;
     return trim((string) $model);
-}
-
-function ollama_base_url(): string
-{
-    $host = env_value('OLLAMA_HOST');
-    if (!is_string($host) || trim($host) === '') {
-        $host = 'http://127.0.0.1:11434';
-    }
-
-    return rtrim(trim($host), '/');
-}
-
-function ollama_installed_models(): array
-{
-    $url = ollama_base_url() . '/api/tags';
-    $raw = false;
-
-    if (function_exists('curl_init')) {
-        $ch = curl_init($url);
-        if ($ch !== false) {
-            curl_setopt_array($ch, [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_CONNECTTIMEOUT => 3,
-                CURLOPT_TIMEOUT => 10,
-            ]);
-            $raw = curl_exec($ch);
-        }
-    } else {
-        $raw = @file_get_contents($url);
-    }
-
-    if (!is_string($raw) || $raw === '') {
-        return [];
-    }
-
-    $decoded = json_decode($raw, true);
-    if (!is_array($decoded) || !isset($decoded['models']) || !is_array($decoded['models'])) {
-        return [];
-    }
-
-    $models = [];
-    foreach ($decoded['models'] as $model) {
-        if (is_array($model) && isset($model['name']) && is_string($model['name'])) {
-            $models[] = $model['name'];
-        }
-    }
-
-    return $models;
-}
-
-function ollama_default_model(): string
-{
-    $models = ollama_installed_models();
-    foreach (['qwen3.5:9b', 'qwen3:8b', 'qwen3.6:latest', 'gemma4:31b-cloud', 'tinyllama:latest'] as $preferred) {
-        if (in_array($preferred, $models, true)) {
-            return $preferred;
-        }
-    }
-
-    return $models[0] ?? 'qwen3.5:9b';
 }
 
 function random_rtp(): float
@@ -202,7 +145,7 @@ function fallback_generated_copy(array $game, float $rtp, string $volatility): a
 
 function build_prompt(array $game, float $rtp, string $volatility): string
 {
-    return "Do not use thinking mode. Return the final answer only as valid JSON.\n"
+    return "Return the final answer only as valid JSON.\n"
         . "Create original informational casino game copy from the facts below.\n\n"
         . game_context($game, $rtp, $volatility)
         . "\n\nReturn only valid JSON with exactly these keys:\n"
@@ -210,23 +153,55 @@ function build_prompt(array $game, float $rtp, string $volatility): string
         . "- long_description: 650 to 800 words, written under the topic \"Overview & Game Mechanics\". Explain likely gameplay flow, symbols/features in general terms, RTP, volatility, demo play, bankroll pacing, and mobile experience. Do not promise winnings. Do not mention that you are an AI. Do not invent official license details.\n";
 }
 
-function ollama_generate(string $url, string $model, string $prompt, int $timeout): array
+function openrouter_extract_content(mixed $content): string
 {
+    if (is_string($content)) {
+        return $content;
+    }
+    if (is_array($content)) {
+        $parts = [];
+        foreach ($content as $item) {
+            if (is_array($item) && ($item['type'] ?? 'text') === 'text' && is_string($item['text'] ?? null)) {
+                $parts[] = $item['text'];
+            }
+        }
+        return implode('', $parts);
+    }
+    return '';
+}
+
+function openrouter_generate(string $url, string $model, string $prompt, int $timeout): array
+{
+    $apiKey = env_value('OPENROUTER_API_KEY');
+    if (!is_string($apiKey) || trim($apiKey) === '') {
+        throw new RuntimeException('OPENROUTER_API_KEY is not configured in admin/.env.');
+    }
+
     $payload = json_encode([
         'model' => $model,
-        'prompt' => $prompt,
-        'stream' => false,
-        'format' => 'json',
-        'think' => false,
-        'options' => [
-            'temperature' => 0.75,
-            'top_p' => 0.9,
-            'num_predict' => 1400,
+        'messages' => [
+            ['role' => 'user', 'content' => $prompt],
         ],
+        'stream' => false,
+        'temperature' => 0.75,
+        'top_p' => 0.9,
+        'max_tokens' => 4096,
+        'response_format' => ['type' => 'json_object'],
+        'reasoning' => ['effort' => 'low', 'exclude' => true],
     ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
     if (!is_string($payload)) {
-        throw new RuntimeException('Could not encode Ollama request.');
+        throw new RuntimeException('Could not encode OpenRouter request.');
+    }
+
+    $headers = [
+        'Content-Type: application/json',
+        'Authorization: Bearer ' . trim($apiKey),
+        'X-Title: Game-Description-Enricher',
+    ];
+    $referer = env_value('SITE_BASE_URL') ?: (function_exists('site_base_url') ? site_base_url() : '');
+    if (is_string($referer) && filter_var($referer, FILTER_VALIDATE_URL)) {
+        $headers[] = 'HTTP-Referer: ' . rtrim($referer, '/');
     }
 
     if (function_exists('curl_init')) {
@@ -239,9 +214,10 @@ function ollama_generate(string $url, string $model, string $prompt, int $timeou
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST => true,
             CURLOPT_POSTFIELDS => $payload,
-            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+            CURLOPT_HTTPHEADER => $headers,
             CURLOPT_CONNECTTIMEOUT => 10,
             CURLOPT_TIMEOUT => $timeout,
+            CURLOPT_USERAGENT => 'Site-Game-Enricher/1.0',
         ]);
 
         $raw = curl_exec($ch);
@@ -249,43 +225,39 @@ function ollama_generate(string $url, string $model, string $prompt, int $timeou
         $error = curl_error($ch);
 
         if (!is_string($raw) || $raw === '') {
-            throw new RuntimeException('Ollama returned an empty response.' . ($error !== '' ? ' cURL error: ' . $error : ''));
+            throw new RuntimeException('OpenRouter returned an empty response.' . ($error !== '' ? ' cURL error: ' . $error : ''));
         }
         if ($status >= 400) {
-            $models = ollama_installed_models();
-            $suffix = $status === 404 && $models !== []
-                ? ' Installed models: ' . implode(', ', $models) . '. Use --model=' . $models[0] . ' or set OLLAMA_MODEL.'
-                : '';
-            throw new RuntimeException('Ollama returned HTTP ' . $status . ': ' . substr($raw, 0, 300) . $suffix);
+            throw new RuntimeException('OpenRouter returned HTTP ' . $status . ': ' . substr($raw, 0, 300));
         }
     } else {
         $context = stream_context_create([
             'http' => [
                 'method' => 'POST',
-                'header' => "Content-Type: application/json\r\n",
+                'header' => implode("\r\n", $headers) . "\r\nUser-Agent: Site-Game-Enricher/1.0\r\n",
                 'content' => $payload,
                 'timeout' => $timeout,
             ],
         ]);
         $raw = @file_get_contents($url, false, $context);
         if (!is_string($raw) || $raw === '') {
-            throw new RuntimeException('Ollama returned an empty response.');
+            throw new RuntimeException('OpenRouter returned an empty response.');
         }
     }
 
     $decoded = json_decode($raw, true);
-    if (!is_array($decoded) || !isset($decoded['response']) || !is_string($decoded['response'])) {
-        throw new RuntimeException('Ollama returned unexpected JSON: ' . substr($raw, 0, 300));
+    if (!is_array($decoded) || !isset($decoded['choices'][0]['message'])) {
+        throw new RuntimeException('OpenRouter returned unexpected JSON: ' . substr($raw, 0, 300));
     }
 
-    $content = trim($decoded['response']);
-    if ($content === '' && isset($decoded['thinking']) && is_string($decoded['thinking'])) {
-        throw new RuntimeException('Ollama finished thinking but returned an empty final response. Thinking chars: ' . strlen($decoded['thinking']));
+    $content = trim(openrouter_extract_content($decoded['choices'][0]['message']['content'] ?? null));
+    if ($content === '') {
+        throw new RuntimeException('OpenRouter returned an empty completion content.');
     }
 
     $result = decode_generated_json($content);
     if (!is_array($result)) {
-        throw new RuntimeException('Ollama response was not valid content JSON: ' . substr($content, 0, 300));
+        throw new RuntimeException('OpenRouter response was not valid content JSON: ' . substr($content, 0, 300));
     }
 
     return $result;
@@ -322,24 +294,24 @@ function decode_generated_json(string $content): ?array
     return null;
 }
 
-function ollama_generate_with_retries(string $url, string $model, string $prompt, int $timeout, int $retries): array
+function openrouter_generate_with_retries(string $url, string $model, string $prompt, int $timeout, int $retries): array
 {
     $attempts = max(1, $retries + 1);
     $lastException = null;
 
     for ($attempt = 1; $attempt <= $attempts; $attempt++) {
         try {
-            return ollama_generate($url, $model, $prompt, $timeout);
+            return openrouter_generate($url, $model, $prompt, $timeout);
         } catch (Throwable $exception) {
             $lastException = $exception;
             if ($attempt < $attempts) {
-                fwrite(STDERR, 'Ollama attempt ' . $attempt . ' failed: ' . $exception->getMessage() . "\n");
+                fwrite(STDERR, 'OpenRouter attempt ' . $attempt . ' failed: ' . $exception->getMessage() . "\n");
                 sleep(min(5, $attempt));
             }
         }
     }
 
-    throw $lastException instanceof Throwable ? $lastException : new RuntimeException('Ollama generation failed.');
+    throw $lastException instanceof Throwable ? $lastException : new RuntimeException('OpenRouter generation failed.');
 }
 
 function normalize_long_description(string $value): string
@@ -365,8 +337,8 @@ $dryRun = cli_option('--dry-run') !== null;
 $skipErrors = cli_option('--skip-errors') !== null;
 $fallbackOnly = cli_option('--fallback-only') !== null;
 $slug = cli_option('--slug');
-$model = ollama_model();
-$url = ollama_generate_url();
+$model = openrouter_model();
+$url = openrouter_api_url();
 
 $where = [];
 $params = [];
@@ -396,7 +368,7 @@ $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 $stmt->execute();
 $games = $stmt->fetchAll();
 
-echo 'Using Ollama model ' . $model . ' at ' . $url . "\n";
+echo 'Using OpenRouter model ' . $model . ' at ' . $url . "\n";
 echo 'Timeout ' . $timeout . 's, retries ' . $retries . ($skipErrors ? ', skip errors on' : '') . ($fallbackOnly ? ', fallback only on' : '') . ".\n";
 echo 'Found ' . count($games) . " game(s) to enrich.\n";
 
@@ -420,7 +392,7 @@ foreach ($games as $game) {
     $generated = null;
     if (!$fallbackOnly) {
         try {
-            $generated = ollama_generate_with_retries($url, $model, build_prompt($game, $rtp, $volatility), $timeout, $retries);
+            $generated = openrouter_generate_with_retries($url, $model, build_prompt($game, $rtp, $volatility), $timeout, $retries);
         } catch (Throwable $exception) {
             fwrite(STDERR, 'Using fallback for ' . $game['slug'] . ': ' . $exception->getMessage() . "\n");
         }
@@ -438,7 +410,7 @@ foreach ($games as $game) {
         : (string) $game['long_description'];
 
     if ($short === '' || $long === '') {
-        throw new RuntimeException('Ollama did not generate required descriptions for ' . $game['slug'] . '.');
+        throw new RuntimeException('OpenRouter did not generate required descriptions for ' . $game['slug'] . '.');
     }
 
     if ($dryRun) {
