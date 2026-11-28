@@ -45,30 +45,125 @@ function blog_storage_log_error(string $operation, Throwable $exception): void
     ));
 }
 
-function restore_blog_database_from_backup(): void
+function blog_storage_target_owner(): ?array
+{
+    if (!function_exists('posix_geteuid') || posix_geteuid() !== 0) {
+        return null;
+    }
+
+    $storageDir = blog_storage_dir();
+    $probePaths = [
+        $storageDir . '/blogs.sqlite',
+        $storageDir . '/games.sqlite',
+        $storageDir,
+        dirname($storageDir),
+        dirname($storageDir, 2),
+    ];
+
+    foreach ($probePaths as $probe) {
+        if (!file_exists($probe)) {
+            continue;
+        }
+        $uid = @fileowner($probe);
+        $gid = @filegroup($probe);
+        if (is_int($uid) && $uid > 0 && is_int($gid) && $gid > 0) {
+            return ['uid' => $uid, 'gid' => $gid];
+        }
+    }
+
+    if (function_exists('posix_getpwnam')) {
+        foreach (['www', 'www-data', 'nginx', 'apache'] as $webUser) {
+            $info = @posix_getpwnam($webUser);
+            if (is_array($info) && isset($info['uid'], $info['gid'])) {
+                return ['uid' => (int) $info['uid'], 'gid' => (int) $info['gid']];
+            }
+        }
+    }
+
+    return null;
+}
+
+function blog_storage_sync_ownership(): void
+{
+    $owner = blog_storage_target_owner();
+    if ($owner === null) {
+        return;
+    }
+
+    $storageDir = blog_storage_dir();
+    if (!is_dir($storageDir)) {
+        return;
+    }
+
+    $uid = $owner['uid'];
+    $gid = $owner['gid'];
+    @chown($storageDir, $uid);
+    @chgrp($storageDir, $gid);
+
+    $patterns = [
+        $storageDir . '/*.sqlite*',
+        $storageDir . '/*.lock',
+        $storageDir . '/*.json',
+        $storageDir . '/*.log',
+        $storageDir . '/api-cache',
+        $storageDir . '/api-cache/*',
+    ];
+
+    foreach ($patterns as $pattern) {
+        foreach ((glob($pattern) ?: []) as $path) {
+            @chown($path, $uid);
+            @chgrp($path, $gid);
+        }
+    }
+}
+
+function blog_storage_is_corruption_error(Throwable $exception): bool
+{
+    $msg = strtolower($exception->getMessage());
+    foreach ([
+        'integrity check failed',
+        'database disk image is malformed',
+        'file is not a database',
+        'corrupt',
+    ] as $needle) {
+        if (str_contains($msg, $needle)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function restore_blog_database_from_backup(): bool
 {
     $dbPath = blogs_db_path();
     $storageDir = blog_storage_dir();
     $candidates = [];
 
-    foreach ((glob($storageDir . '/blogs.sqlite*') ?: []) as $path) {
-        $name = basename($path);
-        if ($path === $dbPath) {
-            continue;
+    $searchPatterns = [
+        $storageDir . '/blogs.sqlite*',
+        $storageDir . '/blogs-before-games-*.sqlite',
+        $storageDir . '/backups/*/sqlite/blogs.sqlite',
+    ];
+
+    foreach ($searchPatterns as $pattern) {
+        foreach ((glob($pattern) ?: []) as $path) {
+            $name = basename($path);
+            if ($path === $dbPath || !is_file($path) || (int) @filesize($path) <= 0) {
+                continue;
+            }
+            if (str_ends_with($name, '-wal') || str_ends_with($name, '-shm') || str_contains($name, '.corrupt-')) {
+                continue;
+            }
+            $candidates[$path] = $path;
         }
-        if (str_ends_with($name, '-wal') || str_ends_with($name, '-shm')) {
-            continue;
-        }
-        if (str_contains($name, '.corrupt-')) {
-            continue;
-        }
-        if (!preg_match('/^blogs\.sqlite(?:\.|$)/', $name)) {
-            continue;
-        }
-        $candidates[] = $path;
     }
 
+    $candidates = array_values($candidates);
     usort($candidates, static fn (string $a, string $b): int => filemtime($b) <=> filemtime($a));
+
+    if ($candidates === []) {
+        return false;
+    }
 
     foreach ($candidates as $candidate) {
         foreach ([$dbPath, $dbPath . '-wal', $dbPath . '-shm'] as $pathToRemove) {
@@ -78,16 +173,13 @@ function restore_blog_database_from_backup(): void
         }
 
         if (@copy($candidate, $dbPath)) {
-            @chmod($dbPath, 0600);
-            return;
+            @chmod($dbPath, 0660);
+            blog_storage_sync_ownership();
+            return true;
         }
     }
 
-    foreach ([$dbPath, $dbPath . '-wal', $dbPath . '-shm'] as $pathToRemove) {
-        if (@is_file($pathToRemove)) {
-            @unlink($pathToRemove);
-        }
-    }
+    return false;
 }
 
 function ensure_blog_storage_dir(): void
@@ -96,17 +188,24 @@ function ensure_blog_storage_dir(): void
     if (!is_dir($dir) && !@mkdir($dir, 0700, true) && !is_dir($dir)) {
         throw new RuntimeException('Blog storage directory unavailable.');
     }
+    blog_storage_sync_ownership();
 }
 
 function blogs_pdo(): PDO
 {
     static $pdo = null;
+    static $shutdownRegistered = false;
 
     if ($pdo instanceof PDO) {
         return $pdo;
     }
 
     ensure_blog_storage_dir();
+
+    if (!$shutdownRegistered && function_exists('posix_geteuid') && posix_geteuid() === 0) {
+        $shutdownRegistered = true;
+        register_shutdown_function('blog_storage_sync_ownership');
+    }
 
     $dbPath = blogs_db_path();
     $createPdo = static function (): PDO {
@@ -130,34 +229,41 @@ function blogs_pdo(): PDO
         }
     } catch (Throwable $exception) {
         blog_storage_log_error('db-restore', $exception);
-        restore_blog_database_from_backup();
-
-        if (!is_file($dbPath)) {
-            touch($dbPath);
-        }
-
-        try {
+        if (!blog_storage_is_corruption_error($exception) && is_file($dbPath) && (int) @filesize($dbPath) > 0) {
+            // Permission or lock failure: try fixing root->www ownership once before failing, never wipe the DB.
+            blog_storage_sync_ownership();
             $pdo = $createPdo();
-            $integrity = $pdo->query('PRAGMA integrity_check')->fetchColumn();
-            if ($integrity !== 'ok') {
-                throw new RuntimeException('Recovered SQLite database is still invalid: ' . (string) $integrity);
+        } else {
+            restore_blog_database_from_backup();
+
+            if (!is_file($dbPath)) {
+                touch($dbPath);
             }
-        } catch (Throwable $recoveryException) {
-            blog_storage_log_error('db-recovery', $recoveryException);
-            $pdo = new PDO('sqlite:' . $dbPath, null, null, [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_EMULATE_PREPARES => false,
-            ]);
-            $pdo->exec('PRAGMA busy_timeout = 5000');
-            $pdo->exec('PRAGMA journal_mode = DELETE');
-            $pdo->exec('PRAGMA foreign_keys = ON');
+
+            try {
+                $pdo = $createPdo();
+                $integrity = $pdo->query('PRAGMA integrity_check')->fetchColumn();
+                if ($integrity !== 'ok') {
+                    throw new RuntimeException('Recovered SQLite database is still invalid: ' . (string) $integrity);
+                }
+            } catch (Throwable $recoveryException) {
+                blog_storage_log_error('db-recovery', $recoveryException);
+                $pdo = new PDO('sqlite:' . $dbPath, null, null, [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                    PDO::ATTR_EMULATE_PREPARES => false,
+                ]);
+                $pdo->exec('PRAGMA busy_timeout = 5000');
+                $pdo->exec('PRAGMA journal_mode = DELETE');
+                $pdo->exec('PRAGMA foreign_keys = ON');
+            }
         }
     }
 
     if (function_exists('games_storage_attach')) games_storage_attach($pdo);
     blogs_schema($pdo);
     blogs_migrate_json($pdo);
+    blog_storage_sync_ownership();
 
     return $pdo;
 }

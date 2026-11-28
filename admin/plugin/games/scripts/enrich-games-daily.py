@@ -11,7 +11,7 @@ from datetime import datetime
 
 def main():
     script = Path(__file__).resolve().with_name('enrich-game-descriptions.py')
-    # Cron often has a minimal PATH; include Homebrew for local PHP/Ollama setups.
+    # Cron often has a minimal PATH; include Homebrew/local paths for PHP CLI.
     os.environ['PATH'] = os.environ.get('PATH', '/usr/bin:/bin') + ':/opt/homebrew/bin:/usr/local/bin'
     runtime = json.loads(subprocess.check_output(['php', str(script.with_name('runtime.php'))], text=True))
     storage = Path(runtime['games']).parent
@@ -29,7 +29,7 @@ def main():
                 return 0
             result = subprocess.run(
                 [sys.executable, '-u', str(script), '--only-unprocessed', '--overwrite',
-                 '--limit=20', '--once', '--model=gemma4:31b-cloud'],
+                 '--limit=20', '--once'],
                 cwd=script.parents[4], stdout=log, stderr=subprocess.STDOUT,
             )
             print(f'Daily enrichment finished with exit code {result.returncode}', file=log)

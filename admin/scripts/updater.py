@@ -151,6 +151,49 @@ def inspect_bundle(archive):
     return manifest
 
 
+def resolve_runtime_owner(root, db):
+    for candidate in (db, db.parent, root / 'admin', root):
+        if candidate.exists():
+            st = candidate.stat()
+            if st.st_uid > 0 and st.st_gid > 0:
+                return st.st_uid, st.st_gid
+    try:
+        import pwd
+        for name in ('www', 'www-data', 'nginx', 'apache'):
+            try:
+                pw = pwd.getpwnam(name)
+                return pw.pw_uid, pw.pw_gid
+            except KeyError:
+                continue
+    except ImportError:
+        pass
+    st = db.stat() if db.exists() else root.stat()
+    return st.st_uid, st.st_gid
+
+
+def restore_runtime_ownership(root, db, owner):
+    if os.geteuid() != 0 or not owner:
+        return
+    uid, gid = owner
+    for directory in (db.parent, root / 'admin/storage', root / 'admin/uploads', root / 'uploads'):
+        if not directory.is_dir():
+            continue
+        os.chown(directory, uid, gid)
+        for dirpath, dirnames, filenames in os.walk(directory):
+            os.chown(dirpath, uid, gid)
+            for dname in dirnames:
+                p = Path(dirpath) / dname
+                if not p.is_symlink():
+                    os.chown(p, uid, gid)
+            for fname in filenames:
+                p = Path(dirpath) / fname
+                if not p.is_symlink():
+                    os.chown(p, uid, gid)
+    for sitemap in root.glob('sitemap*.xml'):
+        if sitemap.is_file() and not sitemap.is_symlink():
+            os.chown(sitemap, uid, gid)
+
+
 def install(args):
     root = Path(args.root).resolve()
     archive = Path(__file__).resolve().with_name('site-update.zip')
@@ -172,6 +215,7 @@ def install(args):
     game_db = db.with_name('games.sqlite')
     if not db.is_file():
         raise RuntimeError(f'Existing database not found: {db}. Check server storage configuration.')
+    runtime_owner = resolve_runtime_owner(root, db)
     print(f'Validated full update: {len(manifest["files"])} files. Database: {db}')
     if args.check:
         print('Check complete; no files or database records changed.')
@@ -225,7 +269,9 @@ def install(args):
                     safe_target(root, name).unlink(missing_ok=True)
             php_run(php, root, 'require "admin/includes/blog-storage.php"; blogs_pdo(); blog_clear_api_cache();')
             subprocess.run([php, 'admin/scripts/generate-game-sitemaps.php'], cwd=root, check=True)
+            restore_runtime_ownership(root, db, runtime_owner)
         except Exception:
+            restore_runtime_ownership(root, db, runtime_owner)
             print(f'Update incomplete. Keep maintenance enabled. Code/database backup and restore-info.json: {backup}', file=sys.stderr)
             raise
         print(f'Update complete. Verify the site, resume jobs, and remove uploaded updater.py and site-update.zip. Backup: {backup}')

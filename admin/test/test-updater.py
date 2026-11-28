@@ -23,6 +23,11 @@ class UpdaterTests(unittest.TestCase):
         for name in ('index.html', 'blog/view.php', 'assets/app.js', 'games/a/index.html',
                      'src/App.tsx', 'admin/storage/private.php', '../index.html'):
             self.assertFalse(updater.deletion_allowed(name), name)
+        for name in ('admin/storage/blogs.sqlite', 'admin/storage/customer-tickets.json',
+                     'admin/uploads/image.webp', 'admin/chats/session.json',
+                     'admin/data/export.json', 'uploads/blogs/image.webp'):
+            self.assertFalse(updater.allowed(name), name)
+            self.assertFalse(updater.deletion_allowed(name), name)
         self.assertTrue(updater.deletion_allowed('api/obsolete.php'))
         with tempfile.TemporaryDirectory() as directory:
             archive = Path(directory) / 'bad.zip'
@@ -71,22 +76,42 @@ class UpdaterTests(unittest.TestCase):
                      'admin/new/deep/page.php': '<?php echo "new";'}
             for name, data in files.items():
                 write(source, name, data)
+            excluded_source_files = {
+                'admin/storage/blogs.sqlite': 'source database',
+                'admin/storage/customer-tickets.json': 'source tickets',
+                'admin/chats/session.json': 'source chat',
+                'admin/data/export.json': 'source export',
+                'admin/uploads/image.webp': 'source admin upload',
+                'uploads/blogs/image.webp': 'source upload',
+            }
+            for name, data in excluded_source_files.items():
+                write(source, name, data)
             write(site, 'admin/includes/blog-storage.php', storage)
             (site / 'admin/includes/blog-storage.php').chmod(0o600)
             write(site, 'admin/.env', 'KEEP_PRIVATE=1')
             (site / 'admin/.env').chmod(0o600)
             write(site, 'uploads/blogs/keep.webp', 'existing upload')
-            (site / 'admin/storage').mkdir()
+            write(site, 'admin/storage/customer-tickets.json', '{"ticket":"keep"}')
+            write(site, 'admin/chats/session.json', '{"chat":"keep"}')
+            write(site, 'admin/data/export.json', '{"data":"keep"}')
+            write(site, 'admin/uploads/image.webp', 'existing admin upload')
             with sqlite3.connect(site / 'admin/storage/blogs.sqlite') as db:
                 db.execute('CREATE TABLE marker(value TEXT)')
                 db.execute("INSERT INTO marker VALUES ('keep')")
+            with sqlite3.connect(site / 'admin/storage/games.sqlite') as db:
+                db.execute('CREATE TABLE marker(value TEXT)')
+                db.execute("INSERT INTO marker VALUES ('keep-game')")
             git('add', '-A')
             git('-c', 'user.name=Test', '-c', 'user.email=test@example.test', 'commit', '-qm', 'Backend split')
             updater.build(source)
             output = source / 'admin/update-packages/full'
             with zipfile.ZipFile(output / 'site-update.zip') as bundle:
                 manifest = json.loads(bundle.read('_update_manifest.json'))
+                bundled_files = set(bundle.namelist())
             self.assertEqual(manifest['delete'], ['api/obsolete.php'])
+            for name in excluded_source_files:
+                self.assertNotIn(name, manifest['files'])
+                self.assertNotIn(name, bundled_files)
             for name in ('updater.py', 'site-update.zip'):
                 shutil.copyfile(output / name, site / name)
             command = ['python3', str(site / 'updater.py')]
@@ -104,10 +129,20 @@ class UpdaterTests(unittest.TestCase):
             self.assertEqual((site / 'admin/new/deep').stat().st_mode & 0o777, 0o755)
             self.assertEqual((site / 'admin/.env').stat().st_mode & 0o777, 0o600)
             self.assertEqual((site / 'uploads/blogs/keep.webp').read_text(), 'existing upload')
+            self.assertEqual((site / 'admin/storage/customer-tickets.json').read_text(), '{"ticket":"keep"}')
+            self.assertEqual((site / 'admin/chats/session.json').read_text(), '{"chat":"keep"}')
+            self.assertEqual((site / 'admin/data/export.json').read_text(), '{"data":"keep"}')
+            self.assertEqual((site / 'admin/uploads/image.webp').read_text(), 'existing admin upload')
             with sqlite3.connect(site / 'admin/storage/blogs.sqlite') as db:
                 self.assertEqual(db.execute('SELECT value FROM marker').fetchone(), ('keep',))
+            with sqlite3.connect(site / 'admin/storage/games.sqlite') as db:
+                self.assertEqual(db.execute('SELECT value FROM marker').fetchone(), ('keep-game',))
             backup = next((workspace / '.site-update-backups').glob('site-*'))
             self.assertTrue((backup / 'files/api/obsolete.php').exists())
+            with sqlite3.connect(backup / 'blogs.sqlite') as db:
+                self.assertEqual(db.execute('SELECT value FROM marker').fetchone(), ('keep',))
+            with sqlite3.connect(backup / 'games.sqlite') as db:
+                self.assertEqual(db.execute('SELECT value FROM marker').fetchone(), ('keep-game',))
 
 
 if __name__ == '__main__':

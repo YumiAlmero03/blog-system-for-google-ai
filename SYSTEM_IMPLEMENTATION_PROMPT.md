@@ -40,7 +40,7 @@ Ensure `admin/.env.example` documents every environment variable with clear comm
   - `SLOTSLAUNCH_ORIGIN` (registered website origin for SlotsLaunch API requests; falls back to `SLOTSLAUNCH_SITE_DOMAIN`)
 - **Support, AI & Google Indexing**:
   - `TICKET_FROM_EMAIL` (sender email for support tickets)
-  - `OLLAMA_API_KEY` (plus optional `OLLAMA_MODEL`, `OLLAMA_HOST` for daily game enrichment and AI chat worker)
+  - `OPENROUTER_API_KEY` (plus optional `OPENROUTER_MODEL` defaulting to `nvidia/nemotron-3.5-super-vl:free`, `OPENROUTER_API_URL`, `CHAT_AI_MODEL`, `LLMS_AI_MODEL`, `OPENROUTER_WEB_SEARCH` for daily game enrichment, `llms.txt` generation, and AI chat worker)
   - `GOOGLE_PRIVATE_DIR` (directory outside web root, or inside protected `admin/storage/.google-private` on open_basedir hosts)
   - `GOOGLE_INDEXING_ENABLED` (`"false"` by default unless pages use supported Google Indexing API schema such as `JobPosting` or `BroadcastEvent`; Search Console sitemap submission & URL Inspection work independently)
   - `GOOGLE_INDEXING_DAILY_LIMIT` (default `"200"`)
@@ -141,7 +141,7 @@ Configure these recurring CLI jobs in aaPanel Cron or system crontab (all runnin
 2. **Every 30 minutes**: `php admin/scripts/check-google-indexing.php` (Sitemap submission, URL Inspection & IndexNow)
 3. **Daily 03:00**: `php admin/plugin/odds-api/scripts/daily-sports-images.php` (Sports team/tournament logo enrichment)
 4. **Daily 04:00**: `php admin/plugin/games/scripts/generate-game-sitemaps.php` (Game XML sitemaps & `sitemap-index.xml`)
-5. **Daily 02:00 (Optional)**: `python3 admin/plugin/games/scripts/enrich-games-daily.py` (AI game descriptions via Ollama, max 20/run)
+5. **Daily 02:00 (Optional)**: `python3 admin/plugin/games/scripts/enrich-games-daily.py` (AI game descriptions via OpenRouter `nvidia/nemotron-3.5-super-vl:free`, max 20/run)
 6. **Weekly Sun 05:00 (Optional)**: `php admin/plugin/odds-api/scripts/sync-odds-participants.php` (Sports participant rosters)
 
 ---

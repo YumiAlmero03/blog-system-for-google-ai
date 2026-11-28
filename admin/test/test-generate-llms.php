@@ -26,17 +26,18 @@ $fixtures=[
 $fetch=static fn(string $url):string=>$fixtures[$url] ?? throw new RuntimeException('Missing fixture');
 $document=['title'=>'Example Site','summary'=>'A collection of guides.','sections'=>[['name'=>'Pages','pages'=>[['id'=>0,'title'=>'Home','description'=>'Browse the guides.'],['id'=>1,'title'=>'About','description'=>'About the site.']]]]];
 $ai=static function(string $url,array $payload)use($document):string{
-    llms_check($url==='http://localhost:11434/api/generate' && $payload['model']==='fixture-model','AI configuration');
-    llms_check($payload['stream']===false && $payload['format']==='json','Nonstreaming JSON');
-    $prompt=json_decode($payload['prompt'],true);
+    llms_check($url==='https://openrouter.ai/api/v1/chat/completions' && $payload['model']==='nvidia/nemotron-3.5-super-vl:free','AI configuration');
+    llms_check($payload['stream']===false && ($payload['response_format']['type'] ?? '')==='json_object','Nonstreaming OpenRouter JSON mode');
+    $userMsg=$payload['messages'][1]['content'] ?? '';
+    $prompt=json_decode($userMsg,true);
     llms_check(count($prompt['pages'])===2 && $prompt['total_sitemap_urls']===3,'Noindex excluded, sitemap count retained');
-    llms_check(!str_contains($payload['prompt'],'privateJS') && !str_contains($payload['prompt'],'Navigation noise'),'Strip scripts/navigation');
-    return json_encode(['done'=>true,'response'=>json_encode($document)]);
+    llms_check(!str_contains($userMsg,'privateJS') && !str_contains($userMsg,'Navigation noise'),'Strip scripts/navigation');
+    return json_encode(['choices'=>[['message'=>['role'=>'assistant','content'=>json_encode($document)]]]]);
 };
 try {
     $urls=llms_sitemap_urls("$base/sitemap.xml",$base,$fetch);
     llms_check(count($urls)===3 && $urls[0]==="$base/",'Recursive index, cycles, deduplication and private exclusions');
-    $generate=static fn()=>llms_generate("$base/sitemap.xml",$base,'http://localhost:11434/api/generate','fixture-model',40,$fetch,$ai);
+    $generate=static fn()=>llms_generate("$base/sitemap.xml",$base,LLMS_DEFAULT_OPENROUTER_URL,LLMS_DEFAULT_OPENROUTER_MODEL,40,$fetch,$ai);
     $text=$generate();
     llms_check(str_starts_with($text,"# Example Site\n\n> ") && str_contains($text,'[About](https://example.test/about/)'),'Markdown with sitemap URLs');
     $file=$dir.'/llms.txt';
@@ -63,7 +64,7 @@ try {
     llms_reject(fn()=>llms_sitemap_urls("$base/sitemap.xml",$base,static fn()=>'broken XML'),'Malformed XML rejected');
     file_put_contents($dir.'/sitemap.xml',$fixtures["$base/pages.xml"]);
     llms_check(llms_sitemap_urls($dir.'/sitemap.xml',$base,$fetch)===$urls,'Local sitemap supported');
-    llms_reject(fn()=>llms_generate("$base/sitemap.xml",$base,'http://localhost','test',40,$fetch,static fn()=>'{"done":false,"response":"{}"}'),'Incomplete AI response rejected');
+    llms_reject(fn()=>llms_generate("$base/sitemap.xml",$base,LLMS_DEFAULT_OPENROUTER_URL,'test',40,$fetch,static fn()=>'{"choices":[{"message":{"content":""}}]}'),'Incomplete AI response rejected');
     llms_check(glob($dir.'/.llms-*')===[],'Staging files cleaned');
     echo "PASS: $checks llms generation checks (fixture AI; no live requests).\n";
 } finally {

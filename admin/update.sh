@@ -289,18 +289,17 @@ fix_permissions() {
   chmod u+rwX,g+rwX "$PROJECT_ROOT/admin/uploads" "$db_dir"
   [ -d "$(storage_dir)" ] && chmod u+rwX,g+rwX "$(storage_dir)"
 
-  if [ -f "$db_path" ]; then
-    chmod u+rw,g+rw "$db_path"
-    [ -f "$db_path-wal" ] && chmod u+rw,g+rw "$db_path-wal"
-    [ -f "$db_path-shm" ] && chmod u+rw,g+rw "$db_path-shm"
-  fi
+  for f in "$db_dir"/*.sqlite* "$db_dir"/*.lock "$db_dir"/*.json "$db_dir"/*.log; do
+    [ -e "$f" ] && chmod u+rw,g+rw "$f"
+  done
 
   runtime_owner="$(stat_owner_group "$db_dir" 2>/dev/null || true)"
+  if [ "$runtime_owner" = "root:root" ] && id -u www >/dev/null 2>&1; then
+    runtime_owner="www:www"
+  fi
   if [ "$(id -u)" -eq 0 ] && [ -n "$runtime_owner" ]; then
-    chown "$runtime_owner" "$PROJECT_ROOT/admin/uploads" "$db_dir"
-    [ -f "$db_path" ] && chown "$runtime_owner" "$db_path"
-    [ -f "$db_path-wal" ] && chown "$runtime_owner" "$db_path-wal"
-    [ -f "$db_path-shm" ] && chown "$runtime_owner" "$db_path-shm"
+    chown -R "$runtime_owner" "$PROJECT_ROOT/admin/uploads" "$db_dir"
+    [ -d "$(storage_dir)" ] && chown -R "$runtime_owner" "$(storage_dir)"
   fi
 }
 

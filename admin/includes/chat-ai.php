@@ -2,12 +2,15 @@
 declare(strict_types=1);
 require_once __DIR__ . '/chat-realtime.php';
 
+const OPENROUTER_DEFAULT_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const OPENROUTER_DEFAULT_MODEL = 'nvidia/nemotron-3.5-super-vl:free';
+
 /** PHP guard prevents HTTP disclosure even on hosts that ignore .htaccess. */
 function chat_ai_log_error(string $id, Throwable $error, string $operation = 'generate'): void
 {
     // Only known diagnostic messages are safe: arbitrary exceptions may contain secrets or prompts.
     $reason = $error->getMessage();
-    if (!preg_match('/^(?:Ollama chat request failed \(HTTP \d{1,3}, cURL \d{1,3}\)\.|Invalid Ollama chat URL\.|Ollama returned no answer\.|Empty AI reply\.)$/D', $reason)) {
+    if (!preg_match('/^(?:OpenRouter chat request failed \(HTTP \d{1,3}, cURL \d{1,3}\)\.|Invalid OpenRouter API URL\.|Missing OpenRouter API key\.|OpenRouter returned no answer\.|Empty AI reply\.)$/D', $reason)) {
         $reason = $error instanceof JsonException ? 'Invalid AI JSON response.' : 'Internal AI processing failure.';
     }
     $line = json_encode(['time'=>gmdate('c'),'session'=>hash('sha256',$id),
@@ -88,13 +91,31 @@ function chat_ai_site_links(array $messages, ?string $pagesFile = null): array
     return array_values(array_map(static function($entry) { unset($entry['score']); return $entry; }, $matches));
 }
 
-function chat_ollama_reply(array $messages, array $rules): string
+function chat_ai_extract_content(mixed $content): string
 {
-    $host = rtrim(env_value('OLLAMA_HOST') ?: 'http://127.0.0.1:11434','/');
-    $url = env_value('OLLAMA_CHAT_URL') ?: $host.'/api/chat';
-    if (!filter_var($url,FILTER_VALIDATE_URL) || !in_array(parse_url($url,PHP_URL_SCHEME),['http','https'],true)) throw new RuntimeException('Invalid Ollama chat URL.');
-    // Chat has its own model so enrichment-model changes do not alter support replies.
-    $model = env_value('CHAT_AI_MODEL') ?: 'gemma4:31b-cloud';
+    if (is_string($content)) {
+        return $content;
+    }
+    if (is_array($content)) {
+        $parts = [];
+        foreach ($content as $item) {
+            if (is_array($item) && ($item['type'] ?? 'text') === 'text' && is_string($item['text'] ?? null)) {
+                $parts[] = $item['text'];
+            }
+        }
+        return implode('', $parts);
+    }
+    return '';
+}
+
+function chat_openrouter_reply(array $messages, array $rules): string
+{
+    $url = env_value('OPENROUTER_API_URL') ?: OPENROUTER_DEFAULT_URL;
+    if (!filter_var($url,FILTER_VALIDATE_URL) || !in_array(parse_url($url,PHP_URL_SCHEME),['http','https'],true)) throw new RuntimeException('Invalid OpenRouter API URL.');
+    $key = env_value('OPENROUTER_API_KEY');
+    if (!is_string($key) || trim($key) === '') throw new RuntimeException('Missing OpenRouter API key.');
+    // Chat has its own optional override so enrichment-model changes do not alter support replies unless shared.
+    $model = env_value('CHAT_AI_MODEL') ?: env_value('OPENROUTER_MODEL') ?: OPENROUTER_DEFAULT_MODEL;
     $knowledge = [];
     $bytes=0;
     foreach ($rules as $rule) {
@@ -121,12 +142,26 @@ function chat_ollama_reply(array $messages, array $rules): string
     foreach (array_slice($messages,-20) as $message) {
         $prompt[]=['role'=>$message['sender']==='user' ? 'user' : 'assistant','content'=>$message['text']];
     }
-    $headers=['Content-Type: application/json'];
-    $key=env_value('OLLAMA_API_KEY');
-    if ($key) $headers[]='Authorization: Bearer '.$key;
+    $headers=[
+        'Content-Type: application/json',
+        'Authorization: Bearer '.trim($key),
+    ];
+    $referer = site_base_url();
+    if (filter_var($referer, FILTER_VALIDATE_URL)) {
+        $headers[] = 'HTTP-Referer: '.$referer;
+    }
+    $headers[] = 'X-Title: Support Chat';
+
+    $payload = [
+        'model' => $model,
+        'messages' => $prompt,
+        'stream' => false,
+        'max_tokens' => 1500,
+        'reasoning' => ['effort' => 'low', 'exclude' => true],
+    ];
     $curl=curl_init($url); $raw='';
     curl_setopt_array($curl,[CURLOPT_POST=>true,CURLOPT_HTTPHEADER=>$headers,
-        CURLOPT_POSTFIELDS=>json_encode(['model'=>$model,'messages'=>$prompt,'stream'=>false,'options'=>['num_predict'=>500]],JSON_THROW_ON_ERROR),
+        CURLOPT_POSTFIELDS=>json_encode($payload,JSON_THROW_ON_ERROR),
         CURLOPT_CONNECTTIMEOUT=>5,CURLOPT_TIMEOUT=>60,CURLOPT_FOLLOWLOCATION=>false,
         CURLOPT_PROTOCOLS=>CURLPROTO_HTTP | CURLPROTO_HTTPS,
         CURLOPT_WRITEFUNCTION=>static function($handle,string $chunk) use (&$raw): int {
@@ -135,11 +170,11 @@ function chat_ollama_reply(array $messages, array $rules): string
         }]);
     try {
         $ok=curl_exec($curl); $status=(int)curl_getinfo($curl,CURLINFO_RESPONSE_CODE);
-        if ($ok===false || $status!==200) throw new RuntimeException('Ollama chat request failed (HTTP '.$status.', cURL '.curl_errno($curl).').');
+        if ($ok===false || $status!==200) throw new RuntimeException('OpenRouter chat request failed (HTTP '.$status.', cURL '.curl_errno($curl).').');
     } finally { unset($curl); }
     $decoded=json_decode($raw,true,512,JSON_THROW_ON_ERROR);
-    $reply=$decoded['message']['content'] ?? null;
-    if (!is_string($reply) || trim($reply)==='') throw new RuntimeException('Ollama returned no answer.');
+    $reply=chat_ai_extract_content($decoded['choices'][0]['message']['content'] ?? null);
+    if (trim($reply)==='') throw new RuntimeException('OpenRouter returned no answer.');
     return chat_clean_message($reply);
 }
 
@@ -158,7 +193,7 @@ function chat_ai_process(string $id, ?callable $generate=null, ?int $now=null): 
     },true);
     if ($job===null) return false;
     try {
-        $text=($generate ?? 'chat_ollama_reply')($job['messages'],chat_auto_rules());
+        $text=($generate ?? 'chat_openrouter_reply')($job['messages'],chat_auto_rules());
         if (!is_string($text) || trim($text)==='') throw new RuntimeException('Empty AI reply.');
     } catch (Throwable $error) {
         chat_ai_log_error($id,$error);

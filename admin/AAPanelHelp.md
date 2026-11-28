@@ -2,7 +2,7 @@
 
 1. create .env
 to create hash password run `` php admin/scripts/generate-password.php `` input desired password then copy the hash generated to .env ADMIN_PASSWORD_HASH
-2. to activate ai assistance get api key from [ollama settings](https://ollama.com/settings/keys) and add it to OLLAMA_API_KEY
+2. to activate AI assistance get an API key from [OpenRouter Keys](https://openrouter.ai/keys) and add it to `OPENROUTER_API_KEY` in `admin/.env` (default model: `nvidia/nemotron-3.5-super-vl:free`)
 
 ## settimg up chat in aapane'
 ### step 1:
@@ -158,7 +158,7 @@ use this for starting
 python3 admin/plugin/games/scripts/enrich-game-descriptions.py \
   --all-games \
   --include-unprocessed \
-  --model=gemma4:31b-cloud \
+  --model=nvidia/nemotron-3.5-super-vl:free \
   --skip-errors \
   --verbose
   ``

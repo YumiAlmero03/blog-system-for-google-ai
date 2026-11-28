@@ -19,6 +19,8 @@ python3 admin/scripts/updater.py --build .
 
 The command creates a matching pair in **`admin/update-packages/full/`**: `updater.py` and `site-update.zip`. Always upload both files from the same build. Rebuild the pair after any further code changes. The package excludes `.env` files, SQLite databases, uploads, chats, logs, generated sitemap XML files, `robots.txt`, and other runtime/private data. PHP sitemap endpoints and sitemap-generation scripts remain part of the application package.
 
+`--build` only creates the local update package; it does not connect to or change aaPanel. On aaPanel, upload the generated `updater.py` and `site-update.zip` to the website root as described below, then run that generated root-level updater. Do not run the repository source at `admin/scripts/updater.py` as the installer: it has no package checksum embedded and refuses installation.
+
 ## 2. Upload the two files in aaPanel
 
 1. Open **aaPanel → Files**.
@@ -54,7 +56,7 @@ After completing the preparation steps, run:
 python3 updater.py
 ```
 
-The updater checks hashes, backs up affected code/configuration and both SQLite databases, validates PHP syntax, installs the application, removes obsolete backend paths, runs database initialization/migrations, clears API caches, and regenerates game sitemaps. Historical frontend deletions are excluded: the server's `index.html`, `blog/`, `game/`, `games/`, `assets/` and other separately deployed frontend paths are preserved. Old packages that list frontend deletions are rejected by the current updater; rebuild and upload the matching pair.
+The updater checks hashes, backs up affected code/configuration and both SQLite databases, validates PHP syntax, installs the application, removes obsolete backend paths, runs database initialization/migrations, clears API caches, and regenerates game sitemaps. Runtime databases, uploads, chats, data files, and `.env` files are excluded from package files and deletion manifests. API cache JSON files are intentionally cleared and regenerated. Historical frontend deletions are excluded: the server's `index.html`, `blog/`, `game/`, `games/`, `assets/` and other separately deployed frontend paths are preserved. Old packages that list frontend deletions are rejected by the current updater; rebuild and upload the matching pair.
 
 Installed code files are readable by the web server (at least `0644`), and application directories are traversable (`0755`), including with a restrictive deployment umask. Existing executable bits are retained. When run as root, replacement files keep their existing owner/group and new directories/files inherit the nearest application directory's owner/group. Private `.env`, storage and upload permissions are not changed.
 
@@ -113,12 +115,11 @@ After deployment, open **Games → Games Settings** to enable/disable all games.
 Keep these settings in the server's `admin/.env`:
 
 ```dotenv
-OLLAMA_API_KEY=your_actual_api_key
-OLLAMA_MODEL=gemma4:31b-cloud
-OLLAMA_HOST=http://127.0.0.1:11434
+OPENROUTER_API_KEY=your_actual_openrouter_api_key
+OPENROUTER_MODEL=nvidia/nemotron-3.5-super-vl:free
 ```
 
-Ollama must be accessible at that address on the server. In **aaPanel → Cron**, create one **Shell Script** task scheduled **Daily at 02:00**:
+In **aaPanel → Cron**, create one **Shell Script** task scheduled **Daily at 02:00**:
 
 ```sh
 cd /www/wwwroot/YOUR_SITE_FOLDER && /usr/bin/python3 admin/scripts/enrich-games-daily.py

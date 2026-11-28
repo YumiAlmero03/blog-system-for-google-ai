@@ -20,18 +20,6 @@ try {
 } catch (Throwable $error) {
     $failed=true; fwrite(STDERR,"Google inspection failed. Check private configuration and server logs.\n");
 }
-try {
-    $autoQueued = indexing_google_queue_unindexed($pdo);
-    if ($autoQueued > 0) {
-        echo 'Google Indexing API auto-queue: ' . $autoQueued . " unindexed/unsubmitted URL(s) queued.\n";
-    }
-    $submittedCount = indexing_google_process_queue($pdo);
-    $dailyLimit = google_indexing_daily_limit();
-    $remaining = google_indexing_quota_remaining($pdo, $dailyLimit);
-    echo 'Google Indexing API: ' . $submittedCount . ' URL notification(s) published (quota remaining: ' . $remaining . '/' . $dailyLimit . ").\n";
-} catch (Throwable $error) {
-    $failed=true; error_log('Google Indexing API worker failed; queued notifications retained.');
-}
 try { echo 'IndexNow: '.indexnow_process_queue($pdo)." URL notification(s) accepted.\n"; }
 catch (Throwable $error) { $failed=true; error_log('IndexNow worker failed; queued notifications retained.'); }
 exit($failed?1:0);

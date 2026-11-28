@@ -273,7 +273,7 @@ try {
     }
     $insert = null;
     [$status, $body] = ai_handler(['path' => '/admin/index-checker/index.php', 'role' => 'admin', 'method' => 'GET']);
-    ai_check($status === 200 && str_contains($body, 'Automated Index Submission (Cron)'), 'Index Checker displays Automated Index Submission panel');
+    ai_check($status === 200 && str_contains($body, 'Google Indexing API (Manual Submissions)'), 'Index Checker displays manual Google Indexing API panel');
     ai_check(str_contains($body, 'Run Auto-Submit Batch Now'), 'Index Checker displays Run Auto-Submit Batch Now button');
     ai_check(str_contains($body, 'Optional GSC Browser Worker'), 'Index Checker displays optional GSC Browser Worker section');
     ai_check(!str_contains($body, $stateDir) && !str_contains($body, 'PRIVATE KEY'), 'Admin HTML must not leak private paths or keys');
@@ -283,7 +283,7 @@ try {
     [$status] = ai_handler(['path' => '/admin/index-checker/index.php', 'role' => 'admin', 'bad_csrf' => true, 'method' => 'POST', 'post' => ['action' => 'run_auto_submit']]);
     ai_check($status === 403, 'CSRF required for run_auto_submit');
 
-    echo "PASS: auto-submit toggle, unindexed backfill & eligibility filtering, blog->page->game priority, batch/quota/cooldown, manual deduplication, read-only GSC browser ledger status, and admin UI permissions.\n";
+    echo "PASS: manual auto-submit toggle, unindexed backfill & eligibility filtering, blog->page->game priority, batch/quota/cooldown, manual deduplication, read-only GSC browser ledger status, and admin UI permissions.\n";
 } finally {
     session_write_close();
     ai_remove($dir);

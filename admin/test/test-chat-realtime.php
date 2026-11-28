@@ -70,7 +70,7 @@ try {
     chat_update_session($id,static function(array $row): array { $row['pendingSince']=time()-180; return $row; },true);
     $calls=0;
     $beforeFailure=chat_read_session($id)['messages'];
-    chat_ai_process($id,static function() use (&$calls) { $calls++; throw new RuntimeException('Ollama chat request failed (HTTP 429, cURL 0).'); });
+    chat_ai_process($id,static function() use (&$calls) { $calls++; throw new RuntimeException('OpenRouter chat request failed (HTTP 429, cURL 0).'); });
     chat_ai_process($id,static function() use (&$calls) { $calls++; return 'Unexpected'; });
     rt_check($calls===1 && chat_read_session($id)['aiRetryAt']>time(),'Failed AI backs off');
     $public=chat_realtime_action($auth+['action'=>'poll']);

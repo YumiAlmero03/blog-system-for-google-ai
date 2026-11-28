@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-# python3 -m scripts.enrich_game_descriptions /help
+# python3 admin/plugin/games/scripts/enrich-game-descriptions.py --help
 # --limit 25 = limits the number of games processed per batch
-# --offset 0 = skips the first N games in the query 
-# --timeout 420 = seconds to wait for Ollama to respond
-# --retries 1 = number of times to retry Ollama generation on failure
-# --model = Ollama model to use (default: env OLLAMA_MODEL or first installed preferred model)
-# --ollama-url = Ollama generate endpoint (default: env OLLAMA_GENERATE
+# --offset 0 = skips the first N games in the query
+# --timeout 420 = seconds to wait for OpenRouter to respond
+# --retries 1 = number of times to retry OpenRouter generation on failure
+# --model = OpenRouter model to use (default: env OPENROUTER_MODEL or nvidia/nemotron-3.5-super-vl:free)
+# --api-url = OpenRouter chat completions endpoint (default: env OPENROUTER_API_URL or https://openrouter.ai/api/v1/chat/completions)
 # --slug = process only the game with this slug
 # --overwrite = overwrite descriptions; preserve existing stats and randomly fill empty ones
-# OLLAMA_API_KEY = required for per-game Ollama web search (except --fallback-only)
+# OPENROUTER_API_KEY = required for OpenRouter generation (except --fallback-only)
 # --include-unprocessed = allow pending processing while retaining other public eligibility checks
 # --dry-run = do not update the database, just print what would be done
-# --skip-errors = skip games that fail Ollama generation instead of stopping the script
-# --fallback-only = do not use Ollama, only use the fallback generation method
+# --skip-errors = skip games that fail OpenRouter generation instead of stopping the script
+# --fallback-only = do not call OpenRouter, only use the local fallback generation method
 # --all-games = enrich all publicly eligible rows, respecting rewrite status
 # --blog-reset = clear all blog posts and engagements
 # --tracker-reset = clear the blog tracker file
@@ -40,13 +40,8 @@ from functools import lru_cache
 ROOT = Path(__file__).resolve().parents[3]
 LOG_PATH = Path(os.environ.get("APP_STORAGE_DIR") or ROOT / "storage") / "enrich-game-descriptions.log"
 LOGGER = logging.getLogger("enrich-game-descriptions")
-PREFERRED_MODELS = [
-    "qwen3.5:9b",
-    "qwen3:8b",
-    "qwen3.6:latest",
-    "gemma4:31b-cloud",
-    "tinyllama:latest",
-]
+DEFAULT_OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+DEFAULT_OPENROUTER_MODEL = "nvidia/nemotron-3.5-super-vl:free"
 
 
 def configure_logging() -> None:
@@ -101,70 +96,8 @@ def env_value(name: str) -> str | None:
     return None
 
 
-def ollama_base_url() -> str:
-    return (env_value("OLLAMA_HOST") or "http://127.0.0.1:11434").rstrip("/")
-
-
-def installed_models() -> list[str]:
-    try:
-        with urllib.request.urlopen(f"{ollama_base_url()}/api/tags", timeout=10) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except Exception as exc:
-        LOGGER.warning("API call command=%s endpoint=/api/tags error=%s", COMMAND_CONTEXT, exc)
-        return []
-
-    models = payload.get("models", [])
-    return [item["name"] for item in models if isinstance(item, dict) and isinstance(item.get("name"), str)]
-
-
-def default_model() -> str:
-    models = installed_models()
-    for preferred in PREFERRED_MODELS:
-        if preferred in models:
-            return preferred
-    return models[0] if models else "qwen3.5:9b"
-
-
-class OllamaSearchRateLimitError(RuntimeError):
-    """Stop the entire enrichment run when web search is rate-limited."""
-
-
-def ollama_search_reference(game: sqlite3.Row, timeout: int, retries: int) -> str:
-    api_key = env_value('OLLAMA_API_KEY')
-    if not api_key:
-        raise RuntimeError('Ollama web search requires OLLAMA_API_KEY in the environment or admin/.env.')
-    query = ' '.join(str(game[field] or '').strip() for field in ('name', 'provider')).strip()
-    request = urllib.request.Request(
-        'https://ollama.com/api/web_search',
-        data=json.dumps({'query': query, 'max_results': 5}).encode('utf-8'),
-        headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {api_key}'},
-        method='POST',
-    )
-    for attempt in range(retries + 1):
-        try:
-            with urllib.request.urlopen(request, timeout=min(timeout, 60)) as response:
-                payload = json.loads(response.read().decode('utf-8'))
-            if not isinstance(payload, dict) or not isinstance(payload.get('results'), list):
-                raise ValueError('Invalid search response')
-            results = []
-            for item in payload['results'][:3]:
-                if not isinstance(item, dict) or not isinstance(item.get('content'), str):
-                    continue
-                results.append({'title': str(item.get('title', ''))[:300],
-                                'url': str(item.get('url', ''))[:2000],
-                                'content': item['content'][:10000]})
-            print(f'Ollama search: {len(results)} source(s) for {game["slug"]}.')
-            return json.dumps(results, ensure_ascii=False)
-        except urllib.error.HTTPError as exc:
-            if exc.code == 429:
-                raise OllamaSearchRateLimitError('Ollama web search failed (HTTP 429).') from None
-            if exc.code not in (500, 502, 503, 504) or attempt == retries:
-                raise RuntimeError(f'Ollama web search failed (HTTP {exc.code}).') from None
-        except (urllib.error.URLError, TimeoutError, ValueError):
-            if attempt == retries:
-                raise RuntimeError('Ollama web search failed or returned invalid data.') from None
-        time.sleep(min(5, attempt + 1))
-    raise RuntimeError('Ollama web search failed.')
+class OpenRouterRateLimitError(RuntimeError):
+    """Stop the entire enrichment run when OpenRouter returns HTTP 429."""
 
 
 def missing_stat(value: Any) -> bool:
@@ -246,7 +179,7 @@ def fallback_generated_copy(game: sqlite3.Row, rtp: float | None, volatility: st
 
 def build_prompt(game: sqlite3.Row, rtp: float | None, volatility: str, reference: str = '') -> str:
     return (
-        "Do not use thinking mode. Return the final answer only as valid JSON.\n"
+        "Return the final answer only as valid JSON.\n"
         "Create original informational casino game copy from the facts below.\n\n"
         f"{game_context(game, rtp, volatility)}\n\n"
         "GAME TYPE RULE: Tailor the entire description to the supplied Type and the searched rules for this exact game. "
@@ -379,51 +312,90 @@ def decode_generated_json(content: str) -> dict[str, Any] | None:
     return None
 
 
-def ollama_generate(url: str, model: str, prompt: str, timeout: int) -> dict[str, Any]:
-    payload = {
+def extract_message_content(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type", "text") == "text" and isinstance(item.get("text"), str):
+                parts.append(item["text"])
+        return "".join(parts)
+    return ""
+
+
+def openrouter_generate(url: str, model: str, prompt: str, timeout: int) -> dict[str, Any]:
+    api_key = env_value("OPENROUTER_API_KEY")
+    if not api_key:
+        raise RuntimeError("Set OPENROUTER_API_KEY in the environment or admin/.env to use OpenRouter.")
+
+    payload: dict[str, Any] = {
         "model": model,
-        "prompt": prompt,
+        "messages": [{"role": "user", "content": prompt}],
         "stream": False,
-        "format": "json",
-        "think": False,
-        "options": {"temperature": 0.75, "top_p": 0.9, "num_predict": 4096},
+        "temperature": 0.75,
+        "top_p": 0.9,
+        "max_tokens": 4096,
+        "response_format": {"type": "json_object"},
+        "reasoning": {"effort": "low", "exclude": True},
     }
+    web_search = (env_value("OPENROUTER_WEB_SEARCH") or "").lower()
+    if web_search in ("1", "true", "yes", "on"):
+        payload["plugins"] = [{"id": "web", "max_results": 3}]
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}",
+        "X-Title": "Game-Description-Enricher",
+        "User-Agent": "Site-Game-Enricher/1.0",
+    }
+    referer = env_value("SITE_BASE_URL") or ""
+    if referer.startswith(("http://", "https://")):
+        headers["HTTP-Referer"] = referer.rstrip("/")
+
     request = urllib.request.Request(
         url,
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
+        headers=headers,
         method="POST",
     )
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             raw = response.read().decode("utf-8")
     except urllib.error.HTTPError as exc:
-        raise RuntimeError(f"Ollama returned HTTP {exc.code}") from exc
+        if exc.code == 429:
+            raise OpenRouterRateLimitError("OpenRouter rate limit reached (HTTP 429).") from None
+        raise RuntimeError(f"OpenRouter returned HTTP {exc.code}") from exc
 
     if not raw:
-        raise RuntimeError("Ollama returned an empty response.")
+        raise RuntimeError("OpenRouter returned an empty response.")
     decoded = json.loads(raw)
-    content = str(decoded.get("response", "")).strip()
-    thinking = decoded.get("thinking")
-    if not content and isinstance(thinking, str):
-        raise RuntimeError(f"Ollama finished thinking but returned an empty final response. Thinking chars: {len(thinking)}")
+    choices = decoded.get("choices") if isinstance(decoded, dict) else None
+    if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+        raise RuntimeError(f"OpenRouter returned unexpected JSON: {raw[:300]}")
+    message = choices[0].get("message") or {}
+    content = extract_message_content(message.get("content")).strip()
+    if not content:
+        raise RuntimeError("OpenRouter returned an empty completion content.")
     result = decode_generated_json(content)
     if result is None:
-        raise RuntimeError(f"Ollama response was not valid content JSON: {content[:300]}")
+        raise RuntimeError(f"OpenRouter response was not valid content JSON: {content[:300]}")
     return result
 
 
-def ollama_generate_with_retries(url: str, model: str, prompt: str, timeout: int, retries: int) -> dict[str, Any]:
+def openrouter_generate_with_retries(url: str, model: str, prompt: str, timeout: int, retries: int) -> dict[str, Any]:
     last_error: Exception | None = None
     for attempt in range(1, max(1, retries + 1) + 1):
         try:
-            return ollama_generate(url, model, prompt, timeout)
+            return openrouter_generate(url, model, prompt, timeout)
+        except OpenRouterRateLimitError:
+            raise
         except Exception as exc:
             last_error = exc
             if attempt <= retries:
-                print(f"Ollama attempt {attempt} failed: {exc}", file=sys.stderr)
+                print(f"OpenRouter attempt {attempt} failed: {exc}", file=sys.stderr)
                 time.sleep(min(5, attempt))
-    raise RuntimeError(str(last_error or "Ollama generation failed."))
+    raise RuntimeError(str(last_error or "OpenRouter generation failed."))
 
 
 def normalize_long_description(value: str) -> str:
@@ -511,13 +483,13 @@ def select_games(conn: sqlite3.Connection, args: argparse.Namespace, include_don
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Enrich game descriptions while preserving imported RTP and volatility.")
+    parser = argparse.ArgumentParser(description="Enrich game descriptions via OpenRouter while preserving imported RTP and volatility.")
     parser.add_argument("--limit", type=int, default=25)
     parser.add_argument("--offset", type=int, default=0)
     parser.add_argument("--timeout", type=int, default=420)
     parser.add_argument("--retries", type=int, default=1)
-    parser.add_argument("--model", default=env_value("OLLAMA_MODEL") or default_model())
-    parser.add_argument("--ollama-url", default=(env_value("OLLAMA_GENERATE_URL") or f"{ollama_base_url()}/api/generate"))
+    parser.add_argument("--model", default=env_value("OPENROUTER_MODEL") or DEFAULT_OPENROUTER_MODEL)
+    parser.add_argument("--api-url", default=env_value("OPENROUTER_API_URL") or DEFAULT_OPENROUTER_URL)
     parser.add_argument("--slug")
     parser.add_argument("--overwrite", action="store_true", help="Replace descriptions; preserve existing stats and randomly fill empty RTP/volatility.")
     parser.add_argument("--include-unprocessed", action="store_true", help="Allow unprocessed games; retain other public checks. Successfully saved content marks games processed.")
@@ -613,11 +585,10 @@ def process_batch(conn: sqlite3.Connection, args: argparse.Namespace, attempt: i
               f"batch {position}/{len(games)} | remaining eligible: {progress['eligible'] - updated}", flush=True)
 
         try:
-            reference = '' if args.fallback_only else ollama_search_reference(game, args.timeout, args.retries)
-            generated = fallback_generated_copy(game, rtp, volatility) if args.fallback_only else ollama_generate_with_retries(
-                args.ollama_url,
+            generated = fallback_generated_copy(game, rtp, volatility) if args.fallback_only else openrouter_generate_with_retries(
+                args.api_url,
                 args.model,
-                build_prompt(game, rtp, volatility, reference),
+                build_prompt(game, rtp, volatility),
                 args.timeout,
                 args.retries,
             )
@@ -638,7 +609,7 @@ def process_batch(conn: sqlite3.Connection, args: argparse.Namespace, attempt: i
                 set_rewrite_status(conn, game_id, "failed")
             log_error(f"game enrichment attempt={attempt}", exc, game)
             print(f"Game {game_id} {game['name']} attempt {attempt} failed: {exc}", file=sys.stderr)
-            if isinstance(exc, OllamaSearchRateLimitError):
+            if isinstance(exc, OpenRouterRateLimitError):
                 raise
             continue
 
@@ -693,6 +664,38 @@ def process_batch(conn: sqlite3.Connection, args: argparse.Namespace, attempt: i
     return len(games), updated
 
 
+def sync_storage_ownership(db_path: str) -> None:
+    if not hasattr(os, "geteuid") or os.geteuid() != 0:
+        return
+    storage_dir = Path(db_path).resolve().parent
+    uid, gid = 0, 0
+    for candidate in (Path(db_path), storage_dir, storage_dir.parent):
+        if candidate.exists():
+            st = candidate.stat()
+            if st.st_uid > 0 and st.st_gid > 0:
+                uid, gid = st.st_uid, st.st_gid
+                break
+    if uid == 0:
+        try:
+            import pwd
+            for name in ("www", "www-data", "nginx", "apache"):
+                try:
+                    pw = pwd.getpwnam(name)
+                    uid, gid = pw.pw_uid, pw.pw_gid
+                    break
+                except KeyError:
+                    continue
+        except ImportError:
+            pass
+    if uid > 0 and gid > 0:
+        for item in storage_dir.glob("*"):
+            if not item.is_symlink():
+                try:
+                    os.chown(item, uid, gid)
+                except OSError:
+                    pass
+
+
 def main() -> int:
     prevent_game_directory_writes()
     args = parse_args()
@@ -705,56 +708,60 @@ def main() -> int:
     if not runtime['enabled']:
         print('Games module disabled; skipping job.')
         return 0
-    if not (args.fallback_only or args.blog_reset or args.tracker_reset or args.reset) and not env_value('OLLAMA_API_KEY'):
-        raise RuntimeError('Set OLLAMA_API_KEY in the environment or admin/.env to use Ollama web search.')
+    if not (args.fallback_only or args.blog_reset or args.tracker_reset or args.reset) and not env_value('OPENROUTER_API_KEY'):
+        raise RuntimeError('Set OPENROUTER_API_KEY in the environment or admin/.env to use OpenRouter.')
 
     conn = sqlite3.connect(runtime['blogs'], timeout=30)
-    conn.execute('ATTACH DATABASE ? AS game_store', (runtime['games'],))
-    conn.row_factory = sqlite3.Row
-    ensure_rewrite_status_column(conn)
+    try:
+        conn.execute('ATTACH DATABASE ? AS game_store', (runtime['games'],))
+        conn.row_factory = sqlite3.Row
+        ensure_rewrite_status_column(conn)
 
-    if args.blog_reset:
-        reset_blogs(conn)
+        if args.blog_reset:
+            reset_blogs(conn)
+            return 0
+        if args.tracker_reset:
+            reset_tracker()
+            return 0
+        if args.reset:
+            reset_all(conn)
+            return 0
+
+        print(f"Using OpenRouter model {args.model} at {args.api_url}")
+        print(
+            f"Timeout {args.timeout}s, retries {args.retries}"
+            + (", skip errors on" if args.skip_errors else "")
+            + (", fallback only on" if args.fallback_only else "")
+            + (", once on" if args.once else "")
+            + "."
+        )
+
+        total_updated = 0
+        batch = 1
+        run_once = args.all_games or args.once or args.dry_run or bool(args.slug) or args.overwrite or args.offset > 0
+        max_attempts = 3 if args.all_games else 1
+        while True:
+            if not run_once:
+                args.offset = 0
+            print(f"Batch {batch}")
+            found, updated = process_batch(conn, args, batch)
+            total_updated += updated
+
+            if run_once and (not args.all_games or batch >= max_attempts):
+                break
+            if found == 0 or batch >= max_attempts:
+                break
+            if updated == 0 and not args.all_games:
+                print("Stopping because this batch did not update any rows.")
+                break
+
+            batch += 1
+
+        print(f"Updated {total_updated} game(s).")
         return 0
-    if args.tracker_reset:
-        reset_tracker()
-        return 0
-    if args.reset:
-        reset_all(conn)
-        return 0
-
-    print(f"Using Ollama model {args.model} at {args.ollama_url}")
-    print(
-        f"Timeout {args.timeout}s, retries {args.retries}"
-        + (", skip errors on" if args.skip_errors else "")
-        + (", fallback only on" if args.fallback_only else "")
-        + (", once on" if args.once else "")
-        + "."
-    )
-
-    total_updated = 0
-    batch = 1
-    run_once = args.all_games or args.once or args.dry_run or bool(args.slug) or args.overwrite or args.offset > 0
-    max_attempts = 3 if args.all_games else 1
-    while True:
-        if not run_once:
-            args.offset = 0
-        print(f"Batch {batch}")
-        found, updated = process_batch(conn, args, batch)
-        total_updated += updated
-
-        if run_once and (not args.all_games or batch >= max_attempts):
-            break
-        if found == 0 or batch >= max_attempts:
-            break
-        if updated == 0 and not args.all_games:
-            print("Stopping because this batch did not update any rows.")
-            break
-
-        batch += 1
-
-    print(f"Updated {total_updated} game(s).")
-    return 0
+    finally:
+        conn.close()
+        sync_storage_ownership(runtime['blogs'])
 
 
 if __name__ == "__main__":

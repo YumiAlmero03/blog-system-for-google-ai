@@ -69,15 +69,15 @@ $title='Index Checker'; require __DIR__ . '/../partials/support-head.php';
 <section style="margin:12px 0;padding:12px 14px;background:var(--surface-soft,#f8f9fa);border:1px solid var(--border,#ddd);border-radius:8px;font-size:0.9rem;">
   <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;">
     <div>
-      <strong>Automated Index Submission (Cron):</strong>
+      <strong>Google Indexing API (Manual Submissions):</strong>
       <?php if (!$autoStatus['google_configured'] || !$autoStatus['indexing_api_enabled']): ?>
         <span>Google Indexing API disabled</span>
       <?php elseif ($autoStatus['google_cooldown_until'] !== null): ?>
         <span style="color:#b76e00;">Cooldown until <?= h(checker_date($autoStatus['google_cooldown_until'])) ?></span>
       <?php elseif ($autoStatus['auto_submit_enabled']): ?>
-        <span style="color:#0d6630;">Active (auto-submits up to <?= (int)$autoStatus['batch_limit'] ?>/run, <?= (int)$autoStatus['daily_limit'] ?>/day, re-submits Not Indexed every <?= (int)$autoStatus['resubmit_days'] ?>d)</span>
+        <span style="color:#0d6630;">Manual auto-submit available (up to <?= (int)$autoStatus['batch_limit'] ?>/run, <?= (int)$autoStatus['daily_limit'] ?>/day, re-submits Not Indexed every <?= (int)$autoStatus['resubmit_days'] ?>d)</span>
       <?php else: ?>
-        <span>Queue only (auto-backfill disabled in SEO Settings)</span>
+        <span>Manual submissions available; automatic backfill disabled in SEO Settings</span>
       <?php endif; ?>
       <br>
       <small style="color:var(--text-muted,#555);">
@@ -109,7 +109,7 @@ $title='Index Checker'; require __DIR__ . '/../partials/support-head.php';
       <?php elseif ($gb['configured']): ?>
         Worker installed and state directory configured, but no ledger exists yet for this property.
       <?php else: ?>
-        Worker files are installed in <code>admin/scripts/gsc-browser/</code>, but browser automation is not enabled. Your automated submissions currently run via Google Indexing API + IndexNow cron without a browser.
+        Worker files are installed in <code>admin/scripts/gsc-browser/</code>, but browser automation is not enabled. Scheduled processing uses Search Console sitemap submission, URL Inspection, and IndexNow; Google per-URL API submissions are manual only.
       <?php endif; ?>
     </p>
   </details>

@@ -29,3 +29,15 @@ Icon?
 .com.apple.timemachine.donotpresent
 __MACOSX/
 /admin/.root-DS_Store
+
+# Python bytecode and tool caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Generated LLM output and temporary files
+llms.txt
+llms.txt.lock
+.llms-*
